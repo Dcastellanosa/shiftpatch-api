@@ -90,7 +90,7 @@ export async function createShift(
 ): Promise<FixtureShift> {
   const window = options.window
   const { rows } = await db.query(
-    'select outcome, shift_id from public.create_shift($1, $2, $3, $4, $5)',
+    'select outcome, shift_id from shiftpatch.create_shift($1, $2, $3, $4, $5)',
     [
       options.actorId ?? USERS.northwindAgency.id,
       options.branchId ?? BRANCHES.downtown.id,
@@ -104,7 +104,7 @@ export async function createShift(
 }
 
 export async function claim(db: Queryable, shiftId: string, nurseId: string): Promise<string> {
-  const { rows } = await db.query('select outcome from public.claim_shift($1, $2)', [shiftId, nurseId])
+  const { rows } = await db.query('select outcome from shiftpatch.claim_shift($1, $2)', [shiftId, nurseId])
   return rows[0].outcome as string
 }
 

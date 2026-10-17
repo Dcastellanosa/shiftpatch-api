@@ -26,7 +26,7 @@ const AVA_CLAIMED_BAYVIEW = seeded('e1000000-0000-4000-8000-000000000007')
 
 const visibleShifts = (userId: string | null) =>
   asUser(pool, userId, async (db) => {
-    const { rows } = await db.query('select id, branch_id, status, assigned_nurse_id from public.shifts')
+    const { rows } = await db.query('select id, branch_id, status, assigned_nurse_id from shiftpatch.shifts')
     return rows as { id: string; branch_id: string; status: string; assigned_nurse_id: string | null }[]
   })
 
@@ -45,10 +45,10 @@ describe('admin', () => {
     expect([...NORTHWIND_BRANCHES, ...HARBOR_BRANCHES].every((id) => branchIds.has(id))).toBe(true)
 
     await asUser(pool, USERS.admin.id, async (db) => {
-      const { rows: agencies } = await db.query('select id from public.agencies')
+      const { rows: agencies } = await db.query('select id from shiftpatch.agencies')
       expect(agencies.map((a) => a.id)).toEqual(expect.arrayContaining([AGENCIES.northwind.id, AGENCIES.harbor.id]))
-      const { rows: events } = await db.query('select count(*)::int as n from public.shift_events')
-      const { rows: all } = await pool.query('select count(*)::int as n from public.shift_events')
+      const { rows: events } = await db.query('select count(*)::int as n from shiftpatch.shift_events')
+      const { rows: all } = await pool.query('select count(*)::int as n from shiftpatch.shift_events')
       expect(events[0].n).toBe(all[0].n)
     })
   })
@@ -64,14 +64,14 @@ describe('agency isolation', () => {
     expect(shifts.every((s) => ownBranches.includes(s.branch_id))).toBe(true)
 
     await asUser(pool, userId, async (db) => {
-      const { rows: agencies } = await db.query('select id from public.agencies')
+      const { rows: agencies } = await db.query('select id from shiftpatch.agencies')
       expect(agencies.map((a) => a.id)).toEqual([agencyId])
 
-      const { rows: branches } = await db.query('select id from public.agency_branches order by id')
+      const { rows: branches } = await db.query('select id from shiftpatch.agency_branches order by id')
       expect(branches.map((b) => b.id).sort()).toEqual([...ownBranches].sort())
 
       const { rows: events } = await db.query(
-        'select s.branch_id from public.shift_events e join public.shifts s on s.id = e.shift_id',
+        'select s.branch_id from shiftpatch.shift_events e join shiftpatch.shifts s on s.id = e.shift_id',
       )
       expect(events.length).toBeGreaterThan(0)
       expect(events.every((e) => ownBranches.includes(e.branch_id))).toBe(true)
@@ -80,7 +80,7 @@ describe('agency isolation', () => {
 
   it('cannot see the other agency’s shift by id', async () => {
     await asUser(pool, USERS.northwindAgency.id, async (db) => {
-      const { rows } = await db.query('select id from public.shifts where id = $1', [OPEN_HILLCREST.id])
+      const { rows } = await db.query('select id from shiftpatch.shifts where id = $1', [OPEN_HILLCREST.id])
       expect(rows).toEqual([])
     })
   })
@@ -88,13 +88,13 @@ describe('agency isolation', () => {
   it('cannot update or delete any shift, including another agency’s', async () => {
     await expectSqlState(
       asUser(pool, USERS.northwindAgency.id, (db) =>
-        db.query(`update public.shifts set title = 'hijacked' where id = $1`, [OPEN_HILLCREST.id]),
+        db.query(`update shiftpatch.shifts set title = 'hijacked' where id = $1`, [OPEN_HILLCREST.id]),
       ),
       '42501',
     )
     await expectSqlState(
       asUser(pool, USERS.northwindAgency.id, (db) =>
-        db.query('delete from public.shifts where id = $1', [OPEN_DOWNTOWN.id]),
+        db.query('delete from shiftpatch.shifts where id = $1', [OPEN_DOWNTOWN.id]),
       ),
       '42501',
     )
@@ -104,7 +104,7 @@ describe('agency isolation', () => {
     await expectSqlState(
       asUser(pool, USERS.northwindAgency.id, (db) =>
         db.query(
-          `insert into public.shifts (branch_id, title, starts_at, ends_at, created_by_id)
+          `insert into shiftpatch.shifts (branch_id, title, starts_at, ends_at, created_by_id)
            values ($1, 'x', now() + interval '1 day', now() + interval '2 days', $2)`,
           [BRANCHES.downtown.id, USERS.northwindAgency.id],
         ),
@@ -138,18 +138,18 @@ describe('nurse visibility', () => {
 
   it('reads only their own profile, credentials and eligibility records', async () => {
     await asUser(pool, USERS.cora.id, async (db) => {
-      const { rows: profiles } = await db.query('select id from public.profiles')
+      const { rows: profiles } = await db.query('select id from shiftpatch.profiles')
       expect(profiles.map((p) => p.id)).toEqual([USERS.cora.id])
 
-      const { rows: credentials } = await db.query('select nurse_id from public.nurse_credentials')
+      const { rows: credentials } = await db.query('select nurse_id from shiftpatch.nurse_credentials')
       expect(credentials.length).toBe(2)
       expect(credentials.every((c) => c.nurse_id === USERS.cora.id)).toBe(true)
 
-      const { rows: eligibility } = await db.query('select nurse_id, status from public.branch_nurse_eligibility')
+      const { rows: eligibility } = await db.query('select nurse_id, status from shiftpatch.branch_nurse_eligibility')
       expect(eligibility.map((e) => e.status).sort()).toEqual(['pending', 'suspended'])
       expect(eligibility.every((e) => e.nurse_id === USERS.cora.id)).toBe(true)
 
-      const { rows: memberships } = await db.query('select id from public.agency_memberships')
+      const { rows: memberships } = await db.query('select id from shiftpatch.agency_memberships')
       expect(memberships).toEqual([])
     })
   })
@@ -157,11 +157,11 @@ describe('nurse visibility', () => {
   it('reads events only for shifts assigned to them', async () => {
     await asUser(pool, USERS.ava.id, async (db) => {
       const { rows } = await db.query(
-        'select distinct s.assigned_nurse_id from public.shift_events e join public.shifts s on s.id = e.shift_id',
+        'select distinct s.assigned_nurse_id from shiftpatch.shift_events e join shiftpatch.shifts s on s.id = e.shift_id',
       )
       expect(rows).toEqual([{ assigned_nurse_id: USERS.ava.id }])
 
-      const { rows: openEvents } = await db.query('select id from public.shift_events where shift_id = $1', [
+      const { rows: openEvents } = await db.query('select id from shiftpatch.shift_events where shift_id = $1', [
         OPEN_DOWNTOWN.id,
       ])
       expect(openEvents).toEqual([])
@@ -171,7 +171,7 @@ describe('nurse visibility', () => {
   it('cannot update shifts, insert events, or call claim_shift directly', async () => {
     await expectSqlState(
       asUser(pool, USERS.ava.id, (db) =>
-        db.query(`update public.shifts set status = 'claimed', assigned_nurse_id = $1 where id = $2`, [
+        db.query(`update shiftpatch.shifts set status = 'claimed', assigned_nurse_id = $1 where id = $2`, [
           USERS.ava.id,
           OPEN_DOWNTOWN.id,
         ]),
@@ -181,14 +181,14 @@ describe('nurse visibility', () => {
     await expectSqlState(
       asUser(pool, USERS.ava.id, (db) =>
         db.query(
-          `insert into public.shift_events (shift_id, actor_id, event_type, new_status) values ($1, $2, 'claimed', 'claimed')`,
+          `insert into shiftpatch.shift_events (shift_id, actor_id, event_type, new_status) values ($1, $2, 'claimed', 'claimed')`,
           [OPEN_DOWNTOWN.id, USERS.ava.id],
         ),
       ),
       '42501',
     )
     await expectSqlState(
-      asUser(pool, USERS.ava.id, (db) => db.query('select public.claim_shift($1, $2)', [OPEN_DOWNTOWN.id, USERS.ava.id])),
+      asUser(pool, USERS.ava.id, (db) => db.query('select shiftpatch.claim_shift($1, $2)', [OPEN_DOWNTOWN.id, USERS.ava.id])),
       '42501',
     )
   })
@@ -197,7 +197,7 @@ describe('nurse visibility', () => {
 describe('self-service escalation is impossible', () => {
   it('a user cannot change their own role', async () => {
     await expectSqlState(
-      asUser(pool, USERS.ava.id, (db) => db.query(`update public.profiles set role = 'admin' where id = $1`, [USERS.ava.id])),
+      asUser(pool, USERS.ava.id, (db) => db.query(`update shiftpatch.profiles set role = 'admin' where id = $1`, [USERS.ava.id])),
       '42501',
     )
   })
@@ -205,7 +205,7 @@ describe('self-service escalation is impossible', () => {
   it('a user cannot grant themselves agency membership', async () => {
     await expectSqlState(
       asUser(pool, USERS.northwindAgency.id, (db) =>
-        db.query(`insert into public.agency_memberships (profile_id, agency_id) values ($1, $2)`, [
+        db.query(`insert into shiftpatch.agency_memberships (profile_id, agency_id) values ($1, $2)`, [
           USERS.northwindAgency.id,
           AGENCIES.harbor.id,
         ]),
@@ -217,7 +217,7 @@ describe('self-service escalation is impossible', () => {
   it('a nurse cannot activate their own branch eligibility', async () => {
     await expectSqlState(
       asUser(pool, USERS.cora.id, (db) =>
-        db.query(`update public.branch_nurse_eligibility set status = 'active', activated_at = now() where nurse_id = $1`, [
+        db.query(`update shiftpatch.branch_nurse_eligibility set status = 'active', activated_at = now() where nurse_id = $1`, [
           USERS.cora.id,
         ]),
       ),
@@ -228,7 +228,7 @@ describe('self-service escalation is impossible', () => {
   it('a nurse cannot edit their own credentials', async () => {
     await expectSqlState(
       asUser(pool, USERS.ben.id, (db) =>
-        db.query(`update public.nurse_credentials set expires_at = '2099-01-01' where nurse_id = $1`, [USERS.ben.id]),
+        db.query(`update shiftpatch.nurse_credentials set expires_at = '2099-01-01' where nurse_id = $1`, [USERS.ben.id]),
       ),
       '42501',
     )

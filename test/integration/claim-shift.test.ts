@@ -20,13 +20,13 @@ async function claimAsService(db: Queryable, shiftId: string, nurseId: string) {
 }
 
 async function shiftRow(shiftId: string) {
-  const { rows } = await pool.query('select status, assigned_nurse_id from public.shifts where id = $1', [shiftId])
+  const { rows } = await pool.query('select status, assigned_nurse_id from shiftpatch.shifts where id = $1', [shiftId])
   return rows[0] as { status: string; assigned_nurse_id: string | null }
 }
 
 async function events(shiftId: string) {
   const { rows } = await pool.query(
-    'select event_type, actor_id, previous_status, new_status from public.shift_events where shift_id = $1 order by occurred_at, id',
+    'select event_type, actor_id, previous_status, new_status from shiftpatch.shift_events where shift_id = $1 order by occurred_at, id',
     [shiftId],
   )
   return rows
@@ -50,8 +50,8 @@ describe('claim_shift: success', () => {
     await inRollback(pool, async (db) => {
       const shift = await createShift(db, { window: nextWindow() })
       await db.query(
-        `update public.nurse_credentials c set expires_at = ($1::timestamptz at time zone 'UTC')::date
-         from public.credential_types t where t.id = c.credential_type_id and t.code = 'tb_test' and c.nurse_id = $2`,
+        `update shiftpatch.nurse_credentials c set expires_at = ($1::timestamptz at time zone 'UTC')::date
+         from shiftpatch.credential_types t where t.id = c.credential_type_id and t.code = 'tb_test' and c.nurse_id = $2`,
         [shift.startsAt, USERS.eli.id],
       )
       expect(await claimAsService(db, shift.id, USERS.eli.id)).toBe('claimed')
@@ -102,7 +102,7 @@ describe('claim_shift: rule failures leave the shift untouched', () => {
   it('rejects a credential whose status is expired even if its date is in the future', async () => {
     await inRollback(pool, async (db) => {
       const shift = await createShift(db, { window: nextWindow() })
-      await db.query(`update public.nurse_credentials set status = 'expired' where nurse_id = $1`, [USERS.eli.id])
+      await db.query(`update shiftpatch.nurse_credentials set status = 'expired' where nurse_id = $1`, [USERS.eli.id])
       expect(await claimAsService(db, shift.id, USERS.eli.id)).toBe('credential_expired')
     })
   })
@@ -111,8 +111,8 @@ describe('claim_shift: rule failures leave the shift untouched', () => {
     await inRollback(pool, async (db) => {
       const shift = await createShift(db, { window: nextWindow() })
       await db.query(
-        `update public.nurse_credentials c set expires_at = ($1::timestamptz at time zone 'UTC')::date - 1
-         from public.credential_types t where t.id = c.credential_type_id and t.code = 'tb_test' and c.nurse_id = $2`,
+        `update shiftpatch.nurse_credentials c set expires_at = ($1::timestamptz at time zone 'UTC')::date - 1
+         from shiftpatch.credential_types t where t.id = c.credential_type_id and t.code = 'tb_test' and c.nurse_id = $2`,
         [shift.startsAt, USERS.eli.id],
       )
       expect(await claimAsService(db, shift.id, USERS.eli.id)).toBe('credential_expired')
@@ -122,7 +122,7 @@ describe('claim_shift: rule failures leave the shift untouched', () => {
   it('rejects a revoked credential', async () => {
     await inRollback(pool, async (db) => {
       const shift = await createShift(db, { window: nextWindow() })
-      await db.query(`update public.nurse_credentials set status = 'revoked' where nurse_id = $1`, [USERS.eli.id])
+      await db.query(`update shiftpatch.nurse_credentials set status = 'revoked' where nurse_id = $1`, [USERS.eli.id])
       expect(await claimAsService(db, shift.id, USERS.eli.id)).toBe('credential_revoked')
     })
   })
@@ -136,7 +136,7 @@ describe('claim_shift: rule failures leave the shift untouched', () => {
   it('rejects a shift that has already started', async () => {
     await inRollback(pool, async (db) => {
       const { rows } = await db.query(
-        `insert into public.shifts (branch_id, title, starts_at, ends_at, created_by_id)
+        `insert into shiftpatch.shifts (branch_id, title, starts_at, ends_at, created_by_id)
          values ($1, 'Started', now() - interval '1 hour', now() + interval '4 hours', $2) returning id`,
         [BRANCHES.downtown.id, USERS.northwindAgency.id],
       )

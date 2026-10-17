@@ -52,12 +52,18 @@ Concurrent claims of the same shift queue on the row lock. The loser re-reads th
 
 ## Data model
 
+All ShiftPatch objects live in the dedicated **`shiftpatch`** Postgres schema (policy helpers in
+`shiftpatch_private`), not `public`, so the staffing domain can share a Supabase project with other applications.
+PostgREST must expose `shiftpatch` (Project Settings → API → Exposed schemas; locally `supabase/config.toml`).
+Only `authenticated` (under RLS) and `service_role` have `USAGE` on it. The API's Supabase clients set
+`db: { schema: 'shiftpatch' }`.
+
 Migrations are in `supabase/migrations/` (additive only):
 
 | Migration | Contents |
 |---|---|
 | `20261017210000_staffing_schema.sql` | Enums, 10 tables, FKs, checks, unique pairs, indexes, `updated_at` triggers, cross-table role triggers, append-only trigger on `shift_events`, Auth → profile trigger, `credential_types` reference rows |
-| `20261017210100_row_level_security.sql` | Privileges (client roles: `SELECT` only), RLS on every table, policy helpers in a non-exposed `app_private` schema |
+| `20261017210100_row_level_security.sql` | Privileges (client roles: `SELECT` only), RLS on every table, policy helpers in a non-exposed `shiftpatch_private` schema |
 | `20261017210200_shift_workflow_functions.sql` | `create_shift`, `claim_shift`, `shift_command_result` type, `EXECUTE` revoked from client roles |
 
 Tables: `profiles`, `agencies`, `agency_branches`, `agency_memberships`, `credential_types`, `nurse_credentials`,
@@ -193,11 +199,22 @@ pnpm db:reset           # re-create the local database from supabase/migrations
 # environment, falling back to .env; refuses NODE_ENV=production)
 pnpm seed
 
-# Remote development project
+# Remote project used only by ShiftPatch
 supabase link --project-ref <ref>
 supabase migration list --linked   # review first
 pnpm db:push                       # supabase db push
+
+# Remote project shared with another application (the current development project)
+supabase link --project-ref <ref>
+pnpm db:push:shared -- --dry-run   # lists applied / pending versions
+pnpm db:push:shared                # applies pending migrations, one transaction each
 ```
+
+The development project is shared with another application whose migrations own the CLI history table
+(`supabase_migrations.schema_migrations`). `supabase db push` would require rewriting that history, so
+`scripts/apply-shared-migrations.sh` runs each pending file through `supabase db query --linked` inside a
+transaction and records it in **`shiftpatch_meta.schema_migrations`** instead. The other application's history
+is never read or written. After the first apply, add `shiftpatch` to the project's exposed schemas.
 
 To point the API at the local stack, export the values from `supabase status` (`API_URL`, the publishable/anon
 key, the secret/service-role key) as `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SERVICE_ROLE_KEY`.
@@ -236,6 +253,7 @@ Branch requirements: every branch requires `nursing_license`. All except Hillcre
 | `pnpm test:db` | `supabase db reset --local`, seed with a random throwaway password, then schema, RLS, claim/concurrency and full-API tests against the local stack. Refuses non-local URLs. Needs `pnpm db:start` first. |
 | `pnpm seed` | Idempotent development seed |
 | `pnpm db:start` / `db:reset` / `db:push` | Supabase CLI wrappers |
+| `pnpm db:push:shared` | Apply migrations to a linked project shared with another app (own history table) |
 
 CI (`.github/workflows/ci.yml`) runs install → typecheck → lint → test → build. `pnpm test:db` needs Docker and is
 run locally. It is not part of CI yet.
@@ -250,7 +268,7 @@ its value.
 | `CORS_ORIGINS` | yes | Comma-separated exact frontend origins. Used for CORS and the CSRF origin check. |
 | `SUPABASE_URL` | for auth/data | Supabase project URL. Must be set together with `SUPABASE_PUBLISHABLE_KEY`. |
 | `SUPABASE_PUBLISHABLE_KEY` | for auth/data | Publishable (anon) key. Used for Auth and for RLS-scoped reads with the caller's token. |
-| `SUPABASE_SERVICE_ROLE_KEY` | for shift commands | Server-only. Calls `create_shift` / `claim_shift`. Without it those routes return `503`. |
+| `SUPABASE_SERVICE_ROLE_KEY` | for shift commands | Server-only **service-role JWT or `sb_secret_…` key** (not the anon key). Calls `create_shift` / `claim_shift`. Without it those routes return `503`. |
 | `SEED_USER_PASSWORD` | `pnpm seed` only | Password for the seeded test accounts (≥ 12 characters). |
 | `NODE_ENV` | no | `development` (default), `test`, `production`. Production enables `Secure` + `__Host-` cookies. |
 | `PORT` | no | Local dev server port (default `3000`). |
@@ -262,7 +280,8 @@ Data-layer errors log only the failing step and the PostgREST error code.
 
 Separate Vercel project for this repository (`vercel.json`: framework `null`, all paths rewritten to `/api`).
 
-1. Apply the migrations to the target Supabase project (`supabase db push`) and provision real accounts. Set
+1. Apply the migrations to the target Supabase project (`supabase db push`, or `pnpm db:push:shared` for a shared
+   project), add `shiftpatch` to its exposed schemas, and provision real accounts. Set
    `app_metadata.role` with the service role and add `agency_memberships`, eligibility and credentials. Do not run
    `pnpm seed` against production. It refuses `NODE_ENV=production`.
 2. Disable public sign-up in the Supabase project (Auth settings). Accounts are provisioned, not self-registered.

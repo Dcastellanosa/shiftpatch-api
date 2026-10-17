@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import {
   appRoleSchema,
@@ -24,8 +24,12 @@ interface SupabaseDataConfig {
   serviceRoleKey?: string
 }
 
+/** Postgres schema holding the staffing tables and functions (exposed through PostgREST). */
+export const DB_SCHEMA = 'shiftpatch'
+
 const CLIENT_OPTIONS = {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  db: { schema: DB_SCHEMA },
 } as const
 
 const LIST_LIMIT = 500
@@ -142,7 +146,7 @@ const quoted = (value: string) => `"${value}"`
 export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
   // Request-scoped client carrying the caller's JWT: queries run as the
   // `authenticated` role, so Row Level Security applies to every read.
-  const asUser = (accessToken: string): SupabaseClient =>
+  const asUser = (accessToken: string) =>
     createClient(config.url, config.publishableKey, {
       ...CLIENT_OPTIONS,
       global: { headers: { Authorization: `Bearer ${accessToken}` } },

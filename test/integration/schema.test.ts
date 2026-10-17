@@ -23,7 +23,7 @@ describe('schema', () => {
     const { rows } = await pool.query(
       `select c.relname, c.relrowsecurity from pg_class c
        join pg_namespace n on n.oid = c.relnamespace
-       where n.nspname = 'public' and c.relkind = 'r'`,
+       where n.nspname = 'shiftpatch' and c.relkind = 'r'`,
     )
     const tables = new Map(rows.map((r) => [r.relname as string, r.relrowsecurity as boolean]))
     for (const table of APP_TABLES) expect(tables.get(table), table).toBe(true)
@@ -34,7 +34,7 @@ describe('schema', () => {
       `select t.typname, array_agg(e.enumlabel order by e.enumsortorder)::text[] as labels
        from pg_type t join pg_enum e on e.enumtypid = t.oid
        join pg_namespace n on n.oid = t.typnamespace
-       where n.nspname = 'public' group by t.typname`,
+       where n.nspname = 'shiftpatch' group by t.typname`,
     )
     const types = Object.fromEntries(rows.map((r) => [r.typname, r.labels]))
     expect(types).toMatchObject({
@@ -48,14 +48,14 @@ describe('schema', () => {
   })
 
   it('seeds the required credential types', async () => {
-    const { rows } = await pool.query('select code from public.credential_types order by code')
+    const { rows } = await pool.query('select code from shiftpatch.credential_types order by code')
     expect(rows.map((r) => r.code)).toEqual(expect.arrayContaining(['nursing_license', 'tb_test']))
   })
 
   it('stores no comma-separated or array columns in application tables', async () => {
     const { rows } = await pool.query(
       `select table_name, column_name from information_schema.columns
-       where table_schema = 'public' and data_type = 'ARRAY' and table_name = any($1)`,
+       where table_schema = 'shiftpatch' and data_type = 'ARRAY' and table_name = any($1)`,
       [APP_TABLES],
     )
     expect(rows).toEqual([])
@@ -78,7 +78,7 @@ describe('shift constraints', () => {
       }
       const columns = Object.keys(row)
       return db.query(
-        `insert into public.shifts (${columns.join(', ')}) values (${columns.map((_, i) => `$${i + 1}`).join(', ')})`,
+        `insert into shiftpatch.shifts (${columns.join(', ')}) values (${columns.map((_, i) => `$${i + 1}`).join(', ')})`,
         Object.values(row),
       )
     })
@@ -113,7 +113,7 @@ describe('shift constraints', () => {
       const window = nextWindow()
       const insert = (start: string, end: string) =>
         db.query(
-          `insert into public.shifts (branch_id, title, starts_at, ends_at, status, assigned_nurse_id, created_by_id)
+          `insert into shiftpatch.shifts (branch_id, title, starts_at, ends_at, status, assigned_nurse_id, created_by_id)
            values ($1, 'Overlap', $2, $3, 'claimed', $4, $5)`,
           [BRANCHES.downtown.id, start, end, USERS.ava.id, USERS.northwindAgency.id],
         )
@@ -127,7 +127,7 @@ describe('bridge-table uniqueness', () => {
   it('rejects a duplicate nurse–branch eligibility pair', async () => {
     await expectSqlState(
       inRollback(pool, (db) =>
-        db.query(`insert into public.branch_nurse_eligibility (nurse_id, branch_id) values ($1, $2)`, [
+        db.query(`insert into shiftpatch.branch_nurse_eligibility (nurse_id, branch_id) values ($1, $2)`, [
           USERS.ava.id,
           BRANCHES.downtown.id,
         ]),
@@ -139,7 +139,7 @@ describe('bridge-table uniqueness', () => {
   it('rejects a duplicate profile–agency membership', async () => {
     await expectSqlState(
       inRollback(pool, (db) =>
-        db.query(`insert into public.agency_memberships (profile_id, agency_id) values ($1, $2)`, [
+        db.query(`insert into shiftpatch.agency_memberships (profile_id, agency_id) values ($1, $2)`, [
           USERS.northwindAgency.id,
           AGENCIES.northwind.id,
         ]),
@@ -151,7 +151,7 @@ describe('bridge-table uniqueness', () => {
   it('rejects a second active membership for an agency user', async () => {
     await expectSqlState(
       inRollback(pool, (db) =>
-        db.query(`insert into public.agency_memberships (profile_id, agency_id, status) values ($1, $2, 'active')`, [
+        db.query(`insert into shiftpatch.agency_memberships (profile_id, agency_id, status) values ($1, $2, 'active')`, [
           USERS.northwindAgency.id,
           AGENCIES.harbor.id,
         ]),
@@ -164,7 +164,7 @@ describe('bridge-table uniqueness', () => {
     await expectSqlState(
       inRollback(pool, (db) =>
         db.query(
-          `insert into public.agency_branches (agency_id, name, address, timezone) values ($1, $2, 'x', 'UTC')`,
+          `insert into shiftpatch.agency_branches (agency_id, name, address, timezone) values ($1, $2, 'x', 'UTC')`,
           [AGENCIES.northwind.id, BRANCHES.downtown.name],
         ),
       ),
@@ -176,8 +176,8 @@ describe('bridge-table uniqueness', () => {
     await expectSqlState(
       inRollback(pool, (db) =>
         db.query(
-          `insert into public.branch_credential_requirements (branch_id, credential_type_id)
-           select $1, id from public.credential_types where code = 'tb_test'`,
+          `insert into shiftpatch.branch_credential_requirements (branch_id, credential_type_id)
+           select $1, id from shiftpatch.credential_types where code = 'tb_test'`,
           [BRANCHES.downtown.id],
         ),
       ),
@@ -188,7 +188,7 @@ describe('bridge-table uniqueness', () => {
   it('rejects memberships and credentials for the wrong role', async () => {
     await expectSqlState(
       inRollback(pool, (db) =>
-        db.query(`insert into public.agency_memberships (profile_id, agency_id) values ($1, $2)`, [
+        db.query(`insert into shiftpatch.agency_memberships (profile_id, agency_id) values ($1, $2)`, [
           USERS.ava.id,
           AGENCIES.harbor.id,
         ]),
@@ -198,8 +198,8 @@ describe('bridge-table uniqueness', () => {
     await expectSqlState(
       inRollback(pool, (db) =>
         db.query(
-          `insert into public.nurse_credentials (nurse_id, credential_type_id, expires_at)
-           select $1, id, '2030-01-01' from public.credential_types where code = 'tb_test'`,
+          `insert into shiftpatch.nurse_credentials (nurse_id, credential_type_id, expires_at)
+           select $1, id, '2030-01-01' from shiftpatch.credential_types where code = 'tb_test'`,
           [USERS.harborAgency.id],
         ),
       ),
@@ -213,17 +213,17 @@ describe('shift_events is append-only', () => {
     await inRollback(pool, async (db) => {
       const shift = await createShift(db, { window: nextWindow() })
       await db.query('savepoint s')
-      await expectSqlState(db.query(`update public.shift_events set reason = 'x' where shift_id = $1`, [shift.id]), '42501')
+      await expectSqlState(db.query(`update shiftpatch.shift_events set reason = 'x' where shift_id = $1`, [shift.id]), '42501')
       await db.query('rollback to savepoint s')
-      await expectSqlState(db.query(`delete from public.shift_events where shift_id = $1`, [shift.id]), '42501')
+      await expectSqlState(db.query(`delete from shiftpatch.shift_events where shift_id = $1`, [shift.id]), '42501')
     })
   })
 
   it('denies UPDATE and DELETE privileges to the service role', async () => {
     const { rows } = await pool.query(
-      `select has_table_privilege('service_role', 'public.shift_events', 'UPDATE') as upd,
-              has_table_privilege('service_role', 'public.shift_events', 'DELETE') as del,
-              has_table_privilege('service_role', 'public.shift_events', 'INSERT') as ins`,
+      `select has_table_privilege('service_role', 'shiftpatch.shift_events', 'UPDATE') as upd,
+              has_table_privilege('service_role', 'shiftpatch.shift_events', 'DELETE') as del,
+              has_table_privilege('service_role', 'shiftpatch.shift_events', 'INSERT') as ins`,
     )
     expect(rows[0]).toEqual({ upd: false, del: false, ins: true })
   })
@@ -237,7 +237,7 @@ describe('function privileges', () => {
         `select has_function_privilege('anon', $1, 'EXECUTE') as anon,
                 has_function_privilege('authenticated', $1, 'EXECUTE') as authenticated,
                 has_function_privilege('service_role', $1, 'EXECUTE') as service_role`,
-        [`public.${signature}`],
+        [`shiftpatch.${signature}`],
       )
       expect(rows[0]).toEqual({ anon: false, authenticated: false, service_role: true })
     },
@@ -247,7 +247,7 @@ describe('function privileges', () => {
     const { rows } = await pool.query(
       `select t, r, p from unnest($1::text[]) t, unnest(array['anon','authenticated']) r,
               unnest(array['INSERT','UPDATE','DELETE','TRUNCATE']) p
-       where has_table_privilege(r, 'public.' || t, p)`,
+       where has_table_privilege(r, 'shiftpatch.' || t, p)`,
       [APP_TABLES],
     )
     expect(rows).toEqual([])
@@ -262,7 +262,7 @@ describe('profile provisioning trigger', () => {
         `insert into auth.users (id, email, raw_app_meta_data, raw_user_meta_data) values ($1, $2, $3, $4)`,
         [id, `${id}@shiftpatch.test`, appMeta, userMeta],
       )
-      .then(() => db.query('select full_name, role from public.profiles where id = $1', [id]))
+      .then(() => db.query('select full_name, role from shiftpatch.profiles where id = $1', [id]))
   }
 
   it('creates a profile from the service-controlled app_metadata role', async () => {

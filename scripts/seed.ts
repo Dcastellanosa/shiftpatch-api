@@ -13,6 +13,7 @@ import { existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { parseSeedEnv } from '../src/config/env.js'
+import { DB_SCHEMA } from '../src/data/supabase-data-store.js'
 import {
   AGENCIES,
   BRANCHES,
@@ -68,7 +69,7 @@ export async function seedDatabase(options: SeedOptions) {
   const client = createClient(options.url, options.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   })
-  const db = client.from.bind(client)
+  const db = (table: string) => client.schema(DB_SCHEMA).from(table)
 
   for (const user of Object.values(USERS)) {
     await upsertAuthUser(client, user, options.password)

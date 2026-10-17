@@ -23,7 +23,9 @@ Architecture rules:
 - Business invariants (one claim per shift, credential validity) must be enforced atomically in the database, not by
   read-then-write logic in the API or checks in the frontend.
 - Schema changes are versioned SQL in `supabase/migrations/` (additive; never edit a migration that has been
-  applied to a shared project). Every table has RLS. Client roles get `SELECT` only. Writes go through
+  applied to a shared project). All objects live in the `shiftpatch` schema, never `public`. The development
+  Supabase project is shared with another application: apply migrations there with `pnpm db:push:shared`, never
+  `supabase db push` or `supabase migration repair`, which would rewrite the other application's history. Every table has RLS. Client roles get `SELECT` only. Writes go through
   `SECURITY DEFINER` functions that only `service_role` may execute.
 
 ## Development workflow
