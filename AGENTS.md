@@ -12,7 +12,10 @@ frontend lives in the separate `shiftpatch-web` repository. Supabase provides th
 
 Architecture rules:
 
-- This API is the only business-data boundary for the frontend.
+- This API is a backend-for-frontend (BFF): it is the **only** layer that talks to Supabase. The frontend calls it
+  same-origin through `/api/*` and never uses Supabase directly.
+- The API owns login, session lifecycle (HttpOnly cookies, validation, refresh), authorization, business logic, and
+  all database access.
 - `api/index.ts` is the Vercel entrypoint. `src/create-app.ts` builds the Express app. `src/dev-server.ts` is for local
   development only. Do not name files in `src/` `app.ts`, `index.ts`, or `server.ts`, because Vercel would auto-detect
   them as an alternative Express entrypoint.
@@ -38,7 +41,7 @@ Run all of these. CI (`.github/workflows/ci.yml`) runs the same steps on every p
 pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm lint
-pnpm test        # placeholder until a test runner is added
+pnpm test        # Vitest + Supertest (test/**/*.test.ts)
 pnpm build
 ```
 
@@ -50,13 +53,19 @@ binaries, so its install script is not needed. Revisit this only if `pnpm dev` f
 ## Security rules
 
 - Never commit secrets. `.env`, `.env.*` (except `.env.example`) and `.vercel/` are gitignored. Keep it that way.
-- The Supabase secret / service-role key is **server-only**. Never return it in a response, log it, or send it to the
-  frontend. Use it only for narrowly scoped server tasks. Default to a request-scoped Supabase client built with the
-  publishable key and the caller's JWT so Row Level Security applies.
-- Verify Supabase JWTs (signature, issuer, audience, expiry) before trusting any user identity. Never derive roles
-  from client input or `user_metadata`.
-- CORS is an exact-origin allowlist from `CORS_ORIGINS`. Never use `*` and never allow arbitrary `*.vercel.app`
-  origins.
+- `SUPABASE_SERVICE_ROLE_KEY` is **server-only** and reserved for narrowly scoped privileged work. Never return it,
+  log it, or send it to the frontend. Normal Supabase Auth calls use `SUPABASE_PUBLISHABLE_KEY`. Future data access
+  should use a request-scoped client with the caller's access token so Row Level Security applies.
+- Supabase access and refresh tokens live only in HttpOnly cookies set by this API. Never return tokens in JSON.
+  Responses expose only the safe session payload (`src/auth/session-user.ts`).
+- Identity comes only from the validated cookie session (`req.auth`, set by `resolveSession`). Never trust a user ID,
+  role, agency ID, credential state, or token sent in a body, query string, or custom header. Never derive roles
+  from `user_metadata`.
+- Unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) must pass the Origin check (`src/http/origin-check.ts`). Do not
+  bypass it for new routes.
+- Never log credentials, cookies, tokens, authorization headers, request bodies, or raw Supabase error objects.
+- CORS is an exact-origin allowlist from `CORS_ORIGINS` with credentials enabled. Never use `*` and never allow
+  arbitrary `*.vercel.app` origins.
 - Validate all request input (params, query, body) with Zod. Error responses must not leak stack traces or internals.
 - Do not commit machine-specific files or files containing local absolute paths (agent tooling directories such as
   `.claude/`, `.codex/`, `.kiro/`, `.agents/`, `skills/` are gitignored for this reason).
@@ -69,6 +78,6 @@ AI-assisted work is part of the hiring-challenge deliverable.
   otherwise modify transcripts or agent session history.
 - **Never paste secrets, tokens, credentials, or private environment values into an AI chat.** Because transcripts
   are kept verbatim, anything shared in a session becomes part of the deliverable. Refer to secrets by variable name
-  only (e.g. `SUPABASE_SECRET_KEY`), never by value.
+  only (e.g. `SUPABASE_SERVICE_ROLE_KEY`), never by value.
 - Transcripts may be stored in this repository (e.g. `docs/ai-transcripts/YYYY-MM-DD-<topic>.md`) or delivered
   separately from the public repository if that is more appropriate.

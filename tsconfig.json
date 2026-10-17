@@ -17,5 +17,5 @@
     "rootDir": ".",
     "outDir": "dist"
   },
-  "include": ["api", "src"]
+  "include": ["api", "src", "test", "vitest.config.ts"]
 }
