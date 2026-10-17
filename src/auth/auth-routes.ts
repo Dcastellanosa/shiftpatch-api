@@ -2,7 +2,8 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { AppError } from '../http/errors.js'
 import { validateBody } from '../http/validate.js'
-import type { AuthProvider } from './auth-provider.js'
+import type { DataStore } from '../data/data-store.js'
+import type { AuthProvider, AuthUser } from './auth-provider.js'
 import {
   clearSessionCookies,
   readSessionCookies,
@@ -17,8 +18,17 @@ const loginBody = z.object({
   password: z.string().min(1).max(1024),
 })
 
-export function createAuthRouter(provider: AuthProvider | null, cookieConfig: SessionCookieConfig) {
+export function createAuthRouter(
+  provider: AuthProvider | null,
+  store: DataStore | null,
+  cookieConfig: SessionCookieConfig,
+) {
   const router = Router()
+
+  // Profile fields are filled from the caller's own profile row when the data
+  // layer is configured; otherwise they stay null.
+  const payloadFor = async (user: AuthUser, accessToken: string) =>
+    toSessionPayload(user, store ? await store.getProfile(accessToken, user.id) : null)
 
   router.post('/login', validateBody(loginBody), async (req, res) => {
     if (!provider) throw authUnavailable()
@@ -32,7 +42,7 @@ export function createAuthRouter(provider: AuthProvider | null, cookieConfig: Se
     }
 
     setSessionCookies(res, session, cookieConfig)
-    res.json(toSessionPayload(session.user))
+    res.json(await payloadFor(session.user, session.accessToken))
   })
 
   router.post('/logout', async (req, res) => {
@@ -42,8 +52,8 @@ export function createAuthRouter(provider: AuthProvider | null, cookieConfig: Se
     res.status(204).end()
   })
 
-  router.get('/me', resolveSession(provider, cookieConfig), requireSession, (req, res) => {
-    res.json(toSessionPayload(req.auth!.user))
+  router.get('/me', resolveSession(provider, cookieConfig), requireSession, async (req, res) => {
+    res.json(await payloadFor(req.auth!.user, req.auth!.accessToken))
   })
 
   return router

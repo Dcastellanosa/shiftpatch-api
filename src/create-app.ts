@@ -7,14 +7,20 @@ import {
   type AuthProvider,
 } from './auth/auth-provider.js'
 import { createAuthRouter } from './auth/auth-routes.js'
+import { requireSession, resolveSession } from './auth/session-middleware.js'
 import { createSupabaseAuthProvider } from './auth/supabase-auth-provider.js'
 import type { Env } from './config/env.js'
+import { DataStoreError, DataUnavailableError, type DataStore } from './data/data-store.js'
+import { createSupabaseDataStore } from './data/supabase-data-store.js'
 import { AppError } from './http/errors.js'
 import { requireTrustedOrigin } from './http/origin-check.js'
+import { createShiftRouter } from './shifts/shift-routes.js'
 
 export interface AppDependencies {
   /** Override for tests. `null` means auth is not configured. */
   authProvider?: AuthProvider | null
+  /** Override for tests. `null` means the data layer is not configured. */
+  dataStore?: DataStore | null
 }
 
 export function createApp(env: Env, deps: AppDependencies = {}) {
@@ -28,6 +34,16 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
         ? createSupabaseAuthProvider({
             url: env.SUPABASE_URL,
             publishableKey: env.SUPABASE_PUBLISHABLE_KEY,
+          })
+        : null
+  const dataStore =
+    deps.dataStore !== undefined
+      ? deps.dataStore
+      : env.SUPABASE_URL && env.SUPABASE_PUBLISHABLE_KEY
+        ? createSupabaseDataStore({
+            url: env.SUPABASE_URL,
+            publishableKey: env.SUPABASE_PUBLISHABLE_KEY,
+            serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
           })
         : null
 
@@ -56,7 +72,8 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
     res.json({ status: 'ok' })
   })
 
-  app.use('/auth', createAuthRouter(authProvider, cookieConfig))
+  app.use('/auth', createAuthRouter(authProvider, dataStore, cookieConfig))
+  app.use(createShiftRouter(dataStore, [resolveSession(authProvider, cookieConfig), requireSession]))
 
   app.use((_req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: 'Route not found' } })
@@ -73,6 +90,16 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
     }
     if (err instanceof AuthUnavailableError) {
       res.status(503).json({ error: { code: 'auth_unavailable', message: err.message } })
+      return
+    }
+    if (err instanceof DataUnavailableError) {
+      res.status(503).json({ error: { code: 'data_unavailable', message: 'Data service is not available' } })
+      return
+    }
+    if (err instanceof DataStoreError) {
+      // The message holds only the failing step and a PostgREST error code.
+      console.error(`Data store error: ${err.message}`)
+      res.status(500).json({ error: { code: 'internal_error', message: 'Internal server error' } })
       return
     }
     const parserType = (err as { type?: unknown }).type
