@@ -63,9 +63,12 @@ binaries, so its install script is not needed. Revisit this only if `pnpm dev` f
 
 ## AI session transcripts
 
-AI-assisted work is part of the challenge deliverable. **Preserve every AI session transcript.**
+AI-assisted work is part of the hiring-challenge deliverable.
 
-- Do not delete, truncate, or overwrite agent session history.
-- At the end of each working session, export the transcript (e.g. into `docs/ai-transcripts/YYYY-MM-DD-<topic>.md`)
-  and commit it with a `docs:` commit.
-- Redact secrets, tokens, and personal data before committing a transcript. Keep everything else verbatim.
+- **Export and preserve every AI session transcript unedited.** Do not delete, truncate, redact, summarize, or
+  otherwise modify transcripts or agent session history.
+- **Never paste secrets, tokens, credentials, or private environment values into an AI chat.** Because transcripts
+  are kept verbatim, anything shared in a session becomes part of the deliverable. Refer to secrets by variable name
+  only (e.g. `SUPABASE_SECRET_KEY`), never by value.
+- Transcripts may be stored in this repository (e.g. `docs/ai-transcripts/YYYY-MM-DD-<topic>.md`) or delivered
+  separately from the public repository if that is more appropriate.
