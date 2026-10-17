@@ -1,0 +1,3 @@
+# esbuild (via tsx) ships prebuilt platform binaries; its postinstall is not needed.
+allowBuilds:
+  esbuild: false
