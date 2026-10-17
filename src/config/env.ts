@@ -30,7 +30,8 @@ const envSchema = z
     ),
     SUPABASE_URL: z.preprocess(blankAsUndefined, z.url({ protocol: /^https?$/ }).optional()),
     SUPABASE_PUBLISHABLE_KEY: z.preprocess(blankAsUndefined, z.string().optional()),
-    // Reserved for future privileged backend-only work. Not used by auth.
+    // Server-only. Used exclusively to call the shift workflow functions
+    // (create_shift, claim_shift), which client roles cannot execute.
     SUPABASE_SERVICE_ROLE_KEY: z.preprocess(blankAsUndefined, z.string().optional()),
   })
   .refine((env) => Boolean(env.SUPABASE_URL) === Boolean(env.SUPABASE_PUBLISHABLE_KEY), {
@@ -48,6 +49,30 @@ export function parseEnv(source: NodeJS.ProcessEnv): Env {
       .map((issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
       .join('\n')
     throw new Error(`Invalid environment configuration:\n${issues}`)
+  }
+  return result.data
+}
+
+const seedEnvSchema = z.object({
+  NODE_ENV: z.preprocess(blankAsUndefined, z.enum(['development', 'test', 'production']).default('development')),
+  SUPABASE_URL: z.preprocess(blankAsUndefined, z.url({ protocol: /^https?$/ })),
+  SUPABASE_SERVICE_ROLE_KEY: z.preprocess(blankAsUndefined, z.string('is required')),
+  SEED_USER_PASSWORD: z.preprocess(
+    blankAsUndefined,
+    z.string('is required (password for every seeded test account)').min(12, 'must be at least 12 characters'),
+  ),
+})
+
+export type SeedEnv = z.infer<typeof seedEnvSchema>
+
+/** Environment for `pnpm seed`. Same reporting rules as `parseEnv`: values are never echoed. */
+export function parseSeedEnv(source: NodeJS.ProcessEnv): SeedEnv {
+  const result = seedEnvSchema.safeParse(source)
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
+      .join('\n')
+    throw new Error(`Invalid seed configuration:\n${issues}`)
   }
   return result.data
 }
