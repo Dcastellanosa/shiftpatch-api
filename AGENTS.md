@@ -22,6 +22,9 @@ Architecture rules:
 - Environment variables are read only through `src/config/env.ts` (Zod-validated, fail-fast).
 - Business invariants (one claim per shift, credential validity) must be enforced atomically in the database, not by
   read-then-write logic in the API or checks in the frontend.
+- Schema changes are versioned SQL in `supabase/migrations/` (additive; never edit a migration that has been
+  applied to a shared project). Every table has RLS. Client roles get `SELECT` only. Writes go through
+  `SECURITY DEFINER` functions that only `service_role` may execute.
 
 ## Development workflow
 
@@ -45,6 +48,14 @@ pnpm test        # Vitest + Supertest (test/**/*.test.ts)
 pnpm build
 ```
 
+For database, RLS or data-access changes, also run the integration suite against the local Supabase stack
+(Docker + Supabase CLI; ports 553xx):
+
+```bash
+pnpm db:start    # once: supabase start
+pnpm test:db     # resets the local DB, seeds with a throwaway password, runs test/integration/**
+```
+
 For runtime changes, also start `pnpm dev` and exercise the affected endpoints.
 
 `pnpm-workspace.yaml` sets `allowBuilds: { esbuild: false }`. esbuild (used by `tsx`) ships prebuilt platform
@@ -53,9 +64,11 @@ binaries, so its install script is not needed. Revisit this only if `pnpm dev` f
 ## Security rules
 
 - Never commit secrets. `.env`, `.env.*` (except `.env.example`) and `.vercel/` are gitignored. Keep it that way.
-- `SUPABASE_SERVICE_ROLE_KEY` is **server-only** and reserved for narrowly scoped privileged work. Never return it,
-  log it, or send it to the frontend. Normal Supabase Auth calls use `SUPABASE_PUBLISHABLE_KEY`. Future data access
-  should use a request-scoped client with the caller's access token so Row Level Security applies.
+- `SUPABASE_SERVICE_ROLE_KEY` is **server-only**. It is used only for the workflow RPCs (`create_shift`,
+  `claim_shift`) after the session and role are verified, and by `pnpm seed`. Never return it, log it, or send it
+  to the frontend. Reads use a request-scoped client with the caller's access token so Row Level Security applies.
+- Never run `pnpm seed` against production. Seeded account passwords come from `SEED_USER_PASSWORD` and are never
+  committed.
 - Supabase access and refresh tokens live only in HttpOnly cookies set by this API. Never return tokens in JSON.
   Responses expose only the safe session payload (`src/auth/session-user.ts`).
 - Identity comes only from the validated cookie session (`req.auth`, set by `resolveSession`). Never trust a user ID,
