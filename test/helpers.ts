@@ -2,7 +2,8 @@ import { vi } from 'vitest'
 import type { AuthProvider, AuthSession, AuthUser } from '../src/auth/auth-provider.js'
 import { parseEnv } from '../src/config/env.js'
 import { createApp } from '../src/create-app.js'
-import type { DataStore, Profile } from '../src/data/data-store.js'
+import type { DataStore, Profile, Viewer } from '../src/data/data-store.js'
+import type { Shift } from '../src/shifts/contracts.js'
 
 export const ALLOWED_ORIGIN = 'http://localhost:5173'
 
@@ -61,6 +62,30 @@ export const AGENCY_PROFILE: Profile = {
   agencyId: 'a1000000-0000-4000-8000-000000000001',
 }
 export const ADMIN_PROFILE: Profile = { id: USER.id, fullName: 'Morgan Admin', role: 'admin', agencyId: null }
+
+/** The viewer `loadViewer` would build for the given profile in a session. */
+export function viewerFor(profile: Profile): Viewer {
+  return { ...profile, accessToken: SESSION.accessToken }
+}
+
+export const SHIFT_ID = 'e1000000-0000-4000-8000-0000000000aa'
+export const BRANCH_ID = 'b1000000-0000-4000-8000-000000000001'
+
+export function shiftFixture(overrides: Partial<Shift> = {}): Shift {
+  return {
+    id: SHIFT_ID,
+    title: 'Med-Surg RN — Day',
+    startsAt: '2030-01-10T12:00:00.000Z',
+    endsAt: '2030-01-10T20:00:00.000Z',
+    status: 'open',
+    branch: { id: BRANCH_ID, name: 'Downtown Clinic', address: '120 Main Street', timezone: 'America/New_York' },
+    agency: { id: 'a1000000-0000-4000-8000-000000000001', name: 'Northwind Care Staffing' },
+    assignedNurse: null,
+    createdAt: '2029-12-01T00:00:00.000Z',
+    updatedAt: '2029-12-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
 
 export function buildApp(
   authProvider: AuthProvider | null = fakeAuthProvider(),

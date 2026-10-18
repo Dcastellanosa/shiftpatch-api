@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
+import { toSessionPayload } from '../application/session-payload.js'
 import { AppError } from '../http/errors.js'
 import { validateBody } from '../http/validate.js'
 import type { DataStore } from '../data/data-store.js'
@@ -11,7 +12,6 @@ import {
   type SessionCookieConfig,
 } from './session-cookies.js'
 import { authUnavailable, requireSession, resolveSession } from './session-middleware.js'
-import { toSessionPayload } from './session-user.js'
 
 const loginBody = z.object({
   email: z.email().max(320),

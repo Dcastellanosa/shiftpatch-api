@@ -1,20 +1,19 @@
 import { Router, type RequestHandler } from 'express'
-import type { ClaimOutcome, CreateOutcome, DataStore } from '../data/data-store.js'
+import { claimShift, type ClaimShiftFailure } from '../application/claim-shift.js'
+import { createShift, type CreateShiftFailure } from '../application/create-shift.js'
+import { getShiftHistory } from '../application/get-shift-history.js'
+import { listMyShifts } from '../application/list-my-shifts.js'
+import { listShifts } from '../application/list-shifts.js'
+import type { DataStore } from '../data/data-store.js'
 import { AppError } from '../http/errors.js'
 import { parseInput, validateBody } from '../http/validate.js'
 import { loadViewer, requireRole } from '../auth/viewer-middleware.js'
-import {
-  createShiftBody,
-  listShiftsQuery,
-  shiftIdParams,
-  type CreateShiftInput,
-  type Shift,
-} from './contracts.js'
+import { createShiftBody, listShiftsQuery, shiftIdParams, type CreateShiftInput } from './contracts.js'
 
 const shiftNotFound = () => new AppError(404, 'shift_not_found', 'Shift not found')
 
 /** Maps each non-success claim outcome to a safe HTTP error. */
-const CLAIM_ERRORS: Record<Exclude<ClaimOutcome, 'claimed'>, () => AppError> = {
+const CLAIM_ERRORS: Record<ClaimShiftFailure, () => AppError> = {
   shift_not_found: shiftNotFound,
   not_a_nurse: () => new AppError(403, 'forbidden', 'Only nurses can claim shifts'),
   shift_not_open: () => new AppError(409, 'shift_not_open', 'This shift has already been claimed or is no longer open'),
@@ -31,7 +30,8 @@ const CLAIM_ERRORS: Record<Exclude<ClaimOutcome, 'claimed'>, () => AppError> = {
     new AppError(422, 'credential_revoked', 'A credential this branch requires has been revoked'),
 }
 
-const CREATE_ERRORS: Record<Exclude<CreateOutcome, 'created'>, () => AppError> = {
+const CREATE_ERRORS: Record<CreateShiftFailure, () => AppError> = {
+  shift_not_found: shiftNotFound,
   actor_not_allowed: () => new AppError(403, 'forbidden', 'You do not have permission to create shifts'),
   branch_not_found: () => new AppError(404, 'branch_not_found', 'Branch not found'),
   invalid_time_range: () => new AppError(400, 'validation_error', 'The shift must end after it starts'),
@@ -52,10 +52,9 @@ export function createShiftRouter(store: DataStore | null, authenticate: Request
 
   router.get('/shifts', ...withViewer, async (req, res) => {
     const filters = parseInput(listShiftsQuery, req.query, 'query')
-    if (filters.includeAssigned && req.viewer!.role !== 'nurse') {
-      throw new AppError(400, 'validation_error', 'includeAssigned is only available to nurses')
-    }
-    res.json({ shifts: await store!.listShifts(req.viewer!, filters) })
+    const result = await listShifts({ store: store! }, req.viewer!, filters)
+    if (!result.ok) throw new AppError(400, 'validation_error', 'includeAssigned is only available to nurses')
+    res.json({ shifts: result.shifts })
   })
 
   router.post(
@@ -64,12 +63,9 @@ export function createShiftRouter(store: DataStore | null, authenticate: Request
     requireRole('agency', 'admin'),
     validateBody(createShiftBody),
     async (req, res) => {
-      const viewer = req.viewer!
-      const result = await store!.createShift(viewer.id, req.body as CreateShiftInput)
-      if (result.outcome !== 'created') throw CREATE_ERRORS[result.outcome]()
-      const shift = await store!.getShift(viewer, result.shiftId!)
-      if (!shift) throw shiftNotFound()
-      res.status(201).json({ shift })
+      const result = await createShift({ store: store! }, req.viewer!, req.body as CreateShiftInput)
+      if (!result.ok) throw CREATE_ERRORS[result.outcome]()
+      res.status(201).json({ shift: result.shift })
     },
   )
 
@@ -82,37 +78,20 @@ export function createShiftRouter(store: DataStore | null, authenticate: Request
 
   router.post('/shifts/:shiftId/claim', ...withViewer, requireRole('nurse'), async (req, res) => {
     const { shiftId } = parseInput(shiftIdParams, req.params, 'params')
-    const viewer = req.viewer!
-    // The database function locks the shift and performs every check and
-    // write atomically; nothing is pre-checked here.
-    const result = await store!.claimShift(viewer.id, shiftId)
-    if (result.outcome !== 'claimed') throw CLAIM_ERRORS[result.outcome]()
-    const shift = await store!.getShift(viewer, shiftId)
-    if (!shift) throw shiftNotFound()
-    res.json({ shift })
+    const result = await claimShift({ store: store! }, req.viewer!, shiftId)
+    if (!result.ok) throw CLAIM_ERRORS[result.outcome]()
+    res.json({ shift: result.shift })
   })
 
   router.get('/shifts/:shiftId/events', ...withViewer, async (req, res) => {
     const { shiftId } = parseInput(shiftIdParams, req.params, 'params')
-    const viewer = req.viewer!
-    const shift = await store!.getShift(viewer, shiftId)
-    // Nurses see history only for shifts assigned to them.
-    if (!shift || (viewer.role === 'nurse' && shift.assignedNurse?.id !== viewer.id)) {
-      throw shiftNotFound()
-    }
-    res.json({ events: await store!.listShiftEvents(viewer, shiftId) })
+    const result = await getShiftHistory({ store: store! }, req.viewer!, shiftId)
+    if (!result.ok) throw shiftNotFound()
+    res.json({ events: result.events })
   })
 
   router.get('/me/shifts', ...withViewer, requireRole('nurse'), async (req, res) => {
-    const now = Date.now()
-    const assigned = await store!.listAssignedShifts(req.viewer!)
-    const upcoming: Shift[] = []
-    const past: Shift[] = []
-    for (const shift of assigned) {
-      ;(new Date(shift.endsAt).getTime() > now ? upcoming : past).push(shift)
-    }
-    past.reverse()
-    res.json({ upcoming, past })
+    res.json(await listMyShifts({ store: store! }, req.viewer!, Date.now()))
   })
 
   return router
