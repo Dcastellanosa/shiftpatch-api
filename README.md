@@ -117,7 +117,7 @@ Errors always use `{ "error": { "code", "message", "details"? } }`.
 | `GET` | `/branches` | → `{ branches }` (for the create-shift form and admin filters) |
 | `GET` | `/health` | `{ "status": "ok" }` |
 
-Shift shape (`src/domain/shift.ts`, validated by Zod in `src/adapters/http/contracts.ts`):
+Shift shape (`src/domain/shift/`, validated by Zod in `src/interfaces/http/schemas/contracts/`):
 
 ```json
 {
@@ -161,15 +161,16 @@ allowlist with credentials.
 
 ```
 api/index.ts                         Vercel entrypoint
-src/create-app.ts                    Composition root: wires adapters, CORS, origin check, cookies, JSON, routers
-src/config/env.ts                    Zod-validated environment (app + seed)
+src/composition/create-app/          Composition root: wires adapters, CORS, origin check, cookies, JSON, routers
 src/domain/                          Domain types and constants (no framework imports)
+src/domain/ports/                    Driven ports: AuthProvider, DataStore (injectable for tests)
 src/application/                     Use cases (claim, create, list, history, sign-in, viewer resolution, ...)
-src/application/ports/               Driven ports: AuthProvider, DataStore (injectable for tests)
-src/adapters/http/                   Express: auth + shift routes, session/viewer middleware, Zod contracts, errors
-src/adapters/supabase/               Supabase Auth provider + RLS-scoped reads and service-role workflow RPCs
+src/interfaces/http/                 Express: routes/, middleware/ (origin, validate, session, viewer), schemas/, errors
+src/infrastructure/auth/             Supabase Auth provider
+src/infrastructure/persistence/      Supabase data store: RLS-scoped reads and service-role workflow RPCs
+src/infrastructure/config/env/       Zod-validated environment (app + seed)
 src/test-support/                    Shared test fakes and fixtures (not built)
-src/**/*.test.ts                     Unit + HTTP tests next to the file they cover (fakes, no network)
+src/**/<module>/                     One folder per module: <module>.ts, <module>.test.ts, index.ts (barrel)
 supabase/config.toml                 Local stack (ports 553xx, sign-up disabled)
 supabase/migrations/                 Versioned SQL migrations
 scripts/seed.ts, scripts/seed-data.ts  Idempotent seed and deterministic fixtures
@@ -262,7 +263,7 @@ run locally. It is not part of CI yet.
 
 ## Environment variables
 
-Validated by `src/config/env.ts`. Blank values count as unset. Validation errors name the variable and never echo
+Validated by `src/infrastructure/config/env/`. Blank values count as unset. Validation errors name the variable and never echo
 its value.
 
 | Variable | Required | Description |

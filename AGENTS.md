@@ -16,23 +16,27 @@ Architecture rules:
   same-origin through `/api/*` and never uses Supabase directly.
 - The API owns login, session lifecycle (HttpOnly cookies, validation, refresh), authorization, business logic, and
   all database access.
-- `api/index.ts` is the Vercel entrypoint. `src/create-app.ts` builds the Express app. `src/dev-server.ts` is for local
-  development only. Do not name files in `src/` `app.ts`, `index.ts`, or `server.ts`, because Vercel would auto-detect
-  them as an alternative Express entrypoint.
-- Environment variables are read only through `src/config/env.ts` (Zod-validated, fail-fast).
+- `api/index.ts` is the Vercel entrypoint. `src/composition/create-app/` builds the Express app. `src/dev-server.ts` is for local
+  development only. Do not create `app.ts`, `index.ts`, or `server.ts` directly in `src/` (or the repo root), because Vercel would
+  auto-detect them as an alternative Express entrypoint. `index.ts` inside a module folder is fine.
+- Environment variables are read only through `src/infrastructure/config/env/` (Zod-validated, fail-fast).
 - Business invariants (one claim per shift, credential validity) must be enforced atomically in the database, not by
   read-then-write logic in the API or checks in the frontend.
 - Hexagonal (ports and adapters) layout. Dependencies point inward only, and ESLint (`no-restricted-imports`)
   enforces it:
-  - `src/domain/`: plain domain types and constants. No framework, Zod, Supabase or I/O imports.
-  - `src/application/`: one use case per file, plus driven ports in `src/application/ports/` (`AuthProvider`,
-    `DataStore`). Depends only on the domain.
-  - `src/adapters/http/`: driving adapter (Express routes, middleware, cookies, Zod contracts, error mapping).
-    Routes call use cases, never ports directly.
-  - `src/adapters/supabase/`: driven adapters implementing the ports.
-  - `src/create-app.ts`: composition root that wires adapters together. Tests inject fake ports through it.
-- Unit tests live next to the file they cover (`foo.ts` + `foo.test.ts`). Shared fakes and fixtures are in
-  `src/test-support/`. Both are excluded from the build. Database integration tests stay in `test/integration/`.
+  - `src/domain/`: plain domain types and constants, plus the driven ports in `src/domain/ports/` (`AuthProvider`,
+    `DataStore`). No framework, Zod, Supabase or I/O imports.
+  - `src/application/`: one use case per file. Depends only on the domain.
+  - `src/interfaces/http/`: driving adapter (Express `routes/`, `middleware/`, cookies, Zod `schemas/`, error
+    mapping). Routes call use cases, never ports directly.
+  - `src/infrastructure/`: driven adapters implementing the ports (`auth/`, `persistence/`) and the environment
+    config (`config/`).
+  - `src/composition/create-app/`: composition root that wires adapters together. Tests inject fake ports through it.
+- Every module is a folder holding its file, its test and an `index.ts` barrel:
+  `claim-shift/claim-shift.ts`, `claim-shift/claim-shift.test.ts`, `claim-shift/index.ts`. Other modules import it
+  only through `index.js` (ESLint enforces this); the test imports the file directly. Exceptions:
+  `src/dev-server.ts` (entrypoint), `src/types/` (ambient declarations) and `src/test-support/` (shared fakes).
+  Tests and test support are excluded from the build. Database integration tests stay in `test/integration/`.
 - Schema changes are versioned SQL in `supabase/migrations/` (additive; never edit a migration that has been
   applied to a shared project). All objects live in the `shiftpatch` schema, never `public`. The development
   Supabase project is shared with another application: apply migrations there with `pnpm db:push:shared`, never
@@ -83,11 +87,11 @@ binaries, so its install script is not needed. Revisit this only if `pnpm dev` f
 - Never run `pnpm seed` against production. Seeded account passwords come from `SEED_USER_PASSWORD` and are never
   committed.
 - Supabase access and refresh tokens live only in HttpOnly cookies set by this API. Never return tokens in JSON.
-  Responses expose only the safe session payload (`src/application/session-payload.ts`).
+  Responses expose only the safe session payload (`src/application/session-payload/`).
 - Identity comes only from the validated cookie session (`req.auth`, set by `resolveSession`). Never trust a user ID,
   role, agency ID, credential state, or token sent in a body, query string, or custom header. Never derive roles
   from `user_metadata`.
-- Unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) must pass the Origin check (`src/adapters/http/origin-check.ts`). Do not
+- Unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) must pass the Origin check (`src/interfaces/http/middleware/origin-check/`). Do not
   bypass it for new routes.
 - Never log credentials, cookies, tokens, authorization headers, request bodies, or raw Supabase error objects.
 - CORS is an exact-origin allowlist from `CORS_ORIGINS` with credentials enabled. Never use `*` and never allow

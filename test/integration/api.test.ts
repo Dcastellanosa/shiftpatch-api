@@ -4,7 +4,7 @@ import {
   shiftEventsResponse,
   shiftListResponse,
   shiftResponse,
-} from '../../src/adapters/http/contracts.js'
+} from '../../src/interfaces/http/schemas/contracts/index.js'
 import {
   AGENCIES,
   ALLOWED_ORIGIN,

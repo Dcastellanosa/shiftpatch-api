@@ -1,10 +1,10 @@
 import { vi } from 'vitest'
-import type { AuthProvider, AuthSession } from '../application/ports/auth-provider.js'
-import type { DataStore } from '../application/ports/data-store.js'
-import { parseEnv } from '../config/env.js'
-import { createApp } from '../create-app.js'
-import type { AuthUser, Profile, Viewer } from '../domain/identity.js'
-import type { Shift } from '../domain/shift.js'
+import type { AuthProvider, AuthSession } from '../domain/ports/auth-provider/index.js'
+import type { DataStore } from '../domain/ports/data-store/index.js'
+import { parseEnv } from '../infrastructure/config/env/index.js'
+import { createApp } from '../composition/create-app/index.js'
+import type { AuthUser, Profile, Viewer } from '../domain/identity/index.js'
+import type { Shift } from '../domain/shift/index.js'
 
 export const ALLOWED_ORIGIN = 'http://localhost:5173'
 

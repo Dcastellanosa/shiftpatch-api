@@ -4,12 +4,18 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 // Hexagonal dependency rule: dependencies point inward only.
-// domain <- application (use cases + ports) <- adapters (http, supabase) <- create-app (composition root)
+// domain (types + ports) <- application (use cases) <- interfaces (http) / infrastructure (supabase, config) <- composition (create-app)
 const frameworks = [
-  { group: ['express', 'express/*', 'cors', 'cookie-parser'], message: 'HTTP frameworks belong in src/adapters/http.' },
-  { group: ['@supabase/*'], message: 'Supabase belongs in src/adapters/supabase.' },
-  { group: ['zod'], message: 'Input validation belongs in the adapters.' },
+  { group: ['express', 'express/*', 'cors', 'cookie-parser'], message: 'HTTP frameworks belong in src/interfaces/http.' },
+  { group: ['@supabase/*'], message: 'Supabase belongs in src/infrastructure.' },
+  { group: ['zod'], message: 'Input validation belongs in src/interfaces/http.' },
 ]
+// Each module is a folder (`name/name.ts`, `name/name.test.ts`, `name/index.ts`).
+// Other modules are imported through their `index.js`, never a file inside the folder.
+const barrelOnly = {
+  regex: '^\\.\\./(?!.*test-support/).*(?<!/index)\\.js$',
+  message: 'Import another module through its index.js.',
+}
 const outerLayers = (...layers) =>
   layers.map((layer) => ({
     group: [`**/${layer}/**`, `**/${layer}.js`],
@@ -29,12 +35,18 @@ export default defineConfig([
     },
   },
   {
+    files: ['src/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [barrelOnly] }],
+    },
+  },
+  {
     files: ['src/domain/**/*.ts'],
     ignores: ['**/*.test.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: [...frameworks, ...outerLayers('application', 'adapters', 'config', 'create-app')] },
+        { patterns: [barrelOnly, ...frameworks, ...outerLayers('application', 'interfaces', 'infrastructure', 'composition')] },
       ],
     },
   },
@@ -44,17 +56,17 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: [...frameworks, ...outerLayers('adapters', 'config', 'create-app')] },
+        { patterns: [barrelOnly, ...frameworks, ...outerLayers('interfaces', 'infrastructure', 'composition')] },
       ],
     },
   },
   {
-    files: ['src/adapters/**/*.ts'],
+    files: ['src/interfaces/**/*.ts', 'src/infrastructure/**/*.ts'],
     ignores: ['**/*.test.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: outerLayers('create-app', 'config') },
+        { patterns: [barrelOnly, ...outerLayers('composition', 'config')] },
       ],
     },
   },
