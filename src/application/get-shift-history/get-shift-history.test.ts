@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getShiftHistory } from './get-shift-history.js'
-import type { ShiftEvent } from '../../domain/shift/index.js'
+import type { ShiftEvent } from '../../domain/shift/shift.js'
 import {
   ADMIN_PROFILE,
   AGENCY_PROFILE,

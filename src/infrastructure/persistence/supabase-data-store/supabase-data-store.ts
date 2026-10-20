@@ -5,8 +5,8 @@ import {
   DataUnavailableError,
   type CommandResult,
   type DataStore,
-} from '../../../domain/ports/data-store/index.js'
-import type { Viewer } from '../../../domain/identity/index.js'
+} from '../../../domain/ports/data-store/data-store.js'
+import type { Viewer } from '../../../domain/identity/identity.js'
 import {
   APP_ROLES,
   SHIFT_EVENT_TYPES,
@@ -15,7 +15,7 @@ import {
   type CreateOutcome,
   type Shift,
   type ShiftEvent,
-} from '../../../domain/shift/index.js'
+} from '../../../domain/shift/shift.js'
 
 interface SupabaseDataConfig {
   url: string

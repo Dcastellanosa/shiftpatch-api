@@ -1,6 +1,6 @@
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
-import { AuthRateLimitedError, AuthUnavailableError } from '../../../../domain/ports/auth-provider/index.js'
+import { AuthRateLimitedError, AuthUnavailableError } from '../../../../domain/ports/auth-provider/auth-provider.js'
 import {
   ALLOWED_ORIGIN,
   REFRESHED_SESSION,

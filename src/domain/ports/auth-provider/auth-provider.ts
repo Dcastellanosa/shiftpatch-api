@@ -1,4 +1,4 @@
-import type { AuthUser } from '../../identity/index.js'
+import type { AuthUser } from '../../identity/identity.js'
 
 export interface AuthSession {
   accessToken: string

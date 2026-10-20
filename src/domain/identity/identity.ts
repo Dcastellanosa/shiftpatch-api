@@ -1,4 +1,4 @@
-import type { AppRole } from '../shift/index.js'
+import type { AppRole } from '../shift/shift.js'
 
 /** Identity as verified by the auth provider. Never built from client input. */
 export interface AuthUser {

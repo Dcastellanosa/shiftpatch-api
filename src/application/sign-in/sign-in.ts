@@ -1,6 +1,6 @@
-import type { AuthProvider, AuthSession } from '../../domain/ports/auth-provider/index.js'
-import type { DataStore } from '../../domain/ports/data-store/index.js'
-import { loadSessionPayload, type SessionPayload } from '../session-payload/index.js'
+import type { AuthProvider, AuthSession } from '../../domain/ports/auth-provider/auth-provider.js'
+import type { DataStore } from '../../domain/ports/data-store/data-store.js'
+import { loadSessionPayload, type SessionPayload } from '../session-payload/session-payload.js'
 
 export type SignInResult = { ok: true; session: AuthSession; payload: SessionPayload } | { ok: false }
 

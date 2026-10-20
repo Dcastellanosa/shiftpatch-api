@@ -1,6 +1,6 @@
 import { AuthApiError, AuthRetryableFetchError } from '@supabase/supabase-js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AuthRateLimitedError, AuthUnavailableError } from '../../../domain/ports/auth-provider/index.js'
+import { AuthRateLimitedError, AuthUnavailableError } from '../../../domain/ports/auth-provider/auth-provider.js'
 import { createSupabaseAuthProvider } from './supabase-auth-provider.js'
 
 const supabase = vi.hoisted(() => ({
