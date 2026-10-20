@@ -1,5 +1,6 @@
-import type { DataStore, Viewer } from '../data/data-store.js'
-import type { Shift } from '../shifts/contracts.js'
+import type { Viewer } from '../domain/identity.js'
+import type { Shift } from '../domain/shift.js'
+import type { DataStore } from './ports/data-store.js'
 
 export interface MyShifts {
   upcoming: Shift[]

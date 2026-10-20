@@ -1,6 +1,19 @@
-import type { AuthUser } from '../auth/auth-provider.js'
-import type { SessionPayload } from '../auth/session-user.js'
-import type { Profile } from '../data/data-store.js'
+import type { AuthUser, Profile } from '../domain/identity.js'
+import type { AppRole } from '../domain/shift.js'
+import type { DataStore } from './ports/data-store.js'
+
+/** The only user shape this API returns to clients. Never contains tokens. */
+export interface SessionUser {
+  id: string
+  email: string | null
+  fullName: string | null
+  role: AppRole | null
+  agencyId: string | null
+}
+
+export interface SessionPayload {
+  user: SessionUser
+}
 
 /**
  * Profile fields come from the `profiles` table keyed by the verified
@@ -17,4 +30,16 @@ export function toSessionPayload(user: AuthUser, profile: Profile | null): Sessi
       agencyId: profile?.agencyId ?? null,
     },
   }
+}
+
+/**
+ * Builds the payload from the caller's own profile row when the data layer
+ * is configured; otherwise profile fields stay null.
+ */
+export async function loadSessionPayload(
+  { store }: { store: DataStore | null },
+  user: AuthUser,
+  accessToken: string,
+): Promise<SessionPayload> {
+  return toSessionPayload(user, store ? await store.getProfile(accessToken, user.id) : null)
 }

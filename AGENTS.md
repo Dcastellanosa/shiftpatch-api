@@ -22,6 +22,17 @@ Architecture rules:
 - Environment variables are read only through `src/config/env.ts` (Zod-validated, fail-fast).
 - Business invariants (one claim per shift, credential validity) must be enforced atomically in the database, not by
   read-then-write logic in the API or checks in the frontend.
+- Hexagonal (ports and adapters) layout. Dependencies point inward only, and ESLint (`no-restricted-imports`)
+  enforces it:
+  - `src/domain/`: plain domain types and constants. No framework, Zod, Supabase or I/O imports.
+  - `src/application/`: one use case per file, plus driven ports in `src/application/ports/` (`AuthProvider`,
+    `DataStore`). Depends only on the domain.
+  - `src/adapters/http/`: driving adapter (Express routes, middleware, cookies, Zod contracts, error mapping).
+    Routes call use cases, never ports directly.
+  - `src/adapters/supabase/`: driven adapters implementing the ports.
+  - `src/create-app.ts`: composition root that wires adapters together. Tests inject fake ports through it.
+- Unit tests live next to the file they cover (`foo.ts` + `foo.test.ts`). Shared fakes and fixtures are in
+  `src/test-support/`. Both are excluded from the build. Database integration tests stay in `test/integration/`.
 - Schema changes are versioned SQL in `supabase/migrations/` (additive; never edit a migration that has been
   applied to a shared project). All objects live in the `shiftpatch` schema, never `public`. The development
   Supabase project is shared with another application: apply migrations there with `pnpm db:push:shared`, never
@@ -46,7 +57,7 @@ Run all of these. CI (`.github/workflows/ci.yml`) runs the same steps on every p
 pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm lint
-pnpm test        # Vitest + Supertest (test/**/*.test.ts)
+pnpm test        # Vitest + Supertest (src/**/*.test.ts) with coverage; fails below 80%
 pnpm build
 ```
 
@@ -72,11 +83,11 @@ binaries, so its install script is not needed. Revisit this only if `pnpm dev` f
 - Never run `pnpm seed` against production. Seeded account passwords come from `SEED_USER_PASSWORD` and are never
   committed.
 - Supabase access and refresh tokens live only in HttpOnly cookies set by this API. Never return tokens in JSON.
-  Responses expose only the safe session payload (`src/auth/session-user.ts`).
+  Responses expose only the safe session payload (`src/application/session-payload.ts`).
 - Identity comes only from the validated cookie session (`req.auth`, set by `resolveSession`). Never trust a user ID,
   role, agency ID, credential state, or token sent in a body, query string, or custom header. Never derive roles
   from `user_metadata`.
-- Unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) must pass the Origin check (`src/http/origin-check.ts`). Do not
+- Unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) must pass the Origin check (`src/adapters/http/origin-check.ts`). Do not
   bypass it for new routes.
 - Never log credentials, cookies, tokens, authorization headers, request bodies, or raw Supabase error objects.
 - CORS is an exact-origin allowlist from `CORS_ORIGINS` with credentials enabled. Never use `*` and never allow

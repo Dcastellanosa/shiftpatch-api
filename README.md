@@ -117,7 +117,7 @@ Errors always use `{ "error": { "code", "message", "details"? } }`.
 | `GET` | `/branches` | → `{ branches }` (for the create-shift form and admin filters) |
 | `GET` | `/health` | `{ "status": "ok" }` |
 
-Shift shape (`src/shifts/contracts.ts`, Zod):
+Shift shape (`src/domain/shift.ts`, validated by Zod in `src/adapters/http/contracts.ts`):
 
 ```json
 {
@@ -161,17 +161,18 @@ allowlist with credentials.
 
 ```
 api/index.ts                         Vercel entrypoint
-src/create-app.ts                    App factory: CORS, origin check, cookies, JSON, routers, error handler
+src/create-app.ts                    Composition root: wires adapters, CORS, origin check, cookies, JSON, routers
 src/config/env.ts                    Zod-validated environment (app + seed)
-src/auth/                            Login/logout/me, cookie session, viewer (profile + role) middleware
-src/shifts/contracts.ts              Zod request/response contracts
-src/shifts/shift-routes.ts           /shifts, /me/shifts, /branches
-src/data/data-store.ts               DataStore interface (injectable for tests)
-src/data/supabase-data-store.ts      RLS-scoped reads + service-role workflow RPCs
+src/domain/                          Domain types and constants (no framework imports)
+src/application/                     Use cases (claim, create, list, history, sign-in, viewer resolution, ...)
+src/application/ports/               Driven ports: AuthProvider, DataStore (injectable for tests)
+src/adapters/http/                   Express: auth + shift routes, session/viewer middleware, Zod contracts, errors
+src/adapters/supabase/               Supabase Auth provider + RLS-scoped reads and service-role workflow RPCs
+src/test-support/                    Shared test fakes and fixtures (not built)
+src/**/*.test.ts                     Unit + HTTP tests next to the file they cover (fakes, no network)
 supabase/config.toml                 Local stack (ports 553xx, sign-up disabled)
 supabase/migrations/                 Versioned SQL migrations
 scripts/seed.ts, scripts/seed-data.ts  Idempotent seed and deterministic fixtures
-test/*.test.ts                       Unit + HTTP tests (fakes, no network)
 test/integration/*.test.ts           Schema, RLS, claim/concurrency and full-API tests against local Supabase
 ```
 
@@ -249,7 +250,8 @@ Branch requirements: every branch requires `nursing_license`. All except Hillcre
 | `pnpm build` | Compile `api/` and `src/` to `dist/` |
 | `pnpm typecheck` | Typecheck source, scripts, tests and configs |
 | `pnpm lint` | ESLint |
-| `pnpm test` | Unit + HTTP tests with fakes (no network, no database). Runs in CI. |
+| `pnpm test` | Unit + HTTP tests with fakes (no network, no database) and V8 coverage. Fails below 80% statements, branches, functions or lines. HTML report in `coverage/`. Runs in CI. |
+| `pnpm test:watch` | Vitest in watch mode |
 | `pnpm test:db` | `supabase db reset --local`, seed with a random throwaway password, then schema, RLS, claim/concurrency and full-API tests against the local stack. Refuses non-local URLs. Needs `pnpm db:start` first. |
 | `pnpm seed` | Idempotent development seed |
 | `pnpm db:start` / `db:reset` / `db:push` | Supabase CLI wrappers |

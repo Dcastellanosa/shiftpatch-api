@@ -13,7 +13,7 @@ import { existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { parseSeedEnv } from '../src/config/env.js'
-import { DB_SCHEMA } from '../src/data/supabase-data-store.js'
+import { DB_SCHEMA } from '../src/adapters/supabase/supabase-data-store.js'
 import {
   AGENCIES,
   BRANCHES,

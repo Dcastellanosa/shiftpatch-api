@@ -1,20 +1,16 @@
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
-import express, { type ErrorRequestHandler } from 'express'
-import {
-  AuthRateLimitedError,
-  AuthUnavailableError,
-  type AuthProvider,
-} from './auth/auth-provider.js'
-import { createAuthRouter } from './auth/auth-routes.js'
-import { requireSession, resolveSession } from './auth/session-middleware.js'
-import { createSupabaseAuthProvider } from './auth/supabase-auth-provider.js'
+import express from 'express'
+import { createAuthRouter } from './adapters/http/auth-routes.js'
+import { errorHandler, notFoundHandler } from './adapters/http/error-handler.js'
+import { requireTrustedOrigin } from './adapters/http/origin-check.js'
+import { requireSession, resolveSession } from './adapters/http/session-middleware.js'
+import { createShiftRouter } from './adapters/http/shift-routes.js'
+import { createSupabaseAuthProvider } from './adapters/supabase/supabase-auth-provider.js'
+import { createSupabaseDataStore } from './adapters/supabase/supabase-data-store.js'
+import type { AuthProvider } from './application/ports/auth-provider.js'
+import type { DataStore } from './application/ports/data-store.js'
 import type { Env } from './config/env.js'
-import { DataStoreError, DataUnavailableError, type DataStore } from './data/data-store.js'
-import { createSupabaseDataStore } from './data/supabase-data-store.js'
-import { AppError } from './http/errors.js'
-import { requireTrustedOrigin } from './http/origin-check.js'
-import { createShiftRouter } from './shifts/shift-routes.js'
 
 export interface AppDependencies {
   /** Override for tests. `null` means auth is not configured. */
@@ -23,6 +19,10 @@ export interface AppDependencies {
   dataStore?: DataStore | null
 }
 
+/**
+ * Composition root: wires the driven adapters (Supabase) into the driving
+ * adapter (Express). Tests inject fake ports through `deps`.
+ */
 export function createApp(env: Env, deps: AppDependencies = {}) {
   const app = express()
   const allowedOrigins = new Set(env.CORS_ORIGINS)
@@ -75,50 +75,7 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
   app.use('/auth', createAuthRouter(authProvider, dataStore, cookieConfig))
   app.use(createShiftRouter(dataStore, [resolveSession(authProvider, cookieConfig), requireSession]))
 
-  app.use((_req, res) => {
-    res.status(404).json({ error: { code: 'not_found', message: 'Route not found' } })
-  })
-
-  const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
-    if (err instanceof AppError) {
-      res.status(err.status).json(err.toBody())
-      return
-    }
-    if (err instanceof AuthRateLimitedError) {
-      res.status(429).json({ error: { code: 'rate_limited', message: err.message } })
-      return
-    }
-    if (err instanceof AuthUnavailableError) {
-      res.status(503).json({ error: { code: 'auth_unavailable', message: err.message } })
-      return
-    }
-    if (err instanceof DataUnavailableError) {
-      res.status(503).json({ error: { code: 'data_unavailable', message: 'Data service is not available' } })
-      return
-    }
-    if (err instanceof DataStoreError) {
-      // The message holds only the failing step and a PostgREST error code.
-      console.error(`Data store error: ${err.message}`)
-      res.status(500).json({ error: { code: 'internal_error', message: 'Internal server error' } })
-      return
-    }
-    const parserType = (err as { type?: unknown }).type
-    if (parserType === 'entity.parse.failed') {
-      res.status(400).json({ error: { code: 'invalid_json', message: 'Malformed JSON body' } })
-      return
-    }
-    if (parserType === 'entity.too.large') {
-      res.status(413).json({ error: { code: 'payload_too_large', message: 'Request body too large' } })
-      return
-    }
-
-    // Log only the error name and message: never request data, cookies,
-    // tokens, headers, or third-party error objects.
-    const name = err instanceof Error ? err.name : 'UnknownError'
-    const message = err instanceof Error ? err.message : String(err)
-    console.error(`Unhandled error: ${name}: ${message}`)
-    res.status(500).json({ error: { code: 'internal_error', message: 'Internal server error' } })
-  }
+  app.use(notFoundHandler)
   app.use(errorHandler)
 
   return app
