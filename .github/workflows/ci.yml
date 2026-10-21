@@ -14,6 +14,7 @@ concurrency:
 
 jobs:
   verify:
+    name: typecheck · lint · format · unit tests · build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,8 +36,47 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Test
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Unit and HTTP tests (coverage ≥ 80%)
         run: pnpm test
 
       - name: Build
         run: pnpm build
+
+      # Advisory only: known advisories in the dependency tree are reported, not blocking.
+      - name: Dependency audit (high and above)
+        run: pnpm audit --audit-level=high
+        continue-on-error: true
+
+  database:
+    name: schema · RLS · workflow functions · contract (local Supabase)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Applies supabase/migrations to a throwaway local stack (ports 553xx, Mailpit on 55324).
+      - name: Start the local Supabase stack
+        run: supabase start
+
+      - name: Integration suite
+        run: pnpm test:db
+
+      - name: Stop the stack
+        if: always()
+        run: supabase stop --no-backup

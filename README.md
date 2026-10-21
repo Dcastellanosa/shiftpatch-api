@@ -322,7 +322,8 @@ own scenarios; they are never part of `pnpm seed`.
 | `pnpm dev` | Local server with reload (`tsx watch`), loads `.env` |
 | `pnpm build` | Compile `api/` and `src/` to `dist/` |
 | `pnpm typecheck` | Typecheck source, scripts, tests and configs |
-| `pnpm lint` | ESLint |
+| `pnpm lint` | ESLint (with `eslint-config-prettier`) |
+| `pnpm format` / `pnpm format:check` | Prettier: rewrite / verify formatting |
 | `pnpm test` | Unit + HTTP tests with fakes (no network, no database) and V8 coverage. Fails below 80% statements, branches, functions or lines. HTML report in `coverage/`. Runs in CI. |
 | `pnpm test:watch` | Vitest in watch mode |
 | `pnpm test:db` | `supabase db reset --local`, seed the trial dataset plus the test fixtures with a random throwaway password, then schema, RLS, claim/concurrency, admin, contract and full-API tests against the local stack. Refuses non-local URLs. Needs `pnpm db:start` first. |
@@ -332,8 +333,9 @@ own scenarios; they are never part of `pnpm seed`.
 | `pnpm db:start` / `db:reset` / `db:push` | Supabase CLI wrappers |
 | `pnpm db:push:shared` | Apply migrations to a linked project shared with another app (own history table) |
 
-CI (`.github/workflows/ci.yml`) runs install → typecheck → lint → test → build. `pnpm test:db` needs Docker and is
-run locally. It is not part of CI yet.
+CI (`.github/workflows/ci.yml`) runs two jobs on every push to `main` and every pull request: `verify` (install →
+typecheck → lint → format check → unit tests with coverage → build, plus an advisory `pnpm audit`) and `database`
+(Supabase CLI starts a throwaway local stack and runs `pnpm test:db`). Dependabot opens weekly grouped updates.
 
 ## Environment variables
 

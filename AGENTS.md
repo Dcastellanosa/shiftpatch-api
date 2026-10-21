@@ -55,12 +55,14 @@ Architecture rules:
 
 ## Verification commands
 
-Run all of these. CI (`.github/workflows/ci.yml`) runs the same steps on every push to `main` and every pull request.
+Run all of these. CI (`.github/workflows/ci.yml`) runs the same steps on every push to `main` and every pull request,
+plus a second job that starts a local Supabase stack and runs `pnpm test:db`.
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm lint
+pnpm format:check   # Prettier (`pnpm format` rewrites)
 pnpm test        # Vitest + Supertest (src/**/*.test.ts) with coverage; fails below 80%
 pnpm build
 ```

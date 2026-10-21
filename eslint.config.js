@@ -2,6 +2,7 @@ import js from '@eslint/js'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
+import prettier from 'eslint-config-prettier'
 
 // Hexagonal dependency rule: dependencies point inward only.
 // domain (types + ports) <- application (use cases) <- interfaces (http) / infrastructure (supabase, config) <- composition (create-app)
@@ -74,4 +75,6 @@ export default defineConfig([
       ],
     },
   },
+  // Last: turns off formatting rules that would fight Prettier.
+  prettier,
 ])
