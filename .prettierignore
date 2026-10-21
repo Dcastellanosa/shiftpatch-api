@@ -11,3 +11,4 @@ docs/ai-transcripts
 .kiro
 skills
 *.md
+supabase/templates
