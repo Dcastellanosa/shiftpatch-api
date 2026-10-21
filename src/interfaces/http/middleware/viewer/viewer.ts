@@ -4,8 +4,7 @@ import { resolveViewer, type ResolveViewerFailure } from '../../../../applicatio
 import type { AppRole } from '../../../../domain/shift/shift.js'
 import { AppError, unauthenticated } from '../../errors/errors.js'
 
-export const dataUnavailable = () =>
-  new AppError(503, 'data_unavailable', 'Data service is not available')
+export const dataUnavailable = () => new AppError(503, 'data_unavailable', 'Data service is not available')
 
 const VIEWER_ERRORS: Record<ResolveViewerFailure, () => AppError> = {
   profile_missing: () => new AppError(403, 'profile_missing', 'Your account has not been set up for ShiftPatch yet'),

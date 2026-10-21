@@ -6,8 +6,7 @@ import type { DataStore } from '../../domain/ports/data-store/data-store.js'
 export type CancelClaimFailure = Exclude<CancelOutcome, 'cancelled'>
 
 export type CancelClaimResult =
-  | { ok: true; shift: Shift; cancellation: ShiftCancellation }
-  | { ok: false; outcome: CancelClaimFailure }
+  { ok: true; shift: Shift; cancellation: ShiftCancellation } | { ok: false; outcome: CancelClaimFailure }
 
 /**
  * No-show or advance cancellation of a claimed shift. The database command

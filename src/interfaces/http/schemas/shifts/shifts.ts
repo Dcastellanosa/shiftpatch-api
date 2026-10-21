@@ -27,10 +27,14 @@ export const shiftEventTypeSchema = z.enum(SHIFT_EVENT_TYPES)
 export const entityStatusSchema = z.enum(ENTITY_STATUSES)
 
 const isoTimestamp = z.iso.datetime()
-const localDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD').refine(
-  (value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().startsWith(value),
-  'must be a calendar date',
-)
+const localDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')
+  .refine(
+    (value) =>
+      !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().startsWith(value),
+    'must be a calendar date',
+  )
 const localTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be HH:MM')
 
 export const branchSchema = z.object({
@@ -53,7 +57,13 @@ export const shiftSchema = z.object({
   status: shiftStatusSchema,
   claimedBy: publicIdSchema.nullable(),
   claimedByName: z.string().nullable(),
-  branch: z.object({ id: z.uuid(), name: z.string(), address: z.string(), timezone: z.string(), status: entityStatusSchema }),
+  branch: z.object({
+    id: z.uuid(),
+    name: z.string(),
+    address: z.string(),
+    timezone: z.string(),
+    status: entityStatusSchema,
+  }),
   startsAt: isoTimestamp,
   endsAt: isoTimestamp,
   createdAt: isoTimestamp,

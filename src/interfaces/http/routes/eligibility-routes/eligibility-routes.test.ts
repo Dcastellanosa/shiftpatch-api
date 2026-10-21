@@ -20,14 +20,19 @@ import { eligibilityResponse, nurseListResponse } from '../../schemas/eligibilit
 const asProfile = (profile: Profile | null) => async () => profile
 type App = ReturnType<typeof buildApp>
 const get = (app: App, path: string) => request(app).get(path).set('Cookie', SESSION_COOKIE)
-const put = (app: App, path: string) => request(app).put(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send()
-const del = (app: App, path: string) => request(app).delete(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send()
+const put = (app: App, path: string) =>
+  request(app).put(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send()
+const del = (app: App, path: string) =>
+  request(app).delete(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send()
 const PATH = `/nurses/${NURSE_ID}/eligibility/${BRANCH_ID}`
 
 describe('GET /agency/nurses', () => {
   it('lists nurses for an agency user', async () => {
     const nurses = [nurseEligibilityFixture()]
-    const res = await get(buildSignedInApp(fakeDataStore({ getProfile: asProfile(AGENCY_PROFILE), listAgencyNurses: async () => nurses })), '/agency/nurses')
+    const res = await get(
+      buildSignedInApp(fakeDataStore({ getProfile: asProfile(AGENCY_PROFILE), listAgencyNurses: async () => nurses })),
+      '/agency/nurses',
+    )
     expect(res.status).toBe(200)
     expect(nurseListResponse.parse(res.body).nurses).toEqual(nurses)
   })
@@ -46,18 +51,21 @@ describe('GET /agency/nurses', () => {
 })
 
 describe('PUT and DELETE /nurses/:nurseId/eligibility/:branchId', () => {
-  it.each([AGENCY_PROFILE, ADMIN_PROFILE])('activates as $role with the viewer id and returns the row', async (profile) => {
-    const eligibility = eligibilityFixture({ status: 'active' })
-    const store = fakeDataStore({
-      getProfile: asProfile(profile),
-      setBranchEligibility: async () => ({ outcome: 'updated', entityId: 'f1000000-0000-4000-8000-000000000001' }),
-      getEligibility: async () => eligibility,
-    })
-    const res = await put(buildSignedInApp(store), PATH)
-    expect(res.status).toBe(200)
-    expect(eligibilityResponse.parse(res.body).eligibility).toEqual(eligibility)
-    expect(store.setBranchEligibility).toHaveBeenCalledWith(profile.id, NURSE_ID, BRANCH_ID, 'active')
-  })
+  it.each([AGENCY_PROFILE, ADMIN_PROFILE])(
+    'activates as $role with the viewer id and returns the row',
+    async (profile) => {
+      const eligibility = eligibilityFixture({ status: 'active' })
+      const store = fakeDataStore({
+        getProfile: asProfile(profile),
+        setBranchEligibility: async () => ({ outcome: 'updated', entityId: 'f1000000-0000-4000-8000-000000000001' }),
+        getEligibility: async () => eligibility,
+      })
+      const res = await put(buildSignedInApp(store), PATH)
+      expect(res.status).toBe(200)
+      expect(eligibilityResponse.parse(res.body).eligibility).toEqual(eligibility)
+      expect(store.setBranchEligibility).toHaveBeenCalledWith(profile.id, NURSE_ID, BRANCH_ID, 'active')
+    },
+  )
 
   it('suspends through DELETE (soft: the row stays and is returned)', async () => {
     const eligibility = eligibilityFixture({ status: 'suspended' })
@@ -79,7 +87,10 @@ describe('PUT and DELETE /nurses/:nurseId/eligibility/:branchId', () => {
     ['branch_inactive', 422, 'branch_inactive'],
     ['actor_not_allowed', 403, 'forbidden'],
   ] as const)('maps %s to %i', async (outcome, status, code) => {
-    const store = fakeDataStore({ getProfile: asProfile(AGENCY_PROFILE), setBranchEligibility: async () => ({ outcome, entityId: null }) })
+    const store = fakeDataStore({
+      getProfile: asProfile(AGENCY_PROFILE),
+      setBranchEligibility: async () => ({ outcome, entityId: null }),
+    })
     const res = await put(buildSignedInApp(store), PATH)
     expect(res.status).toBe(status)
     expect(res.body).toEqual({ error: expect.any(String), code })
@@ -97,7 +108,11 @@ describe('PUT and DELETE /nurses/:nurseId/eligibility/:branchId', () => {
 
   it('rejects cross-site writes', async () => {
     const store = fakeDataStore({ getProfile: asProfile(AGENCY_PROFILE) })
-    const res = await request(buildSignedInApp(store)).put(PATH).set('Origin', 'https://evil.example').set('Cookie', SESSION_COOKIE).send()
+    const res = await request(buildSignedInApp(store))
+      .put(PATH)
+      .set('Origin', 'https://evil.example')
+      .set('Cookie', SESSION_COOKIE)
+      .send()
     expect(res.status).toBe(403)
     expect(store.getProfile).not.toHaveBeenCalled()
   })

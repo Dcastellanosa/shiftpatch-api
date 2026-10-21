@@ -24,7 +24,13 @@ async function audits(db: Queryable, entityId: string) {
     'select entity_type, action, previous_status, new_status, actor_id from shiftpatch.audit_events where entity_id = $1 and occurred_at >= now() order by occurred_at, id',
     [entityId],
   )
-  return rows as { entity_type: string; action: string; previous_status: string | null; new_status: string | null; actor_id: string }[]
+  return rows as {
+    entity_type: string
+    action: string
+    previous_status: string | null
+    new_status: string | null
+    actor_id: string
+  }[]
 }
 
 /** Inserts an Auth user without a role (so the trigger creates no profile) and returns its id. */
@@ -61,7 +67,10 @@ describe('create_agency', () => {
 
   it('reports a taken name without a pre-check', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, 'create_agency($1, $2)', [ADMIN, AGENCIES.northwind.name])).toEqual({ outcome: 'name_taken', entity_id: null })
+      expect(await run(db, 'create_agency($1, $2)', [ADMIN, AGENCIES.northwind.name])).toEqual({
+        outcome: 'name_taken',
+        entity_id: null,
+      })
     })
   })
 
@@ -71,7 +80,10 @@ describe('create_agency', () => {
     ['unknown profile', randomUUID()],
   ])('refuses a %s actor', async (_label, actor) => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, 'create_agency($1, $2)', [actor, 'Nope Staffing'])).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
+      expect(await run(db, 'create_agency($1, $2)', [actor, 'Nope Staffing'])).toEqual({
+        outcome: 'actor_not_allowed',
+        entity_id: null,
+      })
       await db.query('reset role')
       const { rows } = await db.query(`select 1 from shiftpatch.agencies where name = 'Nope Staffing'`)
       expect(rows).toEqual([])
@@ -103,10 +115,17 @@ describe('create_agency', () => {
 describe('update_agency', () => {
   it('renames and deactivates, leaving null arguments unchanged, and audits each change', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, 'update_agency($1, $2, $3, $4)', [ADMIN, AGENCIES.harbor.id, 'Harbor Health Group', null])).toEqual({ outcome: 'updated', entity_id: AGENCIES.harbor.id })
-      expect(await run(db, 'update_agency($1, $2, $3, $4)', [ADMIN, AGENCIES.harbor.id, null, 'inactive'])).toEqual({ outcome: 'updated', entity_id: AGENCIES.harbor.id })
+      expect(
+        await run(db, 'update_agency($1, $2, $3, $4)', [ADMIN, AGENCIES.harbor.id, 'Harbor Health Group', null]),
+      ).toEqual({ outcome: 'updated', entity_id: AGENCIES.harbor.id })
+      expect(await run(db, 'update_agency($1, $2, $3, $4)', [ADMIN, AGENCIES.harbor.id, null, 'inactive'])).toEqual({
+        outcome: 'updated',
+        entity_id: AGENCIES.harbor.id,
+      })
       await db.query('reset role')
-      const { rows } = await db.query('select name, status from shiftpatch.agencies where id = $1', [AGENCIES.harbor.id])
+      const { rows } = await db.query('select name, status from shiftpatch.agencies where id = $1', [
+        AGENCIES.harbor.id,
+      ])
       expect(rows).toEqual([{ name: 'Harbor Health Group', status: 'inactive' }])
       expect((await audits(db, AGENCIES.harbor.id)).map((a) => [a.action, a.previous_status, a.new_status])).toEqual([
         ['updated', 'active', 'active'],
@@ -117,28 +136,39 @@ describe('update_agency', () => {
 
   it('reactivates an inactive agency', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, 'update_agency($1, $2, $3, $4)', [ADMIN, AGENCIES.lakeside.id, null, 'active'])).toMatchObject({ outcome: 'updated' })
+      expect(
+        await run(db, 'update_agency($1, $2, $3, $4)', [ADMIN, AGENCIES.lakeside.id, null, 'active']),
+      ).toMatchObject({ outcome: 'updated' })
       expect((await audits(db, AGENCIES.lakeside.id)).map((a) => a.action)).toEqual(['activated'])
     })
   })
 
   it('writes no audit row when nothing changes', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, 'update_agency($1, $2, $3, $4)', [ADMIN, AGENCIES.harbor.id, AGENCIES.harbor.name, 'active'])).toMatchObject({ outcome: 'updated' })
+      expect(
+        await run(db, 'update_agency($1, $2, $3, $4)', [ADMIN, AGENCIES.harbor.id, AGENCIES.harbor.name, 'active']),
+      ).toMatchObject({ outcome: 'updated' })
       expect(await audits(db, AGENCIES.harbor.id)).toEqual([])
     })
   })
 
   it('reports unknown agencies and taken names', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, 'update_agency($1, $2, $3, $4)', [ADMIN, randomUUID(), 'x', null])).toEqual({ outcome: 'agency_not_found', entity_id: null })
-      expect(await run(db, 'update_agency($1, $2, $3, $4)', [ADMIN, AGENCIES.harbor.id, AGENCIES.northwind.name, null])).toEqual({ outcome: 'name_taken', entity_id: null })
+      expect(await run(db, 'update_agency($1, $2, $3, $4)', [ADMIN, randomUUID(), 'x', null])).toEqual({
+        outcome: 'agency_not_found',
+        entity_id: null,
+      })
+      expect(
+        await run(db, 'update_agency($1, $2, $3, $4)', [ADMIN, AGENCIES.harbor.id, AGENCIES.northwind.name, null]),
+      ).toEqual({ outcome: 'name_taken', entity_id: null })
     })
   })
 
   it('refuses non-admin actors', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, 'update_agency($1, $2, $3, $4)', [NORTHWIND, AGENCIES.northwind.id, null, 'inactive'])).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
+      expect(
+        await run(db, 'update_agency($1, $2, $3, $4)', [NORTHWIND, AGENCIES.northwind.id, null, 'inactive']),
+      ).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
     })
   })
 })
@@ -146,11 +176,28 @@ describe('update_agency', () => {
 describe('create_branch', () => {
   it('creates an active branch under an active agency and audits it', async () => {
     await inRollback(pool, async (db) => {
-      const result = await run(db, 'create_branch($1, $2, $3, $4, $5)', [ADMIN, AGENCIES.northwind.id, ' Uptown Clinic ', ' 1 Up Street ', 'America/New_York'])
+      const result = await run(db, 'create_branch($1, $2, $3, $4, $5)', [
+        ADMIN,
+        AGENCIES.northwind.id,
+        ' Uptown Clinic ',
+        ' 1 Up Street ',
+        'America/New_York',
+      ])
       expect(result.outcome).toBe('created')
       await db.query('reset role')
-      const { rows } = await db.query('select agency_id, name, address, timezone, status from shiftpatch.agency_branches where id = $1', [result.entity_id])
-      expect(rows).toEqual([{ agency_id: AGENCIES.northwind.id, name: 'Uptown Clinic', address: '1 Up Street', timezone: 'America/New_York', status: 'active' }])
+      const { rows } = await db.query(
+        'select agency_id, name, address, timezone, status from shiftpatch.agency_branches where id = $1',
+        [result.entity_id],
+      )
+      expect(rows).toEqual([
+        {
+          agency_id: AGENCIES.northwind.id,
+          name: 'Uptown Clinic',
+          address: '1 Up Street',
+          timezone: 'America/New_York',
+          status: 'active',
+        },
+      ])
       expect((await audits(db, result.entity_id!)).map((a) => a.action)).toEqual(['created'])
     })
   })
@@ -161,19 +208,32 @@ describe('create_branch', () => {
     ['taken name within the agency', AGENCIES.northwind.id, BRANCHES.downtown.name, 'name_taken'],
   ])('reports %s', async (_label, agencyId, name, outcome) => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, 'create_branch($1, $2, $3, $4, $5)', [ADMIN, agencyId, name, 'Somewhere', 'UTC'])).toEqual({ outcome, entity_id: null })
+      expect(await run(db, 'create_branch($1, $2, $3, $4, $5)', [ADMIN, agencyId, name, 'Somewhere', 'UTC'])).toEqual({
+        outcome,
+        entity_id: null,
+      })
     })
   })
 
   it('allows the same branch name under another agency', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, 'create_branch($1, $2, $3, $4, $5)', [ADMIN, AGENCIES.harbor.id, BRANCHES.downtown.name, 'Somewhere', 'UTC'])).toMatchObject({ outcome: 'created' })
+      expect(
+        await run(db, 'create_branch($1, $2, $3, $4, $5)', [
+          ADMIN,
+          AGENCIES.harbor.id,
+          BRANCHES.downtown.name,
+          'Somewhere',
+          'UTC',
+        ]),
+      ).toMatchObject({ outcome: 'created' })
     })
   })
 
   it('refuses non-admin actors', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, 'create_branch($1, $2, $3, $4, $5)', [NORTHWIND, AGENCIES.northwind.id, 'Mine', 'x', 'UTC'])).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
+      expect(
+        await run(db, 'create_branch($1, $2, $3, $4, $5)', [NORTHWIND, AGENCIES.northwind.id, 'Mine', 'x', 'UTC']),
+      ).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
     })
   })
 })
@@ -182,37 +242,79 @@ describe('update_branch', () => {
   it('edits fields, deactivates and reactivates, auditing each change', async () => {
     await inRollback(pool, async (db) => {
       const call = 'update_branch($1, $2, $3, $4, $5, $6)'
-      expect(await run(db, call, [ADMIN, BRANCHES.riverside.id, 'Riverside General', null, 'America/Chicago', null])).toMatchObject({ outcome: 'updated' })
-      expect(await run(db, call, [ADMIN, BRANCHES.riverside.id, null, null, null, 'inactive'])).toMatchObject({ outcome: 'updated' })
-      expect(await run(db, call, [ADMIN, BRANCHES.riverside.id, null, null, null, 'active'])).toMatchObject({ outcome: 'updated' })
+      expect(
+        await run(db, call, [ADMIN, BRANCHES.riverside.id, 'Riverside General', null, 'America/Chicago', null]),
+      ).toMatchObject({ outcome: 'updated' })
+      expect(await run(db, call, [ADMIN, BRANCHES.riverside.id, null, null, null, 'inactive'])).toMatchObject({
+        outcome: 'updated',
+      })
+      expect(await run(db, call, [ADMIN, BRANCHES.riverside.id, null, null, null, 'active'])).toMatchObject({
+        outcome: 'updated',
+      })
       await db.query('reset role')
-      const { rows } = await db.query('select name, address, timezone, status from shiftpatch.agency_branches where id = $1', [BRANCHES.riverside.id])
-      expect(rows).toEqual([{ name: 'Riverside General', address: BRANCHES.riverside.address, timezone: 'America/Chicago', status: 'active' }])
-      expect((await audits(db, BRANCHES.riverside.id)).map((a) => [a.action, a.previous_status, a.new_status])).toEqual([
-        ['updated', 'active', 'active'],
-        ['deactivated', 'active', 'inactive'],
-        ['activated', 'inactive', 'active'],
+      const { rows } = await db.query(
+        'select name, address, timezone, status from shiftpatch.agency_branches where id = $1',
+        [BRANCHES.riverside.id],
+      )
+      expect(rows).toEqual([
+        {
+          name: 'Riverside General',
+          address: BRANCHES.riverside.address,
+          timezone: 'America/Chicago',
+          status: 'active',
+        },
       ])
+      expect((await audits(db, BRANCHES.riverside.id)).map((a) => [a.action, a.previous_status, a.new_status])).toEqual(
+        [
+          ['updated', 'active', 'active'],
+          ['deactivated', 'active', 'inactive'],
+          ['activated', 'inactive', 'active'],
+        ],
+      )
     })
   })
 
   it('may activate a branch whose agency is inactive (availability still needs both)', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, 'update_branch($1, $2, $3, $4, $5, $6)', [ADMIN, BRANCHES.lakesideClinic.id, null, null, null, 'active'])).toMatchObject({ outcome: 'updated' })
+      expect(
+        await run(db, 'update_branch($1, $2, $3, $4, $5, $6)', [
+          ADMIN,
+          BRANCHES.lakesideClinic.id,
+          null,
+          null,
+          null,
+          'active',
+        ]),
+      ).toMatchObject({ outcome: 'updated' })
     })
   })
 
   it('reports unknown branches and taken names', async () => {
     await inRollback(pool, async (db) => {
       const call = 'update_branch($1, $2, $3, $4, $5, $6)'
-      expect(await run(db, call, [ADMIN, randomUUID(), 'x', null, null, null])).toEqual({ outcome: 'branch_not_found', entity_id: null })
-      expect(await run(db, call, [ADMIN, BRANCHES.riverside.id, BRANCHES.downtown.name, null, null, null])).toEqual({ outcome: 'name_taken', entity_id: null })
+      expect(await run(db, call, [ADMIN, randomUUID(), 'x', null, null, null])).toEqual({
+        outcome: 'branch_not_found',
+        entity_id: null,
+      })
+      expect(await run(db, call, [ADMIN, BRANCHES.riverside.id, BRANCHES.downtown.name, null, null, null])).toEqual({
+        outcome: 'name_taken',
+        entity_id: null,
+      })
     })
   })
 
   it('refuses non-admin actors', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, 'update_branch($1, $2, $3, $4, $5, $6)', [HARBOR, BRANCHES.bayview.id, null, null, null, 'inactive'])).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
+      expect(
+        await run(db, 'update_branch($1, $2, $3, $4, $5, $6)', [
+          HARBOR,
+          BRANCHES.bayview.id,
+          null,
+          null,
+          null,
+          'inactive',
+        ]),
+      ).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
     })
   })
 })
@@ -223,17 +325,36 @@ describe('provision_user', () => {
   it('provisions an agency user with one active membership per agency', async () => {
     await inRollback(pool, async (db) => {
       const userId = await newAuthUser(db)
-      expect(await run(db, call, [ADMIN, userId, ' Pat Agency ', 'agency', [AGENCIES.northwind.id, AGENCIES.harbor.id, AGENCIES.harbor.id], null])).toEqual({ outcome: 'provisioned', entity_id: userId })
+      expect(
+        await run(db, call, [
+          ADMIN,
+          userId,
+          ' Pat Agency ',
+          'agency',
+          [AGENCIES.northwind.id, AGENCIES.harbor.id, AGENCIES.harbor.id],
+          null,
+        ]),
+      ).toEqual({ outcome: 'provisioned', entity_id: userId })
       await db.query('reset role')
-      const { rows: profile } = await db.query('select full_name, role from shiftpatch.profiles where id = $1', [userId])
+      const { rows: profile } = await db.query('select full_name, role from shiftpatch.profiles where id = $1', [
+        userId,
+      ])
       expect(profile).toEqual([{ full_name: 'Pat Agency', role: 'agency' }])
-      const { rows: memberships } = await db.query('select agency_id, status from shiftpatch.agency_memberships where profile_id = $1 order by agency_id', [userId])
+      const { rows: memberships } = await db.query(
+        'select agency_id, status from shiftpatch.agency_memberships where profile_id = $1 order by agency_id',
+        [userId],
+      )
       expect(memberships).toEqual([
         { agency_id: AGENCIES.northwind.id, status: 'active' },
         { agency_id: AGENCIES.harbor.id, status: 'active' },
       ])
-      expect((await audits(db, userId)).map((a) => [a.entity_type, a.action, a.new_status])).toEqual([['profile', 'invited', 'agency']])
-      const { rows: membershipAudits } = await db.query(`select count(*)::int as n from shiftpatch.audit_events where entity_type = 'agency_membership' and entity_id in (select id from shiftpatch.agency_memberships where profile_id = $1)`, [userId])
+      expect((await audits(db, userId)).map((a) => [a.entity_type, a.action, a.new_status])).toEqual([
+        ['profile', 'invited', 'agency'],
+      ])
+      const { rows: membershipAudits } = await db.query(
+        `select count(*)::int as n from shiftpatch.audit_events where entity_type = 'agency_membership' and entity_id in (select id from shiftpatch.agency_memberships where profile_id = $1)`,
+        [userId],
+      )
       expect(membershipAudits[0].n).toBe(2)
     })
   })
@@ -241,13 +362,24 @@ describe('provision_user', () => {
   it('provisions a nurse with one active eligibility, which derives their agency access', async () => {
     await inRollback(pool, async (db) => {
       const userId = await newAuthUser(db)
-      expect(await run(db, call, [ADMIN, userId, 'Nina Nurse', 'nurse', null, BRANCHES.downtown.id])).toEqual({ outcome: 'provisioned', entity_id: userId })
+      expect(await run(db, call, [ADMIN, userId, 'Nina Nurse', 'nurse', null, BRANCHES.downtown.id])).toEqual({
+        outcome: 'provisioned',
+        entity_id: userId,
+      })
       await db.query('reset role')
-      const { rows } = await db.query('select branch_id, status, activated_at is not null as activated from shiftpatch.branch_nurse_eligibility where nurse_id = $1', [userId])
+      const { rows } = await db.query(
+        'select branch_id, status, activated_at is not null as activated from shiftpatch.branch_nurse_eligibility where nurse_id = $1',
+        [userId],
+      )
       expect(rows).toEqual([{ branch_id: BRANCHES.downtown.id, status: 'active', activated: true }])
-      const { rows: visible } = await db.query(`select agency_id from shiftpatch.agency_branches b where b.id = $1`, [BRANCHES.downtown.id])
+      const { rows: visible } = await db.query(`select agency_id from shiftpatch.agency_branches b where b.id = $1`, [
+        BRANCHES.downtown.id,
+      ])
       expect(visible).toEqual([{ agency_id: AGENCIES.northwind.id }])
-      const { rows: eligibilityAudits } = await db.query(`select action from shiftpatch.audit_events where entity_type = 'branch_nurse_eligibility' and entity_id in (select id from shiftpatch.branch_nurse_eligibility where nurse_id = $1)`, [userId])
+      const { rows: eligibilityAudits } = await db.query(
+        `select action from shiftpatch.audit_events where entity_type = 'branch_nurse_eligibility' and entity_id in (select id from shiftpatch.branch_nurse_eligibility where nurse_id = $1)`,
+        [userId],
+      )
       expect(eligibilityAudits).toEqual([{ action: 'eligibility_activated' }])
     })
   })
@@ -255,7 +387,10 @@ describe('provision_user', () => {
   it('provisions an admin with a profile only', async () => {
     await inRollback(pool, async (db) => {
       const userId = await newAuthUser(db)
-      expect(await run(db, call, [ADMIN, userId, 'Sam Admin', 'admin', null, null])).toEqual({ outcome: 'provisioned', entity_id: userId })
+      expect(await run(db, call, [ADMIN, userId, 'Sam Admin', 'admin', null, null])).toEqual({
+        outcome: 'provisioned',
+        entity_id: userId,
+      })
       await db.query('reset role')
       const { rows } = await db.query('select role from shiftpatch.profiles where id = $1', [userId])
       expect(rows).toEqual([{ role: 'admin' }])
@@ -275,7 +410,10 @@ describe('provision_user', () => {
   ])('rejects %s and provisions nothing', async (_label, role, agencyIds, branchId, outcome) => {
     await inRollback(pool, async (db) => {
       const userId = await newAuthUser(db)
-      expect(await run(db, call, [ADMIN, userId, 'Rejected', role, agencyIds, branchId])).toEqual({ outcome, entity_id: null })
+      expect(await run(db, call, [ADMIN, userId, 'Rejected', role, agencyIds, branchId])).toEqual({
+        outcome,
+        entity_id: null,
+      })
       await db.query('reset role')
       const { rows } = await db.query('select 1 from shiftpatch.profiles where id = $1', [userId])
       expect(rows).toEqual([])
@@ -285,20 +423,41 @@ describe('provision_user', () => {
   it('rejects a nurse assignment to an inactive branch of an active agency', async () => {
     await inRollback(pool, async (db) => {
       const userId = await newAuthUser(db)
-      expect(await run(db, 'update_branch($1, $2, $3, $4, $5, $6)', [ADMIN, BRANCHES.downtown.id, null, null, null, 'inactive'])).toMatchObject({ outcome: 'updated' })
-      expect(await run(db, call, [ADMIN, userId, 'Rejected', 'nurse', null, BRANCHES.downtown.id])).toEqual({ outcome: 'branch_inactive', entity_id: null })
+      expect(
+        await run(db, 'update_branch($1, $2, $3, $4, $5, $6)', [
+          ADMIN,
+          BRANCHES.downtown.id,
+          null,
+          null,
+          null,
+          'inactive',
+        ]),
+      ).toMatchObject({ outcome: 'updated' })
+      expect(await run(db, call, [ADMIN, userId, 'Rejected', 'nurse', null, BRANCHES.downtown.id])).toEqual({
+        outcome: 'branch_inactive',
+        entity_id: null,
+      })
     })
   })
 
   it('rejects an existing profile, a missing Auth user and non-admin actors', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, call, [ADMIN, USERS.ava.id, 'Ava', 'nurse', null, BRANCHES.downtown.id])).toEqual({ outcome: 'profile_exists', entity_id: null })
-      expect(await run(db, call, [ADMIN, randomUUID(), 'Ghost', 'admin', null, null])).toEqual({ outcome: 'auth_user_not_found', entity_id: null })
+      expect(await run(db, call, [ADMIN, USERS.ava.id, 'Ava', 'nurse', null, BRANCHES.downtown.id])).toEqual({
+        outcome: 'profile_exists',
+        entity_id: null,
+      })
+      expect(await run(db, call, [ADMIN, randomUUID(), 'Ghost', 'admin', null, null])).toEqual({
+        outcome: 'auth_user_not_found',
+        entity_id: null,
+      })
       const userId = await (async () => {
         await db.query('reset role')
         return newAuthUser(db)
       })()
-      expect(await run(db, call, [NORTHWIND, userId, 'Pat', 'nurse', null, BRANCHES.downtown.id])).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
+      expect(await run(db, call, [NORTHWIND, userId, 'Pat', 'nurse', null, BRANCHES.downtown.id])).toEqual({
+        outcome: 'actor_not_allowed',
+        entity_id: null,
+      })
     })
   })
 })
@@ -311,15 +470,23 @@ describe('set_branch_eligibility', () => {
       const suspended = await run(db, call, [NORTHWIND, USERS.ava.id, BRANCHES.downtown.id, 'suspended'])
       expect(suspended.outcome).toBe('updated')
       await db.query('reset role')
-      const { rows: afterSuspend } = await db.query('select status from shiftpatch.branch_nurse_eligibility where id = $1', [suspended.entity_id])
+      const { rows: afterSuspend } = await db.query(
+        'select status from shiftpatch.branch_nurse_eligibility where id = $1',
+        [suspended.entity_id],
+      )
       expect(afterSuspend).toEqual([{ status: 'suspended' }])
 
       const activated = await run(db, call, [NORTHWIND, USERS.ava.id, BRANCHES.downtown.id, 'active'])
       expect(activated).toEqual(suspended)
       await db.query('reset role')
-      const { rows: afterActivate } = await db.query(`select status, activated_at > now() - interval '1 minute' as fresh from shiftpatch.branch_nurse_eligibility where id = $1`, [suspended.entity_id])
+      const { rows: afterActivate } = await db.query(
+        `select status, activated_at > now() - interval '1 minute' as fresh from shiftpatch.branch_nurse_eligibility where id = $1`,
+        [suspended.entity_id],
+      )
       expect(afterActivate).toEqual([{ status: 'active', fresh: true }])
-      expect((await audits(db, suspended.entity_id!)).map((a) => [a.action, a.previous_status, a.new_status, a.actor_id])).toEqual([
+      expect(
+        (await audits(db, suspended.entity_id!)).map((a) => [a.action, a.previous_status, a.new_status, a.actor_id]),
+      ).toEqual([
         ['eligibility_suspended', 'active', 'suspended', NORTHWIND],
         ['eligibility_activated', 'suspended', 'active', NORTHWIND],
       ])
@@ -332,9 +499,14 @@ describe('set_branch_eligibility', () => {
       const result = await run(db, call, [NORTHWIND, USERS.eli.id, BRANCHES.riverside.id, 'active'])
       expect(result.outcome).toBe('updated')
       await db.query('reset role')
-      const { rows } = await db.query('select nurse_id, branch_id, status from shiftpatch.branch_nurse_eligibility where id = $1', [result.entity_id])
+      const { rows } = await db.query(
+        'select nurse_id, branch_id, status from shiftpatch.branch_nurse_eligibility where id = $1',
+        [result.entity_id],
+      )
       expect(rows).toEqual([{ nurse_id: USERS.eli.id, branch_id: BRANCHES.riverside.id, status: 'active' }])
-      expect((await audits(db, result.entity_id!)).map((a) => [a.action, a.previous_status, a.new_status])).toEqual([['eligibility_activated', null, 'active']])
+      expect((await audits(db, result.entity_id!)).map((a) => [a.action, a.previous_status, a.new_status])).toEqual([
+        ['eligibility_activated', null, 'active'],
+      ])
     })
   })
 
@@ -348,11 +520,23 @@ describe('set_branch_eligibility', () => {
 
   it('answers branch_not_found for a branch outside the actor’s agencies', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, call, [HARBOR, USERS.ava.id, BRANCHES.downtown.id, 'suspended'])).toEqual({ outcome: 'branch_not_found', entity_id: null })
-      expect(await run(db, call, [NORTHWIND, USERS.ava.id, BRANCHES.bayview.id, 'suspended'])).toEqual({ outcome: 'branch_not_found', entity_id: null })
-      expect(await run(db, call, [NORTHWIND, USERS.ava.id, randomUUID(), 'suspended'])).toEqual({ outcome: 'branch_not_found', entity_id: null })
+      expect(await run(db, call, [HARBOR, USERS.ava.id, BRANCHES.downtown.id, 'suspended'])).toEqual({
+        outcome: 'branch_not_found',
+        entity_id: null,
+      })
+      expect(await run(db, call, [NORTHWIND, USERS.ava.id, BRANCHES.bayview.id, 'suspended'])).toEqual({
+        outcome: 'branch_not_found',
+        entity_id: null,
+      })
+      expect(await run(db, call, [NORTHWIND, USERS.ava.id, randomUUID(), 'suspended'])).toEqual({
+        outcome: 'branch_not_found',
+        entity_id: null,
+      })
       await db.query('reset role')
-      const { rows } = await db.query('select status from shiftpatch.branch_nurse_eligibility where nurse_id = $1 and branch_id = $2', [USERS.ava.id, BRANCHES.downtown.id])
+      const { rows } = await db.query(
+        'select status from shiftpatch.branch_nurse_eligibility where nurse_id = $1 and branch_id = $2',
+        [USERS.ava.id, BRANCHES.downtown.id],
+      )
       expect(rows).toEqual([{ status: 'active' }])
     })
   })
@@ -360,24 +544,51 @@ describe('set_branch_eligibility', () => {
   it('answers nurse_not_found for a nurse not connected to the actor’s agencies, while an admin may activate them', async () => {
     await inRollback(pool, async (db) => {
       const nurse = await newNurse(db)
-      expect(await run(db, call, [NORTHWIND, nurse, BRANCHES.downtown.id, 'active'])).toEqual({ outcome: 'nurse_not_found', entity_id: null })
-      expect(await run(db, call, [NORTHWIND, randomUUID(), BRANCHES.downtown.id, 'active'])).toEqual({ outcome: 'nurse_not_found', entity_id: null })
-      expect(await run(db, call, [NORTHWIND, USERS.harborAgency.id, BRANCHES.downtown.id, 'active'])).toEqual({ outcome: 'nurse_not_found', entity_id: null })
+      expect(await run(db, call, [NORTHWIND, nurse, BRANCHES.downtown.id, 'active'])).toEqual({
+        outcome: 'nurse_not_found',
+        entity_id: null,
+      })
+      expect(await run(db, call, [NORTHWIND, randomUUID(), BRANCHES.downtown.id, 'active'])).toEqual({
+        outcome: 'nurse_not_found',
+        entity_id: null,
+      })
+      expect(await run(db, call, [NORTHWIND, USERS.harborAgency.id, BRANCHES.downtown.id, 'active'])).toEqual({
+        outcome: 'nurse_not_found',
+        entity_id: null,
+      })
       expect(await run(db, call, [ADMIN, nurse, BRANCHES.downtown.id, 'active'])).toMatchObject({ outcome: 'updated' })
     })
   })
 
   it('refuses changes at inactive agencies and branches', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, call, [ADMIN, USERS.ava.id, BRANCHES.lakesideClinic.id, 'suspended'])).toEqual({ outcome: 'agency_inactive', entity_id: null })
-      expect(await run(db, 'update_branch($1, $2, $3, $4, $5, $6)', [ADMIN, BRANCHES.riverside.id, null, null, null, 'inactive'])).toMatchObject({ outcome: 'updated' })
-      expect(await run(db, call, [NORTHWIND, USERS.ava.id, BRANCHES.riverside.id, 'suspended'])).toEqual({ outcome: 'branch_inactive', entity_id: null })
+      expect(await run(db, call, [ADMIN, USERS.ava.id, BRANCHES.lakesideClinic.id, 'suspended'])).toEqual({
+        outcome: 'agency_inactive',
+        entity_id: null,
+      })
+      expect(
+        await run(db, 'update_branch($1, $2, $3, $4, $5, $6)', [
+          ADMIN,
+          BRANCHES.riverside.id,
+          null,
+          null,
+          null,
+          'inactive',
+        ]),
+      ).toMatchObject({ outcome: 'updated' })
+      expect(await run(db, call, [NORTHWIND, USERS.ava.id, BRANCHES.riverside.id, 'suspended'])).toEqual({
+        outcome: 'branch_inactive',
+        entity_id: null,
+      })
     })
   })
 
   it('refuses nurse actors and statuses other than active/suspended', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, call, [USERS.ava.id, USERS.ava.id, BRANCHES.downtown.id, 'active'])).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
+      expect(await run(db, call, [USERS.ava.id, USERS.ava.id, BRANCHES.downtown.id, 'active'])).toEqual({
+        outcome: 'actor_not_allowed',
+        entity_id: null,
+      })
     })
     await expectSqlState(
       inRollback(pool, (db) => run(db, call, [ADMIN, USERS.ava.id, BRANCHES.downtown.id, 'pending'])),
@@ -392,8 +603,16 @@ describe('delete_agency', () => {
   it('removes an agency without shifts together with its branches, memberships and eligibility, and audits it', async () => {
     await inRollback(pool, async (db) => {
       const created = await run(db, 'create_agency($1, $2)', [ADMIN, 'Deletable Agency'])
-      const branch = await run(db, 'create_branch($1, $2, $3, $4, $5)', [ADMIN, created.entity_id, 'Only Branch', '1 Street', 'UTC'])
-      expect(await run(db, 'set_branch_eligibility($1, $2, $3, $4)', [ADMIN, USERS.ava.id, branch.entity_id, 'active'])).toMatchObject({ outcome: 'updated' })
+      const branch = await run(db, 'create_branch($1, $2, $3, $4, $5)', [
+        ADMIN,
+        created.entity_id,
+        'Only Branch',
+        '1 Street',
+        'UTC',
+      ])
+      expect(
+        await run(db, 'set_branch_eligibility($1, $2, $3, $4)', [ADMIN, USERS.ava.id, branch.entity_id, 'active']),
+      ).toMatchObject({ outcome: 'updated' })
 
       const result = await run(db, call, [ADMIN, created.entity_id])
       expect(result).toEqual({ outcome: 'deleted', entity_id: created.entity_id })
@@ -405,7 +624,9 @@ describe('delete_agency', () => {
         [created.entity_id, branch.entity_id],
       )
       expect(rows).toEqual([{ agencies: 0, branches: 0, eligibility: 0 }])
-      expect((await audits(db, created.entity_id!)).map((a) => [a.action, a.previous_status, a.new_status, a.actor_id])).toEqual([
+      expect(
+        (await audits(db, created.entity_id!)).map((a) => [a.action, a.previous_status, a.new_status, a.actor_id]),
+      ).toEqual([
         ['created', null, 'active', ADMIN],
         ['deleted', 'active', null, ADMIN],
       ])
@@ -414,11 +635,19 @@ describe('delete_agency', () => {
 
   it('refuses agencies with shifts, unknown agencies and non-admin actors', async () => {
     await inRollback(pool, async (db) => {
-      expect(await run(db, call, [ADMIN, AGENCIES.northwind.id])).toEqual({ outcome: 'agency_has_shifts', entity_id: null })
+      expect(await run(db, call, [ADMIN, AGENCIES.northwind.id])).toEqual({
+        outcome: 'agency_has_shifts',
+        entity_id: null,
+      })
       expect(await run(db, call, [ADMIN, randomUUID()])).toEqual({ outcome: 'agency_not_found', entity_id: null })
-      expect(await run(db, call, [NORTHWIND, AGENCIES.northwind.id])).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
+      expect(await run(db, call, [NORTHWIND, AGENCIES.northwind.id])).toEqual({
+        outcome: 'actor_not_allowed',
+        entity_id: null,
+      })
       await db.query('reset role')
-      const { rows } = await db.query('select count(*)::int as n from shiftpatch.agencies where id = $1', [AGENCIES.northwind.id])
+      const { rows } = await db.query('select count(*)::int as n from shiftpatch.agencies where id = $1', [
+        AGENCIES.northwind.id,
+      ])
       expect(rows).toEqual([{ n: 1 }])
     })
   })
@@ -430,7 +659,9 @@ describe('delete_user', () => {
   it('removes a nurse without history with their eligibility and credentials, and audits it', async () => {
     await inRollback(pool, async (db) => {
       const nurse = await newNurse(db)
-      expect(await run(db, 'set_branch_eligibility($1, $2, $3, $4)', [ADMIN, nurse, BRANCHES.downtown.id, 'active'])).toMatchObject({ outcome: 'updated' })
+      expect(
+        await run(db, 'set_branch_eligibility($1, $2, $3, $4)', [ADMIN, nurse, BRANCHES.downtown.id, 'active']),
+      ).toMatchObject({ outcome: 'updated' })
 
       expect(await run(db, call, [ADMIN, nurse])).toEqual({ outcome: 'deleted', entity_id: nurse })
       await db.query('reset role')
@@ -440,7 +671,11 @@ describe('delete_user', () => {
         [nurse],
       )
       expect(rows).toEqual([{ profiles: 0, eligibility: 0 }])
-      expect((await audits(db, nurse)).map((a) => [a.action, a.previous_status, a.new_status])).toContainEqual(['deleted', 'nurse', null])
+      expect((await audits(db, nurse)).map((a) => [a.action, a.previous_status, a.new_status])).toContainEqual([
+        'deleted',
+        'nurse',
+        null,
+      ])
     })
   })
 
@@ -448,7 +683,10 @@ describe('delete_user', () => {
     await inRollback(pool, async (db) => {
       expect(await run(db, call, [ADMIN, ADMIN])).toEqual({ outcome: 'self_delete', entity_id: null })
       expect(await run(db, call, [ADMIN, USERS.ava.id])).toEqual({ outcome: 'user_has_history', entity_id: null })
-      expect(await run(db, call, [ADMIN, USERS.northwindAgency.id])).toEqual({ outcome: 'user_has_history', entity_id: null })
+      expect(await run(db, call, [ADMIN, USERS.northwindAgency.id])).toEqual({
+        outcome: 'user_has_history',
+        entity_id: null,
+      })
       expect(await run(db, call, [ADMIN, randomUUID()])).toEqual({ outcome: 'user_not_found', entity_id: null })
       expect(await run(db, call, [NORTHWIND, USERS.eli.id])).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
     })

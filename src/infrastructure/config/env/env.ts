@@ -3,18 +3,13 @@ import { z } from 'zod'
 // Treat empty strings (e.g. `KEY=` copied from .env.example) as unset.
 const blankAsUndefined = (value: unknown) => (value === '' ? undefined : value)
 
-const origin = z
-  .url({ protocol: /^https?$/ })
-  .refine((value) => new URL(value).origin === value, {
-    message: 'must be a bare origin like https://app.example.com (no path or trailing slash)',
-  })
+const origin = z.url({ protocol: /^https?$/ }).refine((value) => new URL(value).origin === value, {
+  message: 'must be a bare origin like https://app.example.com (no path or trailing slash)',
+})
 
 const envSchema = z
   .object({
-    NODE_ENV: z.preprocess(
-      blankAsUndefined,
-      z.enum(['development', 'test', 'production']).default('development'),
-    ),
+    NODE_ENV: z.preprocess(blankAsUndefined, z.enum(['development', 'test', 'production']).default('development')),
     PORT: z.preprocess(blankAsUndefined, z.coerce.number().int().positive().default(3000)),
     CORS_ORIGINS: z.preprocess(
       blankAsUndefined,

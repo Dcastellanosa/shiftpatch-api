@@ -30,9 +30,7 @@ export const REFRESHED_SESSION: AuthSession = {
 /** Every method is a spy; overrides become the spy's implementation. */
 export function fakeAuthProvider(overrides: Partial<AuthProvider> = {}) {
   return {
-    signInWithPassword: vi.fn<AuthProvider['signInWithPassword']>(
-      overrides.signInWithPassword ?? (async () => null),
-    ),
+    signInWithPassword: vi.fn<AuthProvider['signInWithPassword']>(overrides.signInWithPassword ?? (async () => null)),
     getUser: vi.fn<AuthProvider['getUser']>(overrides.getUser ?? (async () => null)),
     refreshSession: vi.fn<AuthProvider['refreshSession']>(overrides.refreshSession ?? (async () => null)),
     signOut: vi.fn<AuthProvider['signOut']>(overrides.signOut ?? (async () => undefined)),
@@ -68,9 +66,13 @@ export function fakeDataStore(overrides: Partial<DataStore> = {}) {
     getUser: vi.fn<DataStore['getUser']>(overrides.getUser ?? unexpected('getUser')),
     provisionUser: vi.fn<DataStore['provisionUser']>(overrides.provisionUser ?? unexpected('provisionUser')),
     deleteUser: vi.fn<DataStore['deleteUser']>(overrides.deleteUser ?? unexpected('deleteUser')),
-    listAgencyNurses: vi.fn<DataStore['listAgencyNurses']>(overrides.listAgencyNurses ?? unexpected('listAgencyNurses')),
+    listAgencyNurses: vi.fn<DataStore['listAgencyNurses']>(
+      overrides.listAgencyNurses ?? unexpected('listAgencyNurses'),
+    ),
     getEligibility: vi.fn<DataStore['getEligibility']>(overrides.getEligibility ?? unexpected('getEligibility')),
-    setBranchEligibility: vi.fn<DataStore['setBranchEligibility']>(overrides.setBranchEligibility ?? unexpected('setBranchEligibility')),
+    setBranchEligibility: vi.fn<DataStore['setBranchEligibility']>(
+      overrides.setBranchEligibility ?? unexpected('setBranchEligibility'),
+    ),
   }
 }
 
@@ -130,7 +132,13 @@ export function shiftFixture(overrides: Partial<Shift> = {}): Shift {
     status: 'open',
     claimedBy: null,
     claimedByName: null,
-    branch: { id: BRANCH_ID, name: 'Downtown Clinic', address: '120 Main Street', timezone: 'America/New_York', status: 'active' },
+    branch: {
+      id: BRANCH_ID,
+      name: 'Downtown Clinic',
+      address: '120 Main Street',
+      timezone: 'America/New_York',
+      status: 'active',
+    },
     startsAt: '2030-01-10T12:00:00.000Z',
     endsAt: '2030-01-10T20:00:00.000Z',
     createdAt: '2029-12-01T00:00:00.000Z',
@@ -166,7 +174,9 @@ export function fakeAuthAdmin(overrides: Partial<AuthAdmin> = {}) {
   return {
     inviteUser: vi.fn<AuthAdmin['inviteUser']>(overrides.inviteUser ?? unexpected('inviteUser')),
     deleteUser: vi.fn<AuthAdmin['deleteUser']>(overrides.deleteUser ?? (async () => undefined)),
-    completePassword: vi.fn<AuthAdmin['completePassword']>(overrides.completePassword ?? unexpected('completePassword')),
+    completePassword: vi.fn<AuthAdmin['completePassword']>(
+      overrides.completePassword ?? unexpected('completePassword'),
+    ),
     sendRecovery: vi.fn<AuthAdmin['sendRecovery']>(overrides.sendRecovery ?? (async () => undefined)),
   }
 }
@@ -185,7 +195,14 @@ export function adminUserFixture(overrides: Partial<AdminUser> = {}): AdminUser 
     invitedAt: '2030-01-01T00:00:00.000Z',
     lastSignInAt: null,
     agencies: [],
-    eligibleBranches: [{ id: BRANCH_ID, name: 'Downtown Clinic', agency: { id: AGENCY_ID, name: 'Northwind Care Staffing' }, status: 'active' }],
+    eligibleBranches: [
+      {
+        id: BRANCH_ID,
+        name: 'Downtown Clinic',
+        agency: { id: AGENCY_ID, name: 'Northwind Care Staffing' },
+        status: 'active',
+      },
+    ],
     ...overrides,
   }
 }
@@ -230,7 +247,13 @@ export function agencyBranchFixture(overrides: Partial<AgencyBranch> = {}): Agen
 }
 
 export function eligibilityFixture(overrides: Partial<EligibilityRecord> = {}): EligibilityRecord {
-  return { nurseId: NURSE_SLUG, branchId: BRANCH_ID, status: 'active', activatedAt: '2030-01-01T00:00:00.000Z', ...overrides }
+  return {
+    nurseId: NURSE_SLUG,
+    branchId: BRANCH_ID,
+    status: 'active',
+    activatedAt: '2030-01-01T00:00:00.000Z',
+    ...overrides,
+  }
 }
 
 export function nurseEligibilityFixture(overrides: Partial<NurseEligibility> = {}): NurseEligibility {

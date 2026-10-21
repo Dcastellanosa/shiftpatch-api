@@ -32,5 +32,4 @@ export class AppError extends Error {
   }
 }
 
-export const unauthenticated = () =>
-  new AppError(401, 'unauthenticated', 'Authentication required')
+export const unauthenticated = () => new AppError(401, 'unauthenticated', 'Authentication required')

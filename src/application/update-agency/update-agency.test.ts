@@ -12,14 +12,23 @@ describe('updateAgency', () => {
       getAgency: async () => ({ agency, branches: [] }),
     })
 
-    await expect(updateAgency({ store }, viewer, AGENCY_ID, { status: 'inactive' })).resolves.toEqual({ ok: true, agency })
+    await expect(updateAgency({ store }, viewer, AGENCY_ID, { status: 'inactive' })).resolves.toEqual({
+      ok: true,
+      agency,
+    })
     expect(store.updateAgency).toHaveBeenCalledWith(USER.id, AGENCY_ID, { status: 'inactive' })
     expect(store.getAgency).toHaveBeenCalledWith(viewer, AGENCY_ID)
   })
 
-  it.each<Exclude<UpdateAgencyOutcome, 'updated'>>(['actor_not_allowed', 'agency_not_found', 'name_taken'])('returns %s without re-reading', async (outcome) => {
-    const store = fakeDataStore({ updateAgency: async () => ({ outcome, entityId: null }) })
-    await expect(updateAgency({ store }, viewerFor(ADMIN_PROFILE), AGENCY_ID, { name: 'x' })).resolves.toEqual({ ok: false, outcome })
-    expect(store.getAgency).not.toHaveBeenCalled()
-  })
+  it.each<Exclude<UpdateAgencyOutcome, 'updated'>>(['actor_not_allowed', 'agency_not_found', 'name_taken'])(
+    'returns %s without re-reading',
+    async (outcome) => {
+      const store = fakeDataStore({ updateAgency: async () => ({ outcome, entityId: null }) })
+      await expect(updateAgency({ store }, viewerFor(ADMIN_PROFILE), AGENCY_ID, { name: 'x' })).resolves.toEqual({
+        ok: false,
+        outcome,
+      })
+      expect(store.getAgency).not.toHaveBeenCalled()
+    },
+  )
 })

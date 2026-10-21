@@ -31,8 +31,23 @@ const SHIFT_1 = {
   status: 'open',
   claimedBy: null,
 }
-const SHIFT_2 = { ...SHIFT_1, id: 'shift-2', role: 'LPN', date: '2026-10-03', startTime: '07:00', endTime: '19:00', status: 'filled', claimedBy: 'nurse-1' }
-const SHIFT_3 = { ...SHIFT_1, id: 'shift-3', agencyId: 'agency-b', agencyName: 'Metro Care Partners', date: '2026-10-04' }
+const SHIFT_2 = {
+  ...SHIFT_1,
+  id: 'shift-2',
+  role: 'LPN',
+  date: '2026-10-03',
+  startTime: '07:00',
+  endTime: '19:00',
+  status: 'filled',
+  claimedBy: 'nurse-1',
+}
+const SHIFT_3 = {
+  ...SHIFT_1,
+  id: 'shift-3',
+  agencyId: 'agency-b',
+  agencyName: 'Metro Care Partners',
+  date: '2026-10-04',
+}
 
 beforeAll(async () => {
   tokens.maria = (await login(USERS.maria.email)).body.token
@@ -52,7 +67,10 @@ describe('1. POST /api/auth/login', () => {
   it('answers { token, user: { id, name, role } } for a nurse', async () => {
     const res = await login(USERS.maria.email)
     expect(res.status).toBe(200)
-    expect(res.body).toMatchObject({ token: expect.any(String), user: { id: 'nurse-1', name: 'Maria Lopez', role: 'nurse' } })
+    expect(res.body).toMatchObject({
+      token: expect.any(String),
+      user: { id: 'nurse-1', name: 'Maria Lopez', role: 'nurse' },
+    })
     expect(JSON.stringify(res.body)).not.toMatch(/refresh/i)
   })
 
@@ -117,7 +135,10 @@ describe('3. POST /api/shifts', () => {
   })
 
   it('refuses nurses', async () => {
-    const res = await request(app).post('/api/shifts').set(bearer(tokens.maria)).send({ role: 'RN', date: '2026-10-05', startTime: '07:00', endTime: '19:00' })
+    const res = await request(app)
+      .post('/api/shifts')
+      .set(bearer(tokens.maria))
+      .send({ role: 'RN', date: '2026-10-05', startTime: '07:00', endTime: '19:00' })
     expect(res.status).toBe(403)
     expect(typeof res.body.error).toBe('string')
   })
@@ -141,7 +162,10 @@ describe('4. POST /api/shifts/:id/claim', () => {
 
 describe('5. POST /api/shifts/:id/cancel', () => {
   it('reopens shift-2 as a no-show and reports the previous nurse', async () => {
-    const res = await request(app).post('/api/shifts/shift-2/cancel').set(bearer(tokens.sunrise)).send({ reason: 'no-show' })
+    const res = await request(app)
+      .post('/api/shifts/shift-2/cancel')
+      .set(bearer(tokens.sunrise))
+      .send({ reason: 'no-show' })
     expect(res.status).toBe(200)
     expect(res.body).toMatchObject({
       ...SHIFT_2,
@@ -167,7 +191,10 @@ describe('6. GET /api/agencies/:agencyId/shifts', () => {
   it('returns agency-b shift-3 only', async () => {
     const res = await request(app).get('/api/agencies/agency-b/shifts').set(bearer(tokens.metro))
     expect(res.status).toBe(200)
-    expect(res.body).toEqual({ agencyId: 'agency-b', shifts: [expect.objectContaining({ id: 'shift-3', status: 'open', claimedBy: null })] })
+    expect(res.body).toEqual({
+      agencyId: 'agency-b',
+      shifts: [expect.objectContaining({ id: 'shift-3', status: 'open', claimedBy: null })],
+    })
   })
 
   it('refuses another agency with a string error', async () => {

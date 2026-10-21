@@ -23,12 +23,18 @@ afterAll(async () => {
      where nurse_id = $1 and branch_id in ($2, $3, $4)`,
     [USERS.ava.id, BRANCHES.downtown.id, BRANCHES.riverside.id, BRANCHES.bayview.id],
   )
-  await pool.query(`delete from shiftpatch.agency_memberships where profile_id = $1 and agency_id = $2`, [USERS.northwindAgency.id, AGENCIES.harbor.id])
+  await pool.query(`delete from shiftpatch.agency_memberships where profile_id = $1 and agency_id = $2`, [
+    USERS.northwindAgency.id,
+    AGENCIES.harbor.id,
+  ])
 })
 
-const put = (agent: Agent, nurseId: string, branchId: string) => agent.put(`/nurses/${nurseId}/eligibility/${branchId}`).set('Origin', ALLOWED_ORIGIN).send()
-const del = (agent: Agent, nurseId: string, branchId: string) => agent.delete(`/nurses/${nurseId}/eligibility/${branchId}`).set('Origin', ALLOWED_ORIGIN).send()
-const claim = (agent: Agent, shiftId: string) => agent.post(`/shifts/${shiftId}/claim`).set('Origin', ALLOWED_ORIGIN).send()
+const put = (agent: Agent, nurseId: string, branchId: string) =>
+  agent.put(`/nurses/${nurseId}/eligibility/${branchId}`).set('Origin', ALLOWED_ORIGIN).send()
+const del = (agent: Agent, nurseId: string, branchId: string) =>
+  agent.delete(`/nurses/${nurseId}/eligibility/${branchId}`).set('Origin', ALLOWED_ORIGIN).send()
+const claim = (agent: Agent, shiftId: string) =>
+  agent.post(`/shifts/${shiftId}/claim`).set('Origin', ALLOWED_ORIGIN).send()
 
 describe('GET /agency/nurses', () => {
   it('lists the nurses connected to Northwind with statuses at Northwind branches only', async () => {
@@ -36,18 +42,31 @@ describe('GET /agency/nurses', () => {
     expect(res.status).toBe(200)
     const nurses = nurseListResponse.parse(res.body).nurses
     const byId = new Map(nurses.map((n) => [n.nurse.id, n]))
-    expect([...byId.keys()]).toEqual(expect.arrayContaining([USERS.ava.slug, USERS.ben.slug, USERS.cora.slug, USERS.dev.slug, USERS.eli.slug]))
+    expect([...byId.keys()]).toEqual(
+      expect.arrayContaining([USERS.ava.slug, USERS.ben.slug, USERS.cora.slug, USERS.dev.slug, USERS.eli.slug]),
+    )
 
     const ava = byId.get(USERS.ava.slug)!
     expect(ava.nurse.fullName).toBe(USERS.ava.fullName)
     expect(ava.branches.map((b) => [b.branch.id, b.status]).sort()).toEqual(
-      [[BRANCHES.downtown.id, 'active'], [BRANCHES.riverside.id, 'active']].sort(),
+      [
+        [BRANCHES.downtown.id, 'active'],
+        [BRANCHES.riverside.id, 'active'],
+      ].sort(),
     )
     for (const nurse of nurses) {
       for (const row of nurse.branches) expect(row.branch.agency.id).toBe(AGENCIES.northwind.slug)
     }
     expect(byId.get(USERS.cora.slug)!.branches).toEqual([
-      { branch: { id: BRANCHES.downtown.id, name: BRANCHES.downtown.name, agency: { id: AGENCIES.northwind.slug, name: AGENCIES.northwind.name } }, status: 'pending', activatedAt: null },
+      {
+        branch: {
+          id: BRANCHES.downtown.id,
+          name: BRANCHES.downtown.name,
+          agency: { id: AGENCIES.northwind.slug, name: AGENCIES.northwind.name },
+        },
+        status: 'pending',
+        activatedAt: null,
+      },
     ])
   })
 
@@ -62,7 +81,10 @@ describe('eligibility changes and their effect on claims', () => {
     const res = await del(agents.harborAgency, USERS.ava.slug, BRANCHES.downtown.id)
     expect(res.status).toBe(404)
     expect(res.body.code).toBe('branch_not_found')
-    const { rows } = await pool.query('select status from shiftpatch.branch_nurse_eligibility where nurse_id = $1 and branch_id = $2', [USERS.ava.id, BRANCHES.downtown.id])
+    const { rows } = await pool.query(
+      'select status from shiftpatch.branch_nurse_eligibility where nurse_id = $1 and branch_id = $2',
+      [USERS.ava.id, BRANCHES.downtown.id],
+    )
     expect(rows).toEqual([{ status: 'active' }])
   })
 
@@ -78,19 +100,26 @@ describe('eligibility changes and their effect on claims', () => {
 
   it('suspending Ava at Downtown hides and blocks its shifts; re-activating restores them', async () => {
     const window = nextWindow()
-    const created = await agents.northwindAgency.post('/shifts').set('Origin', ALLOWED_ORIGIN).send({
-      role: 'Eligibility RN',
-      date: window.startsAt.slice(0, 10),
-      startTime: '08:00',
-      endTime: '16:00',
-      branchId: BRANCHES.downtown.id,
-    })
+    const created = await agents.northwindAgency
+      .post('/shifts')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({
+        role: 'Eligibility RN',
+        date: window.startsAt.slice(0, 10),
+        startTime: '08:00',
+        endTime: '16:00',
+        branchId: BRANCHES.downtown.id,
+      })
     expect(created.status).toBe(201)
     const shiftId = created.body.id as string
 
     const suspended = await del(agents.northwindAgency, USERS.ava.slug, BRANCHES.downtown.id)
     expect(suspended.status).toBe(200)
-    expect(eligibilityResponse.parse(suspended.body).eligibility).toMatchObject({ nurseId: USERS.ava.slug, branchId: BRANCHES.downtown.id, status: 'suspended' })
+    expect(eligibilityResponse.parse(suspended.body).eligibility).toMatchObject({
+      nurseId: USERS.ava.slug,
+      branchId: BRANCHES.downtown.id,
+      status: 'suspended',
+    })
 
     // The marketplace still lists the shift; the claim is what eligibility gates.
     const listed = shiftListResponse.parse((await agents.ava.get('/shifts')).body).shifts
@@ -108,7 +137,10 @@ describe('eligibility changes and their effect on claims', () => {
   it('an admin can activate a nurse at any branch, and inactive branches refuse changes', async () => {
     const res = await put(agents.admin, USERS.eli.slug, BRANCHES.bayview.id)
     expect(res.status).toBe(200)
-    await pool.query('delete from shiftpatch.branch_nurse_eligibility where nurse_id = $1 and branch_id = $2', [USERS.eli.id, BRANCHES.bayview.id])
+    await pool.query('delete from shiftpatch.branch_nurse_eligibility where nurse_id = $1 and branch_id = $2', [
+      USERS.eli.id,
+      BRANCHES.bayview.id,
+    ])
 
     const inactive = await put(agents.admin, USERS.ava.slug, BRANCHES.lakesideClinic.id)
     expect(inactive.status).toBe(422)
@@ -122,7 +154,10 @@ describe('eligibility changes and their effect on claims', () => {
 
 describe('an agency user with several active memberships', () => {
   it('sees both agencies in the session, branches and nurses', async () => {
-    await pool.query(`insert into shiftpatch.agency_memberships (profile_id, agency_id, status) values ($1, $2, 'active')`, [USERS.northwindAgency.id, AGENCIES.harbor.id])
+    await pool.query(
+      `insert into shiftpatch.agency_memberships (profile_id, agency_id, status) values ($1, $2, 'active')`,
+      [USERS.northwindAgency.id, AGENCIES.harbor.id],
+    )
     const both = await signIn(app, USERS.northwindAgency)
 
     const me = await both.get('/auth/me')

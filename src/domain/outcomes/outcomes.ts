@@ -19,20 +19,11 @@ export type ClaimOutcome =
 
 /** Outcomes of the atomic `create_shift` workflow. */
 export type CreateOutcome =
-  | 'created'
-  | 'actor_not_allowed'
-  | 'branch_not_found'
-  | 'agency_inactive'
-  | 'branch_inactive'
-  | 'invalid_time_range'
+  'created' | 'actor_not_allowed' | 'branch_not_found' | 'agency_inactive' | 'branch_inactive' | 'invalid_time_range'
 
 /** Outcomes of `cancel_shift_claim` (no-show or advance cancellation; reopens the shift). */
 export type CancelOutcome =
-  | 'cancelled'
-  | 'actor_not_allowed'
-  | 'invalid_reason'
-  | 'shift_not_found'
-  | 'shift_not_claimed'
+  'cancelled' | 'actor_not_allowed' | 'invalid_reason' | 'shift_not_found' | 'shift_not_claimed'
 
 /** What a shift command returns: its outcome plus the ids it touched. */
 export interface CommandResult<Outcome extends string> {
@@ -59,7 +50,8 @@ export interface AdminCommandResult<Outcome extends string> {
 
 export type CreateAgencyOutcome = 'created' | 'actor_not_allowed' | 'name_taken'
 export type UpdateAgencyOutcome = 'updated' | 'actor_not_allowed' | 'agency_not_found' | 'name_taken'
-export type CreateBranchOutcome = 'created' | 'actor_not_allowed' | 'agency_not_found' | 'agency_inactive' | 'name_taken'
+export type CreateBranchOutcome =
+  'created' | 'actor_not_allowed' | 'agency_not_found' | 'agency_inactive' | 'name_taken'
 export type UpdateBranchOutcome = 'updated' | 'actor_not_allowed' | 'branch_not_found' | 'name_taken'
 
 /** Outcomes of `provision_user` (run after the Auth user exists). */
@@ -76,12 +68,7 @@ export type ProvisionOutcome =
 
 /** Outcomes of `set_branch_eligibility`. */
 export type SetEligibilityOutcome =
-  | 'updated'
-  | 'actor_not_allowed'
-  | 'branch_not_found'
-  | 'nurse_not_found'
-  | 'agency_inactive'
-  | 'branch_inactive'
+  'updated' | 'actor_not_allowed' | 'branch_not_found' | 'nurse_not_found' | 'agency_inactive' | 'branch_inactive'
 
 /** `delete_agency`: only agencies whose branches never had a shift can be removed. */
 export type DeleteAgencyOutcome = 'deleted' | 'actor_not_allowed' | 'agency_not_found' | 'agency_has_shifts'

@@ -32,15 +32,22 @@ export function createEligibilityRouter(store: DataStore | null, authenticate: R
     res.json({ nurses: await listAgencyNurses({ store: store! }, req.viewer!) })
   })
 
-  const set = (status: 'active' | 'suspended'): RequestHandler => async (req, res) => {
-    const { nurseId, branchId } = parseInput(eligibilityParams, req.params, 'params')
-    const result = await setNurseEligibility({ store: store! }, req.viewer!, nurseId, branchId, status)
-    if (!result.ok) throw ELIGIBILITY_ERRORS[result.outcome]()
-    res.json({ eligibility: result.eligibility })
-  }
+  const set =
+    (status: 'active' | 'suspended'): RequestHandler =>
+    async (req, res) => {
+      const { nurseId, branchId } = parseInput(eligibilityParams, req.params, 'params')
+      const result = await setNurseEligibility({ store: store! }, req.viewer!, nurseId, branchId, status)
+      if (!result.ok) throw ELIGIBILITY_ERRORS[result.outcome]()
+      res.json({ eligibility: result.eligibility })
+    }
 
   router.put('/nurses/:nurseId/eligibility/:branchId', ...withViewer, requireRole('agency', 'admin'), set('active'))
-  router.delete('/nurses/:nurseId/eligibility/:branchId', ...withViewer, requireRole('agency', 'admin'), set('suspended'))
+  router.delete(
+    '/nurses/:nurseId/eligibility/:branchId',
+    ...withViewer,
+    requireRole('agency', 'admin'),
+    set('suspended'),
+  )
 
   return router
 }

@@ -10,8 +10,7 @@ import {
   type SessionCookieConfig,
 } from '../../session-cookies/session-cookies.js'
 
-export const authUnavailable = () =>
-  new AppError(503, 'auth_unavailable', 'Authentication is not available')
+export const authUnavailable = () => new AppError(503, 'auth_unavailable', 'Authentication is not available')
 
 /**
  * Resolves the session into `req.auth` from one of two credentials:
@@ -23,10 +22,7 @@ export const authUnavailable = () =>
  *
  * User IDs, roles, agency IDs or tokens in the body or query are never consulted.
  */
-export function resolveSession(
-  provider: AuthProvider | null,
-  cookieConfig: SessionCookieConfig,
-): RequestHandler {
+export function resolveSession(provider: AuthProvider | null, cookieConfig: SessionCookieConfig): RequestHandler {
   return async (req, res, next) => {
     const bearer = readBearerToken(req)
     if (bearer.present) {

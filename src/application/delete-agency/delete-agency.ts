@@ -11,7 +11,11 @@ export type DeleteAgencyResult = { ok: true } | { ok: false; outcome: DeleteAgen
  * and eligibility records. Agencies with shift history keep their audit trail
  * and must be deactivated instead; the database refuses the deletion.
  */
-export async function deleteAgency({ store }: { store: DataStore }, viewer: Viewer, agencyId: string): Promise<DeleteAgencyResult> {
+export async function deleteAgency(
+  { store }: { store: DataStore },
+  viewer: Viewer,
+  agencyId: string,
+): Promise<DeleteAgencyResult> {
   const result = await store.deleteAgency(viewer.id, agencyId)
   return result.outcome === 'deleted' ? { ok: true } : { ok: false, outcome: result.outcome }
 }

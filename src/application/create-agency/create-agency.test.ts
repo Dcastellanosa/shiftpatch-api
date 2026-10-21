@@ -19,17 +19,23 @@ describe('createAgency', () => {
     expect(store.getAgency).toHaveBeenCalledWith(viewer, AGENCY_ID)
   })
 
-  it.each<Exclude<CreateAgencyOutcome, 'created'>>(['actor_not_allowed', 'name_taken'])('returns %s without re-reading', async (outcome) => {
-    const store = fakeDataStore({ createAgency: async () => ({ outcome, entityId: null }) })
-    await expect(createAgency({ store }, viewerFor(ADMIN_PROFILE), INPUT)).resolves.toEqual({ ok: false, outcome })
-    expect(store.getAgency).not.toHaveBeenCalled()
-  })
+  it.each<Exclude<CreateAgencyOutcome, 'created'>>(['actor_not_allowed', 'name_taken'])(
+    'returns %s without re-reading',
+    async (outcome) => {
+      const store = fakeDataStore({ createAgency: async () => ({ outcome, entityId: null }) })
+      await expect(createAgency({ store }, viewerFor(ADMIN_PROFILE), INPUT)).resolves.toEqual({ ok: false, outcome })
+      expect(store.getAgency).not.toHaveBeenCalled()
+    },
+  )
 
   it('returns agency_not_found when the created agency is not visible on re-read', async () => {
     const store = fakeDataStore({
       createAgency: async () => ({ outcome: 'created', entityId: AGENCY_ID }),
       getAgency: async () => null,
     })
-    await expect(createAgency({ store }, viewerFor(ADMIN_PROFILE), INPUT)).resolves.toEqual({ ok: false, outcome: 'agency_not_found' })
+    await expect(createAgency({ store }, viewerFor(ADMIN_PROFILE), INPUT)).resolves.toEqual({
+      ok: false,
+      outcome: 'agency_not_found',
+    })
   })
 })

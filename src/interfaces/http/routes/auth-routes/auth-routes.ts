@@ -1,5 +1,8 @@
 import { Router } from 'express'
-import { completePassword, type CompletePasswordFailure } from '../../../../application/complete-password/complete-password.js'
+import {
+  completePassword,
+  type CompletePasswordFailure,
+} from '../../../../application/complete-password/complete-password.js'
 import { requestRecovery } from '../../../../application/request-recovery/request-recovery.js'
 import { loadSessionPayload } from '../../../../application/session-payload/session-payload.js'
 import { signIn } from '../../../../application/sign-in/sign-in.js'
@@ -10,7 +13,14 @@ import type { DataStore } from '../../../../domain/ports/data-store/data-store.j
 import { AppError } from '../../errors/errors.js'
 import { authUnavailable, requireSession, resolveSession } from '../../middleware/session/session.js'
 import { validateBody } from '../../middleware/validate/validate.js'
-import { completePasswordBody, loginBody, recoverBody, type CompletePasswordBody, type LoginBody, type RecoverBody } from '../../schemas/auth/auth.js'
+import {
+  completePasswordBody,
+  loginBody,
+  recoverBody,
+  type CompletePasswordBody,
+  type LoginBody,
+  type RecoverBody,
+} from '../../schemas/auth/auth.js'
 import {
   clearSessionCookies,
   readBearerToken,
@@ -32,7 +42,8 @@ export interface AuthRouterDependencies {
 }
 
 const COMPLETE_PASSWORD_ERRORS: Record<CompletePasswordFailure, () => AppError> = {
-  invalid_link: () => new AppError(401, 'invalid_or_expired_link', 'This link is invalid or has expired. Request a new one.'),
+  invalid_link: () =>
+    new AppError(401, 'invalid_or_expired_link', 'This link is invalid or has expired. Request a new one.'),
   weak_password: () => new AppError(422, 'weak_password', 'Choose a longer, less common password'),
 }
 

@@ -80,7 +80,9 @@ describe('authentication and profile gate', () => {
   })
 
   it('returns 403 membership_inactive for an agency user without an active membership', async () => {
-    const store = fakeDataStore({ getProfile: asProfile({ ...AGENCY_PROFILE, agencyIds: [], agencySlugs: [], agencyId: null, agencySlug: null }) })
+    const store = fakeDataStore({
+      getProfile: asProfile({ ...AGENCY_PROFILE, agencyIds: [], agencySlugs: [], agencyId: null, agencySlug: null }),
+    })
     const res = await get(buildSignedInApp(store), '/shifts')
     expect(res.status).toBe(403)
     expect(res.body.code).toBe('membership_inactive')
@@ -119,27 +121,33 @@ describe('GET /auth/me with a profile', () => {
 })
 
 describe('GET /shifts (the marketplace)', () => {
-  it.each([NURSE_PROFILE, AGENCY_PROFILE, ADMIN_PROFILE])('lists every shift in the contract shape for $role', async (profile) => {
-    const store = fakeDataStore({ getProfile: asProfile(profile), listShifts: async () => [shiftFixture(), claimedShiftFixture({ id: 'shift-2' })] })
-    const res = await get(buildSignedInApp(store), '/shifts')
+  it.each([NURSE_PROFILE, AGENCY_PROFILE, ADMIN_PROFILE])(
+    'lists every shift in the contract shape for $role',
+    async (profile) => {
+      const store = fakeDataStore({
+        getProfile: asProfile(profile),
+        listShifts: async () => [shiftFixture(), claimedShiftFixture({ id: 'shift-2' })],
+      })
+      const res = await get(buildSignedInApp(store), '/shifts')
 
-    expect(res.status).toBe(200)
-    const { shifts } = shiftListResponse.parse(res.body)
-    expect(shifts).toHaveLength(2)
-    expect(shifts[0]).toMatchObject({
-      id: SHIFT_ID,
-      agencyId: AGENCY_ID,
-      agencyName: 'Northwind Care Staffing',
-      role: 'RN',
-      date: '2030-01-10',
-      startTime: '07:00',
-      endTime: '15:00',
-      status: 'open',
-      claimedBy: null,
-    })
-    expect(shifts[1]).toMatchObject({ status: 'filled', claimedBy: NURSE_SLUG })
-    expect(store.listShifts.mock.calls[0]![1]).toEqual({})
-  })
+      expect(res.status).toBe(200)
+      const { shifts } = shiftListResponse.parse(res.body)
+      expect(shifts).toHaveLength(2)
+      expect(shifts[0]).toMatchObject({
+        id: SHIFT_ID,
+        agencyId: AGENCY_ID,
+        agencyName: 'Northwind Care Staffing',
+        role: 'RN',
+        date: '2030-01-10',
+        startTime: '07:00',
+        endTime: '15:00',
+        status: 'open',
+        claimedBy: null,
+      })
+      expect(shifts[1]).toMatchObject({ status: 'filled', claimedBy: NURSE_SLUG })
+      expect(store.listShifts.mock.calls[0]![1]).toEqual({})
+    },
+  )
 
   it('passes validated filters to the store', async () => {
     const store = fakeDataStore({ getProfile: asProfile(NURSE_PROFILE), listShifts: async () => [] })
@@ -182,25 +190,28 @@ describe('POST /shifts', () => {
     expect(store.createShift).not.toHaveBeenCalled()
   })
 
-  it.each([AGENCY_PROFILE, ADMIN_PROFILE])('creates a shift as $role from the contract body and answers 201 with the bare shift', async (profile) => {
-    const shift = shiftFixture({ date: '2026-10-05', startTime: '07:00', endTime: '19:00' })
-    const store = fakeDataStore({
-      getProfile: asProfile(profile),
-      listBranches: async () => [MAIN_BRANCH],
-      createShift: async () => ({ outcome: 'created', shiftId: SHIFT_ID, eventId: SHIFT_ID }),
-      getShift: async () => shift,
-    })
-    const res = await post(buildSignedInApp(store), '/shifts', VALID_BODY)
+  it.each([AGENCY_PROFILE, ADMIN_PROFILE])(
+    'creates a shift as $role from the contract body and answers 201 with the bare shift',
+    async (profile) => {
+      const shift = shiftFixture({ date: '2026-10-05', startTime: '07:00', endTime: '19:00' })
+      const store = fakeDataStore({
+        getProfile: asProfile(profile),
+        listBranches: async () => [MAIN_BRANCH],
+        createShift: async () => ({ outcome: 'created', shiftId: SHIFT_ID, eventId: SHIFT_ID }),
+        getShift: async () => shift,
+      })
+      const res = await post(buildSignedInApp(store), '/shifts', VALID_BODY)
 
-    expect(res.status).toBe(201)
-    expect(shiftResponse.parse(res.body)).toEqual(shift)
-    expect(store.createShift).toHaveBeenCalledWith(USER.id, {
-      branchId: BRANCH_ID,
-      title: 'RN',
-      startsAt: '2026-10-05T07:00:00.000Z',
-      endsAt: '2026-10-05T19:00:00.000Z',
-    })
-  })
+      expect(res.status).toBe(201)
+      expect(shiftResponse.parse(res.body)).toEqual(shift)
+      expect(store.createShift).toHaveBeenCalledWith(USER.id, {
+        branchId: BRANCH_ID,
+        title: 'RN',
+        startsAt: '2026-10-05T07:00:00.000Z',
+        endsAt: '2026-10-05T19:00:00.000Z',
+      })
+    },
+  )
 
   it.each([
     ['branch_not_found', 404],
@@ -221,7 +232,10 @@ describe('POST /shifts', () => {
   it('asks for a branch (400) when the caller has several and names none', async () => {
     const store = fakeDataStore({
       getProfile: asProfile(ADMIN_PROFILE),
-      listBranches: async () => [MAIN_BRANCH, { ...MAIN_BRANCH, id: 'b1000000-0000-4000-8000-000000000002', name: 'North' }],
+      listBranches: async () => [
+        MAIN_BRANCH,
+        { ...MAIN_BRANCH, id: 'b1000000-0000-4000-8000-000000000002', name: 'North' },
+      ],
     })
     const res = await post(buildSignedInApp(store), '/shifts', VALID_BODY)
     expect(res.status).toBe(400)
@@ -237,7 +251,10 @@ describe('POST /shifts', () => {
     ['a 24:00 time', { ...VALID_BODY, endTime: '24:00' }],
     ['a non-uuid branch', { ...VALID_BODY, branchId: 'downtown' }],
     ['an identity field', { ...VALID_BODY, createdById: 'attacker' }],
-    ['the old body shape', { branchId: BRANCH_ID, title: 'x', startsAt: '2030-01-10T23:00:00Z', endsAt: '2030-01-11T07:00:00Z' }],
+    [
+      'the old body shape',
+      { branchId: BRANCH_ID, title: 'x', startsAt: '2030-01-10T23:00:00Z', endsAt: '2030-01-11T07:00:00Z' },
+    ],
   ])('returns 400 for %s', async (_label, body) => {
     const store = fakeDataStore({ getProfile: asProfile(AGENCY_PROFILE) })
     const res = await post(buildSignedInApp(store), '/shifts', body)
@@ -350,16 +367,26 @@ describe('POST /shifts/:shiftId/cancel', () => {
     previousNurseSlug: NURSE_SLUG,
   }
 
-  it.each([AGENCY_PROFILE, ADMIN_PROFILE, NURSE_PROFILE])('reopens the shift as $role and reports who held it', async (profile) => {
-    const reopened = shiftFixture()
-    const store = fakeDataStore({ getProfile: asProfile(profile), cancelClaim: async () => cancelled, getShift: async () => reopened })
-    const res = await post(buildSignedInApp(store), `/shifts/${SHIFT_ID}/cancel`, { reason: 'no-show' })
+  it.each([AGENCY_PROFILE, ADMIN_PROFILE, NURSE_PROFILE])(
+    'reopens the shift as $role and reports who held it',
+    async (profile) => {
+      const reopened = shiftFixture()
+      const store = fakeDataStore({
+        getProfile: asProfile(profile),
+        cancelClaim: async () => cancelled,
+        getShift: async () => reopened,
+      })
+      const res = await post(buildSignedInApp(store), `/shifts/${SHIFT_ID}/cancel`, { reason: 'no-show' })
 
-    expect(res.status).toBe(200)
-    expect(cancelResponse.parse(res.body)).toEqual({ ...reopened, cancellation: { reason: 'no-show', previousNurseId: NURSE_SLUG } })
-    expect(res.body).toMatchObject({ status: 'open', claimedBy: null })
-    expect(store.cancelClaim).toHaveBeenCalledWith(USER.id, SHIFT_ID, 'no-show')
-  })
+      expect(res.status).toBe(200)
+      expect(cancelResponse.parse(res.body)).toEqual({
+        ...reopened,
+        cancellation: { reason: 'no-show', previousNurseId: NURSE_SLUG },
+      })
+      expect(res.body).toMatchObject({ status: 'open', claimedBy: null })
+      expect(store.cancelClaim).toHaveBeenCalledWith(USER.id, SHIFT_ID, 'no-show')
+    },
+  )
 
   it.each([
     ['shift_not_found', 404, 'shift_not_found'],
@@ -369,7 +396,13 @@ describe('POST /shifts/:shiftId/cancel', () => {
   ] as const)('maps %s to %i %s', async (outcome, status, code) => {
     const store = fakeDataStore({
       getProfile: asProfile(AGENCY_PROFILE),
-      cancelClaim: async () => ({ outcome, shiftId: null, eventId: null, previousNurseId: null, previousNurseSlug: null }),
+      cancelClaim: async () => ({
+        outcome,
+        shiftId: null,
+        eventId: null,
+        previousNurseId: null,
+        previousNurseSlug: null,
+      }),
     })
     const res = await post(buildSignedInApp(store), `/shifts/${SHIFT_ID}/cancel`, { reason: 'advance' })
     expect(res.status).toBe(status)
@@ -444,8 +477,18 @@ describe('GET /me/shifts', () => {
   })
 
   it('splits assigned shifts into upcoming and past (most recent first)', async () => {
-    const past1 = claimedShiftFixture({ id: 'shift-11', startsAt: '2020-01-01T08:00:00.000Z', endsAt: '2020-01-01T16:00:00.000Z', status: 'completed' })
-    const past2 = claimedShiftFixture({ id: 'shift-12', startsAt: '2021-01-01T08:00:00.000Z', endsAt: '2021-01-01T16:00:00.000Z', status: 'completed' })
+    const past1 = claimedShiftFixture({
+      id: 'shift-11',
+      startsAt: '2020-01-01T08:00:00.000Z',
+      endsAt: '2020-01-01T16:00:00.000Z',
+      status: 'completed',
+    })
+    const past2 = claimedShiftFixture({
+      id: 'shift-12',
+      startsAt: '2021-01-01T08:00:00.000Z',
+      endsAt: '2021-01-01T16:00:00.000Z',
+      status: 'completed',
+    })
     const next = claimedShiftFixture({ id: 'shift-13' })
     const store = fakeDataStore({
       getProfile: asProfile(NURSE_PROFILE),
@@ -462,7 +505,10 @@ describe('GET /me/shifts', () => {
 
 describe('GET /agencies/:agencyId/shifts', () => {
   it('returns the agency’s shifts to its own agency user, wrapped with the agency id', async () => {
-    const store = fakeDataStore({ getProfile: asProfile(AGENCY_PROFILE), listShifts: async () => [shiftFixture(), claimedShiftFixture({ id: 'shift-2' })] })
+    const store = fakeDataStore({
+      getProfile: asProfile(AGENCY_PROFILE),
+      listShifts: async () => [shiftFixture(), claimedShiftFixture({ id: 'shift-2' })],
+    })
     const res = await get(buildSignedInApp(store), `/agencies/${AGENCY_ID}/shifts`)
     expect(res.status).toBe(200)
     const body = agencyShiftsResponse.parse(res.body)
@@ -492,7 +538,10 @@ describe('GET /agencies/:agencyId/shifts', () => {
   })
 
   it('rejects a malformed agency id', async () => {
-    const res = await get(buildSignedInApp(fakeDataStore({ getProfile: asProfile(ADMIN_PROFILE) })), '/agencies/Agency_A/shifts')
+    const res = await get(
+      buildSignedInApp(fakeDataStore({ getProfile: asProfile(ADMIN_PROFILE) })),
+      '/agencies/Agency_A/shifts',
+    )
     expect(res.status).toBe(400)
   })
 })

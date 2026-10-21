@@ -14,7 +14,11 @@ describe('resolveSession', () => {
 
   it('passes through anonymous requests without a provider', async () => {
     const next = vi.fn()
-    await resolveSession(null, { secure: false })({ cookies: {}, get: () => undefined } as unknown as Request, {} as Response, next)
+    await resolveSession(null, { secure: false })(
+      { cookies: {}, get: () => undefined } as unknown as Request,
+      {} as Response,
+      next,
+    )
     expect(next).toHaveBeenCalledOnce()
   })
 })

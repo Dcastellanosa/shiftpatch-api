@@ -27,9 +27,9 @@ describe('parseEnv', () => {
   })
 
   it('requires SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY together', () => {
-    expect(() =>
-      parseEnv({ CORS_ORIGINS: ALLOWED_ORIGIN, SUPABASE_URL: 'https://ref.supabase.co' }),
-    ).toThrow(/SUPABASE_PUBLISHABLE_KEY/)
+    expect(() => parseEnv({ CORS_ORIGINS: ALLOWED_ORIGIN, SUPABASE_URL: 'https://ref.supabase.co' })).toThrow(
+      /SUPABASE_PUBLISHABLE_KEY/,
+    )
   })
 
   it('never echoes secret values in validation errors', () => {

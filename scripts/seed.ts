@@ -34,7 +34,8 @@ function check<R extends { data: unknown; error: { message: string } | null }>(r
   return result.data
 }
 
-const isDated = (when: SeedShift['when']): when is { date: string; startTime: string; endTime: string } => 'date' in when
+const isDated = (when: SeedShift['when']): when is { date: string; startTime: string; endTime: string } =>
+  'date' in when
 
 /**
  * Dated shifts are facility-local; seeded branches use UTC so the wall clock
@@ -80,7 +81,9 @@ export async function seedDatabase(options: SeedOptions) {
     await upsertAuthUser(client, user, options.password)
   }
   check(
-    await db('profiles').upsert(data.users.map((u) => ({ id: u.id, slug: u.slug, full_name: u.fullName, role: u.role }))),
+    await db('profiles').upsert(
+      data.users.map((u) => ({ id: u.id, slug: u.slug, full_name: u.fullName, role: u.role })),
+    ),
     'profiles',
   )
 
@@ -155,7 +158,12 @@ export async function seedDatabase(options: SeedOptions) {
 
   // Shifts: insert once; afterwards only still-open relative shifts move.
   const existing = check(
-    await db('shifts').select('id, status').in('id', data.shifts.map((s) => s.id)),
+    await db('shifts')
+      .select('id, status')
+      .in(
+        'id',
+        data.shifts.map((s) => s.id),
+      ),
     'shifts lookup',
   ) as { id: string; status: string }[]
   const existingIds = new Set(existing.map((s) => s.id))

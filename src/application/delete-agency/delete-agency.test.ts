@@ -10,8 +10,14 @@ describe('deleteAgency', () => {
     expect(store.deleteAgency).toHaveBeenCalledWith(USER.id, AGENCY_ID)
   })
 
-  it.each<Exclude<DeleteAgencyOutcome, 'deleted'>>(['actor_not_allowed', 'agency_not_found', 'agency_has_shifts'])('returns %s', async (outcome) => {
-    const store = fakeDataStore({ deleteAgency: async () => ({ outcome, entityId: null }) })
-    await expect(deleteAgency({ store }, viewerFor(ADMIN_PROFILE), AGENCY_ID)).resolves.toEqual({ ok: false, outcome })
-  })
+  it.each<Exclude<DeleteAgencyOutcome, 'deleted'>>(['actor_not_allowed', 'agency_not_found', 'agency_has_shifts'])(
+    'returns %s',
+    async (outcome) => {
+      const store = fakeDataStore({ deleteAgency: async () => ({ outcome, entityId: null }) })
+      await expect(deleteAgency({ store }, viewerFor(ADMIN_PROFILE), AGENCY_ID)).resolves.toEqual({
+        ok: false,
+        outcome,
+      })
+    },
+  )
 })

@@ -5,34 +5,83 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Reset your ShiftPatch password</title>
   </head>
-  <body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f2937;">
-    <span style="display:none;max-height:0;overflow:hidden;color:transparent;">Choose a new password for your ShiftPatch account.</span>
-    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f6f8;padding:32px 16px;">
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background: #f4f6f8;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #1f2937;
+    "
+  >
+    <span style="display: none; max-height: 0; overflow: hidden; color: transparent"
+      >Choose a new password for your ShiftPatch account.</span
+    >
+    <table
+      role="presentation"
+      width="100%"
+      cellspacing="0"
+      cellpadding="0"
+      style="background: #f4f6f8; padding: 32px 16px"
+    >
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#ffffff;border-radius:14px;border:1px solid #e5e9ef;">
+          <table
+            role="presentation"
+            width="100%"
+            cellspacing="0"
+            cellpadding="0"
+            style="max-width: 520px; background: #ffffff; border-radius: 14px; border: 1px solid #e5e9ef"
+          >
             <tr>
-              <td style="padding:28px 32px 0 32px;">
-                <p style="margin:0;font-size:18px;font-weight:700;color:#0f766e;letter-spacing:0.2px;">
-                  <span style="display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:6px;background:#0f766e;color:#ffffff;font-weight:800;margin-right:8px;">+</span>ShiftPatch
+              <td style="padding: 28px 32px 0 32px">
+                <p style="margin: 0; font-size: 18px; font-weight: 700; color: #0f766e; letter-spacing: 0.2px">
+                  <span
+                    style="
+                      display: inline-block;
+                      width: 22px;
+                      height: 22px;
+                      line-height: 22px;
+                      text-align: center;
+                      border-radius: 6px;
+                      background: #0f766e;
+                      color: #ffffff;
+                      font-weight: 800;
+                      margin-right: 8px;
+                    "
+                    >+</span
+                  >ShiftPatch
                 </p>
               </td>
             </tr>
             <tr>
-              <td style="padding:24px 32px 0 32px;">
-                <h1 style="margin:0 0 12px 0;font-size:22px;line-height:1.3;color:#111827;">Reset your password</h1>
-                <p style="margin:0 0 16px 0;font-size:15px;line-height:1.6;">
-                  Someone asked to reset the password for <strong>{{ .Email }}</strong>. If that was you, choose a new one below.
+              <td style="padding: 24px 32px 0 32px">
+                <h1 style="margin: 0 0 12px 0; font-size: 22px; line-height: 1.3; color: #111827">
+                  Reset your password
+                </h1>
+                <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6">
+                  Someone asked to reset the password for <strong>{{ .Email }}</strong>. If that was you, choose a new
+                  one below.
                 </p>
               </td>
             </tr>
             <tr>
-              <td style="padding:8px 32px 24px 32px;">
+              <td style="padding: 8px 32px 24px 32px">
                 <table role="presentation" cellspacing="0" cellpadding="0">
                   <tr>
-                    <td style="border-radius:10px;background:#0f766e;">
-                      <a href="{{ .RedirectTo }}#token_hash={{ .TokenHash }}&amp;type=recovery"
-                         style="display:inline-block;padding:13px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px;">
+                    <td style="border-radius: 10px; background: #0f766e">
+                      <a
+                        href="{{ .RedirectTo }}#token_hash={{ .TokenHash }}&amp;type=recovery"
+                        style="
+                          display: inline-block;
+                          padding: 13px 22px;
+                          font-size: 15px;
+                          font-weight: 600;
+                          color: #ffffff;
+                          text-decoration: none;
+                          border-radius: 10px;
+                        "
+                      >
                         Choose a new password
                       </a>
                     </td>
@@ -41,14 +90,17 @@
               </td>
             </tr>
             <tr>
-              <td style="padding:0 32px 28px 32px;">
-                <p style="margin:0;font-size:13px;line-height:1.6;color:#6b7280;">
-                  The link works once and expires after a short while. If you did not ask for this, you can ignore this email; your password stays unchanged.
+              <td style="padding: 0 32px 28px 32px">
+                <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #6b7280">
+                  The link works once and expires after a short while. If you did not ask for this, you can ignore this
+                  email; your password stays unchanged.
                 </p>
               </td>
             </tr>
           </table>
-          <p style="margin:16px 0 0 0;font-size:12px;color:#9ca3af;">ShiftPatch · Nursing shifts, staffed safely.</p>
+          <p style="margin: 16px 0 0 0; font-size: 12px; color: #9ca3af">
+            ShiftPatch · Nursing shifts, staffed safely.
+          </p>
         </td>
       </tr>
     </table>

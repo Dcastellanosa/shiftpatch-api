@@ -76,7 +76,14 @@ const BRANCH_ID = 'b1000000-0000-4000-8000-000000000001'
 const EVENT_ID = 'f1000000-0000-4000-8000-000000000001'
 
 const base = { agencyIds: [] as string[], agencySlugs: [] as string[], agencyId: null, agencySlug: null }
-const nurse: Viewer = { ...base, id: NURSE_UUID, slug: NURSE_SLUG, fullName: 'Ava', role: 'nurse', accessToken: 'jwt-nurse' }
+const nurse: Viewer = {
+  ...base,
+  id: NURSE_UUID,
+  slug: NURSE_SLUG,
+  fullName: 'Ava',
+  role: 'nurse',
+  accessToken: 'jwt-nurse',
+}
 const agency: Viewer = {
   id: NURSE_UUID,
   slug: 'agency-a-user',
@@ -88,7 +95,14 @@ const agency: Viewer = {
   agencySlug: AGENCY_SLUG,
   accessToken: 'jwt',
 }
-const admin: Viewer = { ...base, id: NURSE_UUID, slug: 'admin-1', fullName: 'Morgan', role: 'admin', accessToken: 'jwt' }
+const admin: Viewer = {
+  ...base,
+  id: NURSE_UUID,
+  slug: 'admin-1',
+  fullName: 'Morgan',
+  role: 'admin',
+  accessToken: 'jwt',
+}
 const NO_AGENCY: Viewer = { ...agency, agencyIds: [], agencySlugs: [], agencyId: null, agencySlug: null }
 
 /** One row of `list_shifts_marketplace`. 12:00Z in January is 07:00 in New York. */
@@ -133,7 +147,13 @@ const SHIFT = {
   updatedAt: '2029-12-02T00:00:00.000Z',
 }
 
-const OPEN_ROW = { ...MARKET_ROW, status: 'open', assigned_nurse_id: null, assigned_nurse_slug: null, assigned_nurse_name: null }
+const OPEN_ROW = {
+  ...MARKET_ROW,
+  status: 'open',
+  assigned_nurse_id: null,
+  assigned_nurse_slug: null,
+  assigned_nurse_name: null,
+}
 const OPEN_SHIFT = { ...SHIFT, status: 'open', claimedBy: null, claimedByName: null }
 
 const ok = (data: unknown): Result => ({ data, error: null })
@@ -162,8 +182,17 @@ describe('createSupabaseDataStore', () => {
   })
 
   describe('getProfile', () => {
-    const profileRow = (role: string, memberships: { agency_id: string; status: string; agency: { slug: string } | null }[]) =>
-      ok({ id: NURSE_UUID, slug: role === 'nurse' ? NURSE_SLUG : 'agency-a-user', full_name: 'Riley', role, agency_memberships: memberships })
+    const profileRow = (
+      role: string,
+      memberships: { agency_id: string; status: string; agency: { slug: string } | null }[],
+    ) =>
+      ok({
+        id: NURSE_UUID,
+        slug: role === 'nurse' ? NURSE_SLUG : 'agency-a-user',
+        full_name: 'Riley',
+        role,
+        agency_memberships: memberships,
+      })
 
     it('returns null when no profile row is visible', async () => {
       respond(ok(null))
@@ -242,7 +271,16 @@ describe('createSupabaseDataStore', () => {
     })
 
     it('derives date and times in the branch time zone', async () => {
-      respond(ok([{ ...OPEN_ROW, branch_timezone: 'UTC', starts_at: '2026-10-02 19:00:00+00', ends_at: '2026-10-03 07:00:00+00' }]))
+      respond(
+        ok([
+          {
+            ...OPEN_ROW,
+            branch_timezone: 'UTC',
+            starts_at: '2026-10-02 19:00:00+00',
+            ends_at: '2026-10-03 07:00:00+00',
+          },
+        ]),
+      )
       const [shift] = await createSupabaseDataStore(CONFIG).listShifts(nurse, {})
       expect(shift).toMatchObject({ date: '2026-10-02', startTime: '19:00', endTime: '07:00' })
     })
@@ -372,7 +410,12 @@ describe('createSupabaseDataStore', () => {
   })
 
   describe('workflow commands', () => {
-    const COMMAND = { branchId: BRANCH_ID, title: 'ICU RN', startsAt: '2030-01-10T12:00:00Z', endsAt: '2030-01-10T20:00:00Z' }
+    const COMMAND = {
+      branchId: BRANCH_ID,
+      title: 'ICU RN',
+      startsAt: '2030-01-10T12:00:00Z',
+      endsAt: '2030-01-10T20:00:00Z',
+    }
 
     it('throws DataUnavailableError without a service-role key', async () => {
       const store = createSupabaseDataStore(CONFIG)
@@ -389,7 +432,16 @@ describe('createSupabaseDataStore', () => {
         eventId: EVENT_ID,
       })
       expect(rpcs).toEqual([
-        ['create_shift', { p_actor_id: NURSE_UUID, p_branch_id: BRANCH_ID, p_title: 'ICU RN', p_starts_at: COMMAND.startsAt, p_ends_at: COMMAND.endsAt }],
+        [
+          'create_shift',
+          {
+            p_actor_id: NURSE_UUID,
+            p_branch_id: BRANCH_ID,
+            p_title: 'ICU RN',
+            p_starts_at: COMMAND.startsAt,
+            p_ends_at: COMMAND.endsAt,
+          },
+        ],
       ])
       expect(touched).toEqual(['service:rpc create_shift', 'service:shifts'])
       expect(call('eq', 1)).toEqual([['id', SHIFT_UUID]])
@@ -409,12 +461,25 @@ describe('createSupabaseDataStore', () => {
 
     it('answers shift_not_found for an unknown public id without calling the command', async () => {
       respond(ok(null))
-      await expect(createSupabaseDataStore(SERVICE).claimShift(NURSE_UUID, 'shift-404')).resolves.toEqual({ outcome: 'shift_not_found', shiftId: null, eventId: null })
+      await expect(createSupabaseDataStore(SERVICE).claimShift(NURSE_UUID, 'shift-404')).resolves.toEqual({
+        outcome: 'shift_not_found',
+        shiftId: null,
+        eventId: null,
+      })
       expect(rpcs).toEqual([])
     })
 
     it('cancels a claim through cancel_shift_claim and reports who held the shift', async () => {
-      respond(ok({ id: SHIFT_UUID }), ok({ outcome: 'cancelled', shift_id: SHIFT_UUID, event_id: EVENT_ID, previous_nurse_id: NURSE_UUID, previous_nurse_slug: NURSE_SLUG }))
+      respond(
+        ok({ id: SHIFT_UUID }),
+        ok({
+          outcome: 'cancelled',
+          shift_id: SHIFT_UUID,
+          event_id: EVENT_ID,
+          previous_nurse_id: NURSE_UUID,
+          previous_nurse_slug: NURSE_SLUG,
+        }),
+      )
       await expect(createSupabaseDataStore(SERVICE).cancelClaim(AGENCY_UUID, SHIFT_SLUG, 'no-show')).resolves.toEqual({
         outcome: 'cancelled',
         shiftId: SHIFT_SLUG,
@@ -422,7 +487,9 @@ describe('createSupabaseDataStore', () => {
         previousNurseId: NURSE_UUID,
         previousNurseSlug: NURSE_SLUG,
       })
-      expect(rpcs).toEqual([['cancel_shift_claim', { p_actor_id: AGENCY_UUID, p_shift_id: SHIFT_UUID, p_reason: 'no-show' }]])
+      expect(rpcs).toEqual([
+        ['cancel_shift_claim', { p_actor_id: AGENCY_UUID, p_shift_id: SHIFT_UUID, p_reason: 'no-show' }],
+      ])
     })
 
     it('rejects an unexpected RPC result shape', async () => {
@@ -489,7 +556,10 @@ describe('agency administration', () => {
 
   it('reads one agency by public id with its branches, or null', async () => {
     respond(ok(AGENCY_ROW), ok([BRANCH_ROW]))
-    await expect(createSupabaseDataStore(CONFIG).getAgency(admin, AGENCY_SLUG)).resolves.toEqual({ agency: AGENCY, branches: [BRANCH] })
+    await expect(createSupabaseDataStore(CONFIG).getAgency(admin, AGENCY_SLUG)).resolves.toEqual({
+      agency: AGENCY,
+      branches: [BRANCH],
+    })
     expect(touched).toEqual(['user:agencies', 'user:agency_branches'])
     expect(call('eq', 0)).toEqual([['slug', AGENCY_SLUG]])
     expect(call('eq', 1)).toEqual([['agency_id', AGENCY_UUID]])
@@ -500,46 +570,84 @@ describe('agency administration', () => {
 
   it('reads a branch only through its agency', async () => {
     respond(ok(BRANCH_ROW))
-    await expect(createSupabaseDataStore(CONFIG).getAgencyBranch(admin, AGENCY_SLUG, BRANCH_ID)).resolves.toEqual(BRANCH)
-    expect(call('eq')).toEqual([['id', BRANCH_ID], ['agency.slug', AGENCY_SLUG]])
+    await expect(createSupabaseDataStore(CONFIG).getAgencyBranch(admin, AGENCY_SLUG, BRANCH_ID)).resolves.toEqual(
+      BRANCH,
+    )
+    expect(call('eq')).toEqual([
+      ['id', BRANCH_ID],
+      ['agency.slug', AGENCY_SLUG],
+    ])
   })
 
   it('resolves public ids for the admin commands, runs them as the service role and reports public ids back', async () => {
     const store = createSupabaseDataStore(SERVICE)
     respond(ok({ id: AGENCY_UUID }), ok({ outcome: 'updated', entity_id: AGENCY_UUID }))
-    await expect(store.updateAgency(NURSE_UUID, AGENCY_SLUG, { status: 'inactive' })).resolves.toEqual({ outcome: 'updated', entityId: AGENCY_SLUG })
-    expect(rpcs.at(-1)).toEqual(['update_agency', { p_actor_id: NURSE_UUID, p_agency_id: AGENCY_UUID, p_name: null, p_status: 'inactive' }])
+    await expect(store.updateAgency(NURSE_UUID, AGENCY_SLUG, { status: 'inactive' })).resolves.toEqual({
+      outcome: 'updated',
+      entityId: AGENCY_SLUG,
+    })
+    expect(rpcs.at(-1)).toEqual([
+      'update_agency',
+      { p_actor_id: NURSE_UUID, p_agency_id: AGENCY_UUID, p_name: null, p_status: 'inactive' },
+    ])
 
     respond(ok({ outcome: 'created', entity_id: AGENCY_UUID }), ok({ slug: 'agency-3' }))
-    await expect(store.createAgency(NURSE_UUID, { name: 'Summit' })).resolves.toEqual({ outcome: 'created', entityId: 'agency-3' })
+    await expect(store.createAgency(NURSE_UUID, { name: 'Summit' })).resolves.toEqual({
+      outcome: 'created',
+      entityId: 'agency-3',
+    })
     expect(rpcs.at(-1)).toEqual(['create_agency', { p_actor_id: NURSE_UUID, p_name: 'Summit' }])
 
     respond(ok({ id: AGENCY_UUID }), ok({ outcome: 'created', entity_id: BRANCH_ID }))
-    await expect(store.createBranch(NURSE_UUID, AGENCY_SLUG, { name: 'Up', address: '1 Up', timezone: 'UTC' })).resolves.toEqual({ outcome: 'created', entityId: BRANCH_ID })
-    expect(rpcs.at(-1)).toEqual(['create_branch', { p_actor_id: NURSE_UUID, p_agency_id: AGENCY_UUID, p_name: 'Up', p_address: '1 Up', p_timezone: 'UTC' }])
+    await expect(
+      store.createBranch(NURSE_UUID, AGENCY_SLUG, { name: 'Up', address: '1 Up', timezone: 'UTC' }),
+    ).resolves.toEqual({ outcome: 'created', entityId: BRANCH_ID })
+    expect(rpcs.at(-1)).toEqual([
+      'create_branch',
+      { p_actor_id: NURSE_UUID, p_agency_id: AGENCY_UUID, p_name: 'Up', p_address: '1 Up', p_timezone: 'UTC' },
+    ])
 
     respond(ok({ outcome: 'updated', entity_id: BRANCH_ID }))
     await store.updateBranch(NURSE_UUID, BRANCH_ID, { name: 'Renamed' })
-    expect(rpcs.at(-1)).toEqual(['update_branch', { p_actor_id: NURSE_UUID, p_branch_id: BRANCH_ID, p_name: 'Renamed', p_address: null, p_timezone: null, p_status: null }])
+    expect(rpcs.at(-1)).toEqual([
+      'update_branch',
+      {
+        p_actor_id: NURSE_UUID,
+        p_branch_id: BRANCH_ID,
+        p_name: 'Renamed',
+        p_address: null,
+        p_timezone: null,
+        p_status: null,
+      },
+    ])
 
     respond(ok({ id: AGENCY_UUID }), ok({ outcome: 'deleted', entity_id: AGENCY_UUID }))
-    await expect(store.deleteAgency(NURSE_UUID, AGENCY_SLUG)).resolves.toEqual({ outcome: 'deleted', entityId: AGENCY_SLUG })
+    await expect(store.deleteAgency(NURSE_UUID, AGENCY_SLUG)).resolves.toEqual({
+      outcome: 'deleted',
+      entityId: AGENCY_SLUG,
+    })
   })
 
   it('answers agency_not_found for an unknown public id without running the command', async () => {
     respond(ok(null))
-    await expect(createSupabaseDataStore(SERVICE).updateAgency(NURSE_UUID, 'agency-404', { status: 'inactive' })).resolves.toEqual({ outcome: 'agency_not_found', entityId: null })
+    await expect(
+      createSupabaseDataStore(SERVICE).updateAgency(NURSE_UUID, 'agency-404', { status: 'inactive' }),
+    ).resolves.toEqual({ outcome: 'agency_not_found', entityId: null })
     expect(rpcs).toEqual([])
   })
 
   it('refuses admin commands without the service-role key', async () => {
-    await expect(createSupabaseDataStore(CONFIG).createAgency(NURSE_UUID, { name: 'x' })).rejects.toBeInstanceOf(DataUnavailableError)
+    await expect(createSupabaseDataStore(CONFIG).createAgency(NURSE_UUID, { name: 'x' })).rejects.toBeInstanceOf(
+      DataUnavailableError,
+    )
     expect(rpcs).toEqual([])
   })
 
   it('rejects an unexpected command shape', async () => {
     respond(ok({ outcome: 'created' }))
-    await expect(createSupabaseDataStore(SERVICE).createAgency(NURSE_UUID, { name: 'x' })).rejects.toBeInstanceOf(DataStoreError)
+    await expect(createSupabaseDataStore(SERVICE).createAgency(NURSE_UUID, { name: 'x' })).rejects.toBeInstanceOf(
+      DataStoreError,
+    )
   })
 })
 
@@ -558,15 +666,32 @@ describe('user administration', () => {
 
   it('assembles users (by public id) from the admin listing, profile slugs, active memberships and eligibility', async () => {
     respond(
-      ok([USER_ROW, { ...USER_ROW, id: AGENCY_USER_UUID, role: 'agency', confirmed_at: '2030-01-02 00:00:00+00', last_sign_in_at: '2030-01-03 00:00:00+00' }]),
-      ok([{ id: NURSE_UUID, slug: NURSE_SLUG }, { id: AGENCY_USER_UUID, slug: 'agency-a-user' }]),
+      ok([
+        USER_ROW,
+        {
+          ...USER_ROW,
+          id: AGENCY_USER_UUID,
+          role: 'agency',
+          confirmed_at: '2030-01-02 00:00:00+00',
+          last_sign_in_at: '2030-01-03 00:00:00+00',
+        },
+      ]),
+      ok([
+        { id: NURSE_UUID, slug: NURSE_SLUG },
+        { id: AGENCY_USER_UUID, slug: 'agency-a-user' },
+      ]),
       ok([{ profile_id: AGENCY_USER_UUID, agency: AGENCY_REF }]),
       ok([{ nurse_id: NURSE_UUID, status: 'active', branch: { id: BRANCH_ID, name: 'Downtown', agency: AGENCY_REF } }]),
     )
 
     const users = await createSupabaseDataStore(CONFIG).listUsers(admin)
 
-    expect(touched).toEqual(['user:rpc list_users_admin', 'user:profiles', 'user:agency_memberships', 'user:branch_nurse_eligibility'])
+    expect(touched).toEqual([
+      'user:rpc list_users_admin',
+      'user:profiles',
+      'user:agency_memberships',
+      'user:branch_nurse_eligibility',
+    ])
     expect(call('eq', 2)).toEqual([['status', 'active']])
     expect(users).toEqual([
       {
@@ -578,7 +703,9 @@ describe('user administration', () => {
         invitedAt: '2030-01-01T00:00:00.000Z',
         lastSignInAt: null,
         agencies: [],
-        eligibleBranches: [{ id: BRANCH_ID, name: 'Downtown', agency: { id: AGENCY_SLUG, name: 'Northwind' }, status: 'active' }],
+        eligibleBranches: [
+          { id: BRANCH_ID, name: 'Downtown', agency: { id: AGENCY_SLUG, name: 'Northwind' }, status: 'active' },
+        ],
       },
       {
         id: 'agency-a-user',
@@ -613,35 +740,97 @@ describe('user administration', () => {
   it('provisions through the service role, translating agency public ids to UUIDs', async () => {
     const store = createSupabaseDataStore(SERVICE)
     respond(ok({ outcome: 'provisioned', entity_id: NURSE_UUID }))
-    await expect(store.provisionUser(AGENCY_UUID, NURSE_UUID, { email: 'x@example.test', fullName: 'Nina', role: 'nurse', branchId: BRANCH_ID })).resolves.toEqual({ outcome: 'provisioned', entityId: NURSE_UUID })
-    expect(rpcs.at(-1)).toEqual(['provision_user', { p_actor_id: AGENCY_UUID, p_user_id: NURSE_UUID, p_full_name: 'Nina', p_role: 'nurse', p_agency_ids: null, p_branch_id: BRANCH_ID }])
+    await expect(
+      store.provisionUser(AGENCY_UUID, NURSE_UUID, {
+        email: 'x@example.test',
+        fullName: 'Nina',
+        role: 'nurse',
+        branchId: BRANCH_ID,
+      }),
+    ).resolves.toEqual({ outcome: 'provisioned', entityId: NURSE_UUID })
+    expect(rpcs.at(-1)).toEqual([
+      'provision_user',
+      {
+        p_actor_id: AGENCY_UUID,
+        p_user_id: NURSE_UUID,
+        p_full_name: 'Nina',
+        p_role: 'nurse',
+        p_agency_ids: null,
+        p_branch_id: BRANCH_ID,
+      },
+    ])
 
     respond(ok([{ id: AGENCY_UUID, slug: AGENCY_SLUG }]), ok({ outcome: 'provisioned', entity_id: NURSE_UUID }))
-    await store.provisionUser(AGENCY_UUID, NURSE_UUID, { email: 'x@example.test', fullName: 'Pat', role: 'agency', agencyIds: [AGENCY_SLUG] })
-    expect(rpcs.at(-1)).toEqual(['provision_user', { p_actor_id: AGENCY_UUID, p_user_id: NURSE_UUID, p_full_name: 'Pat', p_role: 'agency', p_agency_ids: [AGENCY_UUID], p_branch_id: null }])
+    await store.provisionUser(AGENCY_UUID, NURSE_UUID, {
+      email: 'x@example.test',
+      fullName: 'Pat',
+      role: 'agency',
+      agencyIds: [AGENCY_SLUG],
+    })
+    expect(rpcs.at(-1)).toEqual([
+      'provision_user',
+      {
+        p_actor_id: AGENCY_UUID,
+        p_user_id: NURSE_UUID,
+        p_full_name: 'Pat',
+        p_role: 'agency',
+        p_agency_ids: [AGENCY_UUID],
+        p_branch_id: null,
+      },
+    ])
 
     respond(ok({ outcome: 'provisioned', entity_id: NURSE_UUID }))
     await store.provisionUser(AGENCY_UUID, NURSE_UUID, { email: 'x@example.test', fullName: 'Sam', role: 'admin' })
-    expect(rpcs.at(-1)).toEqual(['provision_user', { p_actor_id: AGENCY_UUID, p_user_id: NURSE_UUID, p_full_name: 'Sam', p_role: 'admin', p_agency_ids: null, p_branch_id: null }])
+    expect(rpcs.at(-1)).toEqual([
+      'provision_user',
+      {
+        p_actor_id: AGENCY_UUID,
+        p_user_id: NURSE_UUID,
+        p_full_name: 'Sam',
+        p_role: 'admin',
+        p_agency_ids: null,
+        p_branch_id: null,
+      },
+    ])
   })
 
   it('answers agency_not_found when an agency public id does not exist, without provisioning', async () => {
     respond(ok([]))
-    await expect(createSupabaseDataStore(SERVICE).provisionUser(AGENCY_UUID, NURSE_UUID, { email: 'x@example.test', fullName: 'Pat', role: 'agency', agencyIds: ['agency-404'] })).resolves.toEqual({ outcome: 'agency_not_found', entityId: null })
+    await expect(
+      createSupabaseDataStore(SERVICE).provisionUser(AGENCY_UUID, NURSE_UUID, {
+        email: 'x@example.test',
+        fullName: 'Pat',
+        role: 'agency',
+        agencyIds: ['agency-404'],
+      }),
+    ).resolves.toEqual({ outcome: 'agency_not_found', entityId: null })
     expect(rpcs).toEqual([])
   })
 
   it('deletes by public id and reports the Auth UUID the command removed', async () => {
     respond(ok({ id: NURSE_UUID }), ok({ outcome: 'deleted', entity_id: NURSE_UUID }))
-    await expect(createSupabaseDataStore(SERVICE).deleteUser(AGENCY_UUID, NURSE_SLUG)).resolves.toEqual({ outcome: 'deleted', entityId: NURSE_UUID })
+    await expect(createSupabaseDataStore(SERVICE).deleteUser(AGENCY_UUID, NURSE_SLUG)).resolves.toEqual({
+      outcome: 'deleted',
+      entityId: NURSE_UUID,
+    })
     expect(rpcs).toEqual([['delete_user', { p_actor_id: AGENCY_UUID, p_user_id: NURSE_UUID }]])
     respond(ok(null))
-    await expect(createSupabaseDataStore(SERVICE).deleteUser(AGENCY_UUID, 'nurse-404')).resolves.toEqual({ outcome: 'user_not_found', entityId: null })
+    await expect(createSupabaseDataStore(SERVICE).deleteUser(AGENCY_UUID, 'nurse-404')).resolves.toEqual({
+      outcome: 'user_not_found',
+      entityId: null,
+    })
   })
 })
 
 describe('nurse eligibility', () => {
-  const ROW = (nurseId: string, slug: string, fullName: string, branchId: string, branchName: string, status: string) => ({
+  const ROW = (
+    nurseId: string,
+    slug: string,
+    fullName: string,
+    branchId: string,
+    branchName: string,
+    status: string,
+  ) => ({
     nurse_id: nurseId,
     status,
     activated_at: status === 'active' ? '2030-01-01 00:00:00+00' : null,
@@ -652,7 +841,13 @@ describe('nurse eligibility', () => {
   const AGENCY_REF = { id: AGENCY_SLUG, name: 'Northwind' }
 
   it('groups eligibility rows by nurse with public ids, pinned to the agency viewer agencies', async () => {
-    respond(ok([ROW(NURSE_UUID, NURSE_SLUG, 'Ava', BRANCH_ID, 'Riverside', 'active'), ROW(NURSE_UUID, NURSE_SLUG, 'Ava', 'b1000000-0000-4000-8000-000000000002', 'Downtown', 'suspended'), ROW(BEN_UUID, 'nurse-2', 'Ben', BRANCH_ID, 'Riverside', 'pending')]))
+    respond(
+      ok([
+        ROW(NURSE_UUID, NURSE_SLUG, 'Ava', BRANCH_ID, 'Riverside', 'active'),
+        ROW(NURSE_UUID, NURSE_SLUG, 'Ava', 'b1000000-0000-4000-8000-000000000002', 'Downtown', 'suspended'),
+        ROW(BEN_UUID, 'nurse-2', 'Ben', BRANCH_ID, 'Riverside', 'pending'),
+      ]),
+    )
     const nurses = await createSupabaseDataStore(CONFIG).listAgencyNurses(agency)
     expect(touched).toEqual(['user:branch_nurse_eligibility'])
     expect(call('in')).toEqual([['branch.agency_id', [AGENCY_UUID]]])
@@ -660,13 +855,23 @@ describe('nurse eligibility', () => {
       {
         nurse: { id: NURSE_SLUG, fullName: 'Ava' },
         branches: [
-          { branch: { id: 'b1000000-0000-4000-8000-000000000002', name: 'Downtown', agency: AGENCY_REF }, status: 'suspended', activatedAt: null },
-          { branch: { id: BRANCH_ID, name: 'Riverside', agency: AGENCY_REF }, status: 'active', activatedAt: '2030-01-01T00:00:00.000Z' },
+          {
+            branch: { id: 'b1000000-0000-4000-8000-000000000002', name: 'Downtown', agency: AGENCY_REF },
+            status: 'suspended',
+            activatedAt: null,
+          },
+          {
+            branch: { id: BRANCH_ID, name: 'Riverside', agency: AGENCY_REF },
+            status: 'active',
+            activatedAt: '2030-01-01T00:00:00.000Z',
+          },
         ],
       },
       {
         nurse: { id: 'nurse-2', fullName: 'Ben' },
-        branches: [{ branch: { id: BRANCH_ID, name: 'Riverside', agency: AGENCY_REF }, status: 'pending', activatedAt: null }],
+        branches: [
+          { branch: { id: BRANCH_ID, name: 'Riverside', agency: AGENCY_REF }, status: 'pending', activatedAt: null },
+        ],
       },
     ])
   })
@@ -678,18 +883,42 @@ describe('nurse eligibility', () => {
   })
 
   it('reads one eligibility row by the nurse public id, or null', async () => {
-    respond(ok({ branch_id: BRANCH_ID, status: 'active', activated_at: '2030-01-01 00:00:00+00', nurse: { slug: NURSE_SLUG } }))
-    await expect(createSupabaseDataStore(CONFIG).getEligibility(agency, NURSE_SLUG, BRANCH_ID)).resolves.toEqual({ nurseId: NURSE_SLUG, branchId: BRANCH_ID, status: 'active', activatedAt: '2030-01-01T00:00:00.000Z' })
-    expect(call('eq')).toEqual([['nurse.slug', NURSE_SLUG], ['branch_id', BRANCH_ID]])
+    respond(
+      ok({
+        branch_id: BRANCH_ID,
+        status: 'active',
+        activated_at: '2030-01-01 00:00:00+00',
+        nurse: { slug: NURSE_SLUG },
+      }),
+    )
+    await expect(createSupabaseDataStore(CONFIG).getEligibility(agency, NURSE_SLUG, BRANCH_ID)).resolves.toEqual({
+      nurseId: NURSE_SLUG,
+      branchId: BRANCH_ID,
+      status: 'active',
+      activatedAt: '2030-01-01T00:00:00.000Z',
+    })
+    expect(call('eq')).toEqual([
+      ['nurse.slug', NURSE_SLUG],
+      ['branch_id', BRANCH_ID],
+    ])
     respond(ok(null))
     await expect(createSupabaseDataStore(CONFIG).getEligibility(agency, NURSE_SLUG, BRANCH_ID)).resolves.toBeNull()
   })
 
   it('sets eligibility through the service role after resolving the nurse public id', async () => {
     respond(ok({ id: NURSE_UUID }), ok({ outcome: 'updated', entity_id: 'f1000000-0000-4000-8000-000000000001' }))
-    await expect(createSupabaseDataStore(SERVICE).setBranchEligibility(AGENCY_UUID, NURSE_SLUG, BRANCH_ID, 'suspended')).resolves.toEqual({ outcome: 'updated', entityId: 'f1000000-0000-4000-8000-000000000001' })
-    expect(rpcs).toEqual([['set_branch_eligibility', { p_actor_id: AGENCY_UUID, p_nurse_id: NURSE_UUID, p_branch_id: BRANCH_ID, p_status: 'suspended' }]])
+    await expect(
+      createSupabaseDataStore(SERVICE).setBranchEligibility(AGENCY_UUID, NURSE_SLUG, BRANCH_ID, 'suspended'),
+    ).resolves.toEqual({ outcome: 'updated', entityId: 'f1000000-0000-4000-8000-000000000001' })
+    expect(rpcs).toEqual([
+      [
+        'set_branch_eligibility',
+        { p_actor_id: AGENCY_UUID, p_nurse_id: NURSE_UUID, p_branch_id: BRANCH_ID, p_status: 'suspended' },
+      ],
+    ])
     respond(ok(null))
-    await expect(createSupabaseDataStore(SERVICE).setBranchEligibility(AGENCY_UUID, 'nurse-404', BRANCH_ID, 'active')).resolves.toEqual({ outcome: 'nurse_not_found', entityId: null })
+    await expect(
+      createSupabaseDataStore(SERVICE).setBranchEligibility(AGENCY_UUID, 'nurse-404', BRANCH_ID, 'active'),
+    ).resolves.toEqual({ outcome: 'nurse_not_found', entityId: null })
   })
 })

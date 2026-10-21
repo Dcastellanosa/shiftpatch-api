@@ -13,17 +13,14 @@ describe('GET /health', () => {
 })
 
 describe('origin check (CSRF)', () => {
-  it.each(['POST', 'PUT', 'PATCH', 'DELETE'] as const)(
-    'rejects %s from an unapproved origin',
-    async (method) => {
-      const agent = request(buildApp())
-      const verb = method.toLowerCase() as 'post' | 'put' | 'patch' | 'delete'
-      const res = await agent[verb]('/auth/logout').set('Origin', 'https://evil.example')
+  it.each(['POST', 'PUT', 'PATCH', 'DELETE'] as const)('rejects %s from an unapproved origin', async (method) => {
+    const agent = request(buildApp())
+    const verb = method.toLowerCase() as 'post' | 'put' | 'patch' | 'delete'
+    const res = await agent[verb]('/auth/logout').set('Origin', 'https://evil.example')
 
-      expect(res.status).toBe(403)
-      expect(res.body).toEqual({ error: 'Request origin is not allowed', code: 'invalid_origin' })
-    },
-  )
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({ error: 'Request origin is not allowed', code: 'invalid_origin' })
+  })
 
   it('rejects login from an unapproved origin before contacting the provider', async () => {
     const provider = fakeAuthProvider()

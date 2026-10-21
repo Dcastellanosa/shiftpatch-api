@@ -4,9 +4,7 @@ import type { DataStore } from '../../domain/ports/data-store/data-store.js'
 
 export type GetShiftHistoryFailure = 'shift_not_found'
 
-export type GetShiftHistoryResult =
-  | { ok: true; events: ShiftEvent[] }
-  | { ok: false; outcome: GetShiftHistoryFailure }
+export type GetShiftHistoryResult = { ok: true; events: ShiftEvent[] } | { ok: false; outcome: GetShiftHistoryFailure }
 
 /**
  * Returns a shift's event history. The marketplace shows every shift to

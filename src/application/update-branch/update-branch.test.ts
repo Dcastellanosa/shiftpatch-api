@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { ADMIN_PROFILE, AGENCY_ID, BRANCH_ID, USER, agencyBranchFixture, fakeDataStore, viewerFor } from '../../test-support/fakes.js'
+import {
+  ADMIN_PROFILE,
+  AGENCY_ID,
+  BRANCH_ID,
+  USER,
+  agencyBranchFixture,
+  fakeDataStore,
+  viewerFor,
+} from '../../test-support/fakes.js'
 import { updateBranch } from './update-branch.js'
 
 describe('updateBranch', () => {
@@ -13,14 +21,19 @@ describe('updateBranch', () => {
       updateBranch: async () => ({ outcome: 'updated', entityId: BRANCH_ID }),
     })
 
-    await expect(updateBranch({ store }, viewer, AGENCY_ID, BRANCH_ID, { status: 'inactive' })).resolves.toEqual({ ok: true, branch: after })
+    await expect(updateBranch({ store }, viewer, AGENCY_ID, BRANCH_ID, { status: 'inactive' })).resolves.toEqual({
+      ok: true,
+      branch: after,
+    })
     expect(store.getAgencyBranch).toHaveBeenNthCalledWith(1, viewer, AGENCY_ID, BRANCH_ID)
     expect(store.updateBranch).toHaveBeenCalledWith(USER.id, BRANCH_ID, { status: 'inactive' })
   })
 
   it('answers branch_not_found before running any command when the branch is not under the agency', async () => {
     const store = fakeDataStore({ getAgencyBranch: async () => null })
-    await expect(updateBranch({ store }, viewerFor(ADMIN_PROFILE), AGENCY_ID, BRANCH_ID, { name: 'x' })).resolves.toEqual({ ok: false, outcome: 'branch_not_found' })
+    await expect(
+      updateBranch({ store }, viewerFor(ADMIN_PROFILE), AGENCY_ID, BRANCH_ID, { name: 'x' }),
+    ).resolves.toEqual({ ok: false, outcome: 'branch_not_found' })
     expect(store.updateBranch).not.toHaveBeenCalled()
   })
 
@@ -29,6 +42,8 @@ describe('updateBranch', () => {
       getAgencyBranch: async () => agencyBranchFixture(),
       updateBranch: async () => ({ outcome, entityId: null }),
     })
-    await expect(updateBranch({ store }, viewerFor(ADMIN_PROFILE), AGENCY_ID, BRANCH_ID, { name: 'x' })).resolves.toEqual({ ok: false, outcome })
+    await expect(
+      updateBranch({ store }, viewerFor(ADMIN_PROFILE), AGENCY_ID, BRANCH_ID, { name: 'x' }),
+    ).resolves.toEqual({ ok: false, outcome })
   })
 })

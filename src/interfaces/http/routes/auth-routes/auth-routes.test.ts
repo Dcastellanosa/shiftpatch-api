@@ -22,7 +22,12 @@ const CLEARED = /Expires=Thu, 01 Jan 1970 00:00:00 GMT/
 /** Refresh tokens never appear in JSON; an access token only ever appears as the top-level `token` of a sign-in response. */
 function expectNoTokens(body: unknown) {
   const json = JSON.stringify(body)
-  for (const token of [SESSION.accessToken, SESSION.refreshToken, REFRESHED_SESSION.accessToken, REFRESHED_SESSION.refreshToken]) {
+  for (const token of [
+    SESSION.accessToken,
+    SESSION.refreshToken,
+    REFRESHED_SESSION.accessToken,
+    REFRESHED_SESSION.refreshToken,
+  ]) {
     expect(json).not.toContain(token)
   }
   expect(json).not.toMatch(/access_?token|refresh_?token/i)
@@ -37,7 +42,10 @@ function expectSignInPayload(body: unknown, session = SESSION) {
 
 describe('POST /auth/login', () => {
   const login = (app: ReturnType<typeof buildApp>, body: unknown) =>
-    request(app).post('/auth/login').set('Origin', ALLOWED_ORIGIN).send(body as object)
+    request(app)
+      .post('/auth/login')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send(body as object)
 
   it.each([
     ['empty body', {}],
@@ -168,9 +176,7 @@ describe('GET /auth/me', () => {
 
   it('returns the safe payload for a valid access token', async () => {
     const provider = fakeAuthProvider({ getUser: async () => USER })
-    const res = await request(buildApp(provider))
-      .get('/auth/me')
-      .set('Cookie', `sp_access=${SESSION.accessToken}`)
+    const res = await request(buildApp(provider)).get('/auth/me').set('Cookie', `sp_access=${SESSION.accessToken}`)
 
     expect(res.status).toBe(200)
     expect(res.body).toEqual(EXPECTED_PAYLOAD)
@@ -188,9 +194,7 @@ describe('GET /auth/me', () => {
 
   it('returns 401 for a malformed cookie without contacting the provider', async () => {
     const provider = fakeAuthProvider()
-    const res = await request(buildApp(provider))
-      .get('/auth/me')
-      .set('Cookie', 'sp_access=%3Cscript%3E%20bad')
+    const res = await request(buildApp(provider)).get('/auth/me').set('Cookie', 'sp_access=%3Cscript%3E%20bad')
 
     expect(res.status).toBe(401)
     expect(provider.getUser).not.toHaveBeenCalled()
@@ -215,9 +219,7 @@ describe('GET /auth/me', () => {
 
   it('refreshes when only the refresh cookie remains', async () => {
     const provider = fakeAuthProvider({ refreshSession: async () => REFRESHED_SESSION })
-    const res = await request(buildApp(provider))
-      .get('/auth/me')
-      .set('Cookie', `sp_refresh=${SESSION.refreshToken}`)
+    const res = await request(buildApp(provider)).get('/auth/me').set('Cookie', `sp_refresh=${SESSION.refreshToken}`)
 
     expect(res.status).toBe(200)
     expect(provider.getUser).not.toHaveBeenCalled()
@@ -296,7 +298,9 @@ describe('Bearer sessions (API clients)', () => {
 
   it('revokes a bearer session on logout', async () => {
     const provider = fakeAuthProvider()
-    const res = await request(buildApp(provider)).post('/auth/logout').set('Authorization', `Bearer ${SESSION.accessToken}`)
+    const res = await request(buildApp(provider))
+      .post('/auth/logout')
+      .set('Authorization', `Bearer ${SESSION.accessToken}`)
     expect(res.status).toBe(204)
     expect(provider.signOut).toHaveBeenCalledWith(SESSION.accessToken)
   })
@@ -333,7 +337,10 @@ describe('POST /auth/logout', () => {
 
 describe('POST /auth/complete-password', () => {
   const complete = (app: ReturnType<typeof buildApp>, body: unknown) =>
-    request(app).post('/auth/complete-password').set('Origin', ALLOWED_ORIGIN).send(body as object)
+    request(app)
+      .post('/auth/complete-password')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send(body as object)
   const VALID = { tokenHash: 'a'.repeat(56), type: 'invite', password: 'correct horse battery' }
   const appWith = (auth: ReturnType<typeof fakeAuthAdmin> | null) => buildApp(fakeAuthProvider(), 'test', null, auth)
 
@@ -403,7 +410,10 @@ describe('POST /auth/complete-password', () => {
 
   it('rejects a cross-site request before contacting the provider', async () => {
     const auth = fakeAuthAdmin()
-    const res = await request(appWith(auth)).post('/auth/complete-password').set('Origin', 'https://evil.example').send(VALID)
+    const res = await request(appWith(auth))
+      .post('/auth/complete-password')
+      .set('Origin', 'https://evil.example')
+      .send(VALID)
     expect(res.status).toBe(403)
     expect(auth.completePassword).not.toHaveBeenCalled()
   })
@@ -411,7 +421,10 @@ describe('POST /auth/complete-password', () => {
 
 describe('POST /auth/recover', () => {
   const recover = (app: ReturnType<typeof buildApp>, body: unknown) =>
-    request(app).post('/auth/recover').set('Origin', ALLOWED_ORIGIN).send(body as object)
+    request(app)
+      .post('/auth/recover')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send(body as object)
 
   it('answers 204 and asks the provider for an email pointing at the web set-password page', async () => {
     const auth = fakeAuthAdmin()

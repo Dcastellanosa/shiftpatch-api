@@ -12,7 +12,16 @@ describe('completePassword', () => {
     expect(result).toEqual({
       ok: true,
       session: SESSION,
-      payload: { user: { id: NURSE_PROFILE.slug, name: NURSE_PROFILE.fullName, email: USER.email, role: 'nurse', agencyId: null, agencyIds: [] } },
+      payload: {
+        user: {
+          id: NURSE_PROFILE.slug,
+          name: NURSE_PROFILE.fullName,
+          email: USER.email,
+          role: 'nurse',
+          agencyId: null,
+          agencyIds: [],
+        },
+      },
     })
     expect(auth.completePassword).toHaveBeenCalledWith('hash-1', 'invite', 'correct horse battery')
     expect(store.getProfile).toHaveBeenCalledWith(SESSION.accessToken, USER.id)
@@ -21,7 +30,10 @@ describe('completePassword', () => {
   it.each(['invalid_link', 'weak_password'] as const)('passes %s through without a session', async (outcome) => {
     const auth = fakeAuthAdmin({ completePassword: async () => outcome })
     const store = fakeDataStore()
-    await expect(completePassword({ auth, store }, 'hash-1', 'recovery', 'pw-pw-pw-pw')).resolves.toEqual({ ok: false, outcome })
+    await expect(completePassword({ auth, store }, 'hash-1', 'recovery', 'pw-pw-pw-pw')).resolves.toEqual({
+      ok: false,
+      outcome,
+    })
     expect(store.getProfile).not.toHaveBeenCalled()
   })
 

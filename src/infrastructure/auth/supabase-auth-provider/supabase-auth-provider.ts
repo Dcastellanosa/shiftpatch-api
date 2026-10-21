@@ -1,10 +1,4 @@
-import {
-  createClient,
-  isAuthApiError,
-  type AuthError,
-  type Session,
-  type User,
-} from '@supabase/supabase-js'
+import { createClient, isAuthApiError, type AuthError, type Session, type User } from '@supabase/supabase-js'
 import {
   AuthRateLimitedError,
   AuthUnavailableError,

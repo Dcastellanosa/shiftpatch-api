@@ -10,13 +10,21 @@ import { listMyShifts } from '../../../../application/list-my-shifts/list-my-shi
 import { listShifts } from '../../../../application/list-shifts/list-shifts.js'
 import type { DataStore } from '../../../../domain/ports/data-store/data-store.js'
 import type { CreateShiftInput } from '../../../../domain/shift/shift.js'
-import { agencyShiftsParams, cancelBody, createShiftBody, listShiftsQuery, shiftIdParams, type CancelBody } from '../../schemas/shifts/shifts.js'
+import {
+  agencyShiftsParams,
+  cancelBody,
+  createShiftBody,
+  listShiftsQuery,
+  shiftIdParams,
+  type CancelBody,
+} from '../../schemas/shifts/shifts.js'
 import { AppError } from '../../errors/errors.js'
 import { parseInput, validateBody } from '../../middleware/validate/validate.js'
 import { loadViewer, requireRole } from '../../middleware/viewer/viewer.js'
 
 const shiftNotFound = () => new AppError(404, 'shift_not_found', 'Shift not found')
-const agencyInactive = () => new AppError(422, 'agency_inactive', 'This agency is inactive, so its branches cannot take shifts')
+const agencyInactive = () =>
+  new AppError(422, 'agency_inactive', 'This agency is inactive, so its branches cannot take shifts')
 const branchInactive = () => new AppError(422, 'branch_inactive', 'This branch is inactive, so it cannot take shifts')
 /** The contract's wording for every credential failure on a claim. */
 const credentialRejected = (code: string) => () => new AppError(403, code, 'Credential expired, cannot claim shift')
@@ -51,7 +59,8 @@ const CANCEL_ERRORS: Record<CancelClaimFailure, () => AppError> = {
   shift_not_found: shiftNotFound,
   actor_not_allowed: () => new AppError(403, 'forbidden', 'You do not have permission to cancel this shift'),
   invalid_reason: () => new AppError(400, 'validation_error', 'reason must be "no-show" or "advance"'),
-  shift_not_claimed: () => new AppError(409, 'shift_not_filled', 'This shift is not filled, so there is nothing to cancel'),
+  shift_not_claimed: () =>
+    new AppError(409, 'shift_not_filled', 'This shift is not filled, so there is nothing to cancel'),
 }
 
 /**

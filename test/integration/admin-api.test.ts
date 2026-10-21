@@ -41,7 +41,13 @@ const patch = (agent: Agent, path: string, body: object) => agent.patch(path).se
 /** Contract body for the next window on a UTC branch created by this file. */
 function utcShift(branchId: string, role = 'RN') {
   const window = nextWindow()
-  return { role, date: window.startsAt.slice(0, 10), startTime: window.startsAt.slice(11, 16), endTime: window.endsAt.slice(11, 16), branchId }
+  return {
+    role,
+    date: window.startsAt.slice(0, 10),
+    startTime: window.startsAt.slice(11, 16),
+    endTime: window.endsAt.slice(11, 16),
+    branchId,
+  }
 }
 
 describe('admin agency and branch lifecycle over HTTP', () => {
@@ -58,7 +64,9 @@ describe('admin agency and branch lifecycle over HTTP', () => {
 
     const list = agencyListResponse.parse((await agents.admin.get('/admin/agencies')).body).agencies
     expect(agencyId).toMatch(/^agency-\d+$/)
-    expect(list.map((a) => a.id)).toEqual(expect.arrayContaining([agencyId, AGENCIES.northwind.slug, AGENCIES.lakeside.slug, SPEC_AGENCIES.sunrise.slug]))
+    expect(list.map((a) => a.id)).toEqual(
+      expect.arrayContaining([agencyId, AGENCIES.northwind.slug, AGENCIES.lakeside.slug, SPEC_AGENCIES.sunrise.slug]),
+    )
     expect(list.find((a) => a.id === AGENCIES.lakeside.slug)).toMatchObject({ status: 'inactive', branchCount: 1 })
 
     const detail = agencyDetailResponse.parse((await agents.admin.get(`/admin/agencies/${agencyId}`)).body)
@@ -91,15 +99,28 @@ describe('admin agency and branch lifecycle over HTTP', () => {
   })
 
   it('refuses a duplicate branch name within the agency and an unknown time zone', async () => {
-    const dup = await post(agents.admin, `/admin/agencies/${agencyId}/branches`, { name: 'Harbor Annex', address: 'x', timezone: 'UTC' })
+    const dup = await post(agents.admin, `/admin/agencies/${agencyId}/branches`, {
+      name: 'Harbor Annex',
+      address: 'x',
+      timezone: 'UTC',
+    })
     expect(dup.status).toBe(409)
-    const tz = await post(agents.admin, `/admin/agencies/${agencyId}/branches`, { name: 'Other', address: 'x', timezone: 'Nowhere/Land' })
+    const tz = await post(agents.admin, `/admin/agencies/${agencyId}/branches`, {
+      name: 'Other',
+      address: 'x',
+      timezone: 'Nowhere/Land',
+    })
     expect(tz.status).toBe(400)
   })
 
   it('deactivating the branch blocks shift creation and claims until it is reactivated', async () => {
     const shift = shiftResponse.parse((await post(agents.admin, '/shifts', utcShift(branchId, 'Annex shift'))).body)
-    await pool.query('select shiftpatch.set_branch_eligibility($1, $2, $3, $4)', [USERS.admin.id, USERS.ava.id, branchId, 'active'])
+    await pool.query('select shiftpatch.set_branch_eligibility($1, $2, $3, $4)', [
+      USERS.admin.id,
+      USERS.ava.id,
+      branchId,
+      'active',
+    ])
 
     const off = await patch(agents.admin, `/admin/agencies/${agencyId}/branches/${branchId}`, { status: 'inactive' })
     expect(off.status).toBe(200)
@@ -127,7 +148,11 @@ describe('admin agency and branch lifecycle over HTTP', () => {
     expect(off.status).toBe(200)
     expect(agencyResponse.parse(off.body).agency.status).toBe('inactive')
 
-    const newBranch = await post(agents.admin, `/admin/agencies/${agencyId}/branches`, { name: 'Late', address: 'x', timezone: 'UTC' })
+    const newBranch = await post(agents.admin, `/admin/agencies/${agencyId}/branches`, {
+      name: 'Late',
+      address: 'x',
+      timezone: 'UTC',
+    })
     expect(newBranch.status).toBe(422)
     expect(newBranch.body.code).toBe('agency_inactive')
     const create = await post(agents.admin, '/shifts', utcShift(branchId, 'Blocked'))
@@ -144,7 +169,9 @@ describe('admin agency and branch lifecycle over HTTP', () => {
   })
 
   it('answers 404 for a branch addressed through the wrong agency', async () => {
-    const res = await patch(agents.admin, `/admin/agencies/${AGENCIES.northwind.slug}/branches/${branchId}`, { status: 'inactive' })
+    const res = await patch(agents.admin, `/admin/agencies/${AGENCIES.northwind.slug}/branches/${branchId}`, {
+      status: 'inactive',
+    })
     expect(res.status).toBe(404)
     expect(res.body.code).toBe('branch_not_found')
     const { rows } = await pool.query('select status from shiftpatch.agency_branches where id = $1', [branchId])
@@ -160,8 +187,14 @@ describe('admin routes are closed to other roles', () => {
       post(agent, '/admin/agencies', { name: 'Nope' }),
       agent.get(`/admin/agencies/${AGENCIES.northwind.slug}`),
       patch(agent, `/admin/agencies/${AGENCIES.northwind.slug}`, { status: 'inactive' }),
-      post(agent, `/admin/agencies/${AGENCIES.northwind.slug}/branches`, { name: 'Nope', address: 'x', timezone: 'UTC' }),
-      patch(agent, `/admin/agencies/${AGENCIES.northwind.slug}/branches/${BRANCHES.downtown.id}`, { status: 'inactive' }),
+      post(agent, `/admin/agencies/${AGENCIES.northwind.slug}/branches`, {
+        name: 'Nope',
+        address: 'x',
+        timezone: 'UTC',
+      }),
+      patch(agent, `/admin/agencies/${AGENCIES.northwind.slug}/branches/${BRANCHES.downtown.id}`, {
+        status: 'inactive',
+      }),
     ])
     for (const res of responses) expect(res.status).toBe(403)
     const { rows } = await pool.query(`select 1 from shiftpatch.agencies where name = 'Nope'`)
@@ -206,11 +239,23 @@ describe('invitations, password completion and recovery over HTTP', () => {
   let tokenHash: string
 
   it('invites a nurse: profile, eligibility, listing as invited, and an email whose link carries the hash only in the fragment', async () => {
-    const res = await post(agents.admin, '/admin/users', { email, fullName: 'Invited Nurse', role: 'nurse', branchId: BRANCHES.downtown.id })
+    const res = await post(agents.admin, '/admin/users', {
+      email,
+      fullName: 'Invited Nurse',
+      role: 'nurse',
+      branchId: BRANCHES.downtown.id,
+    })
     expect(res.status).toBe(201)
     const user = userResponse.parse(res.body).user
     expect(user).toMatchObject({ email, fullName: 'Invited Nurse', role: 'nurse', status: 'invited', agencies: [] })
-    expect(user.eligibleBranches).toEqual([{ id: BRANCHES.downtown.id, name: BRANCHES.downtown.name, agency: { id: AGENCIES.northwind.slug, name: AGENCIES.northwind.name }, status: 'active' }])
+    expect(user.eligibleBranches).toEqual([
+      {
+        id: BRANCHES.downtown.id,
+        name: BRANCHES.downtown.name,
+        agency: { id: AGENCIES.northwind.slug, name: AGENCIES.northwind.name },
+        status: 'active',
+      },
+    ])
     expect(JSON.stringify(res.body)).not.toMatch(/token|hash|password|set-password/i)
     expect(user.id).toMatch(/^nurse-\d+$/)
     invitedId = user.id
@@ -237,7 +282,10 @@ describe('invitations, password completion and recovery over HTTP', () => {
     expect(res.body.code).toBe('email_exists')
     const { rows } = await pool.query('select full_name, role from shiftpatch.profiles where slug = $1', [invitedId])
     expect(rows).toEqual([{ full_name: 'Invited Nurse', role: 'nurse' }])
-    const { rows: auth } = await pool.query('select count(*)::int as n from auth.users u join shiftpatch.profiles p on p.id = u.id where p.slug = $1', [invitedId])
+    const { rows: auth } = await pool.query(
+      'select count(*)::int as n from auth.users u join shiftpatch.profiles p on p.id = u.id where p.slug = $1',
+      [invitedId],
+    )
     expect(auth[0].n).toBe(1)
   })
 
@@ -252,12 +300,19 @@ describe('invitations, password completion and recovery over HTTP', () => {
     const superseded = tokenHash
     tokenHash = linkFrom((await latestMailTo(email)).html).tokenHash!
     expect(tokenHash).not.toBe(superseded)
-    const stale = await post(agents.admin, '/auth/complete-password', { tokenHash: superseded, type: 'invite', password: 'brand-new-password-1' })
+    const stale = await post(agents.admin, '/auth/complete-password', {
+      tokenHash: superseded,
+      type: 'invite',
+      password: 'brand-new-password-1',
+    })
     expect(stale.status).toBe(401)
     expect(stale.headers['set-cookie']).toBeUndefined()
 
     const agent = request.agent(app)
-    const res = await agent.post('/auth/complete-password').set('Origin', ALLOWED_ORIGIN).send({ tokenHash, type: 'invite', password: 'brand-new-password-1' })
+    const res = await agent
+      .post('/auth/complete-password')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({ tokenHash, type: 'invite', password: 'brand-new-password-1' })
     expect(res.status).toBe(200)
     expect(res.body.user).toMatchObject({ id: invitedId, email, role: 'nurse', name: 'Invited Nurse' })
     expect(JSON.stringify(res.body)).not.toMatch(/hash|refresh/i)
@@ -276,7 +331,11 @@ describe('invitations, password completion and recovery over HTTP', () => {
   })
 
   it('refuses a replayed link with 401 and no cookies', async () => {
-    const res = await post(agents.admin, '/auth/complete-password', { tokenHash, type: 'invite', password: 'another-password-2' })
+    const res = await post(agents.admin, '/auth/complete-password', {
+      tokenHash,
+      type: 'invite',
+      password: 'another-password-2',
+    })
     expect(res.status).toBe(401)
     expect(res.body.code).toBe('invalid_or_expired_link')
     expect(res.headers['set-cookie']).toBeUndefined()
@@ -307,7 +366,11 @@ describe('invitations, password completion and recovery over HTTP', () => {
 
   it('keeps invitations admin-only', async () => {
     for (const agent of [agents.northwindAgency, agents.ava]) {
-      const res = await post(agent, '/admin/users', { email: `x.${Date.now()}@shiftpatch.test`, fullName: 'X', role: 'admin' })
+      const res = await post(agent, '/admin/users', {
+        email: `x.${Date.now()}@shiftpatch.test`,
+        fullName: 'X',
+        role: 'admin',
+      })
       expect(res.status).toBe(403)
       expect((await agent.get('/admin/users')).status).toBe(403)
     }
@@ -316,15 +379,27 @@ describe('invitations, password completion and recovery over HTTP', () => {
 
 describe('deletion over HTTP', () => {
   it('deletes an agency without shifts and refuses one with shifts', async () => {
-    const created = agencyResponse.parse((await post(agents.admin, '/admin/agencies', { name: `Deletable ${Date.now()}` })).body).agency
-    const branch = branchResponse.parse((await post(agents.admin, `/admin/agencies/${created.id}/branches`, { name: 'Gone Soon', address: '1 Street', timezone: 'UTC' })).body).branch
+    const created = agencyResponse.parse(
+      (await post(agents.admin, '/admin/agencies', { name: `Deletable ${Date.now()}` })).body,
+    ).agency
+    const branch = branchResponse.parse(
+      (
+        await post(agents.admin, `/admin/agencies/${created.id}/branches`, {
+          name: 'Gone Soon',
+          address: '1 Street',
+          timezone: 'UTC',
+        })
+      ).body,
+    ).branch
     expect(branch.agencyId).toBe(created.id)
 
     const res = await agents.admin.delete(`/admin/agencies/${created.id}`).set('Origin', ALLOWED_ORIGIN)
     expect(res.status).toBe(204)
     expect((await agents.admin.get(`/admin/agencies/${created.id}`)).status).toBe(404)
 
-    const refused = await agents.admin.delete(`/admin/agencies/${AGENCIES.northwind.slug}`).set('Origin', ALLOWED_ORIGIN)
+    const refused = await agents.admin
+      .delete(`/admin/agencies/${AGENCIES.northwind.slug}`)
+      .set('Origin', ALLOWED_ORIGIN)
     expect(refused.status).toBe(409)
     expect(refused.body.code).toBe('agency_has_shifts')
   })
@@ -341,7 +416,12 @@ describe('deletion over HTTP', () => {
     const spec = await agents.admin.delete(`/admin/users/${SPEC_USERS.maria.slug}`).set('Origin', ALLOWED_ORIGIN)
     expect(spec.body.code).toBe('user_has_history')
 
-    expect((await agents.northwindAgency.delete(`/admin/users/${USERS.eli.slug}`).set('Origin', ALLOWED_ORIGIN)).status).toBe(403)
-    expect((await agents.northwindAgency.delete(`/admin/agencies/${AGENCIES.northwind.slug}`).set('Origin', ALLOWED_ORIGIN)).status).toBe(403)
+    expect(
+      (await agents.northwindAgency.delete(`/admin/users/${USERS.eli.slug}`).set('Origin', ALLOWED_ORIGIN)).status,
+    ).toBe(403)
+    expect(
+      (await agents.northwindAgency.delete(`/admin/agencies/${AGENCIES.northwind.slug}`).set('Origin', ALLOWED_ORIGIN))
+        .status,
+    ).toBe(403)
   })
 })

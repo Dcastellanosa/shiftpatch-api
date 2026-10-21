@@ -1,0 +1,13 @@
+dist
+coverage
+node_modules
+pnpm-lock.yaml
+supabase/.branches
+supabase/.temp
+docs/ai-transcripts
+.agents
+.claude
+.codex
+.kiro
+skills
+*.md

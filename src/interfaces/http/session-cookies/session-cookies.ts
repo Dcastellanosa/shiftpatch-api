@@ -85,8 +85,7 @@ export function readSessionCookies(req: Request, config: SessionCookieConfig): S
   const cookies: Record<string, unknown> = req.cookies ?? {}
   const access = cookies[names.access]
   const refresh = cookies[names.refresh]
-  const valid = (value: unknown): value is string =>
-    typeof value === 'string' && TOKEN_PATTERN.test(value)
+  const valid = (value: unknown): value is string => typeof value === 'string' && TOKEN_PATTERN.test(value)
 
   return {
     accessToken: valid(access) ? access : undefined,

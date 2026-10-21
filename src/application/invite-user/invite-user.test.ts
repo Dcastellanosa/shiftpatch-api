@@ -14,7 +14,12 @@ import {
 import { inviteUser } from './invite-user.js'
 
 const SET_PASSWORD_URL = 'http://localhost:5173/set-password'
-const COMMAND: InviteUserCommand = { email: 'new.nurse@example.test', fullName: 'Nina Nurse', role: 'nurse', branchId: BRANCH_ID }
+const COMMAND: InviteUserCommand = {
+  email: 'new.nurse@example.test',
+  fullName: 'Nina Nurse',
+  role: 'nurse',
+  branchId: BRANCH_ID,
+}
 
 describe('inviteUser', () => {
   it('invites through the provider, provisions with the viewer id and returns the listed user', async () => {
@@ -27,7 +32,10 @@ describe('inviteUser', () => {
     })
 
     await expect(inviteUser({ store, auth }, viewer, COMMAND, SET_PASSWORD_URL)).resolves.toEqual({ ok: true, user })
-    expect(auth.inviteUser).toHaveBeenCalledWith(COMMAND.email, { fullName: COMMAND.fullName, redirectTo: SET_PASSWORD_URL })
+    expect(auth.inviteUser).toHaveBeenCalledWith(COMMAND.email, {
+      fullName: COMMAND.fullName,
+      redirectTo: SET_PASSWORD_URL,
+    })
     expect(store.provisionUser).toHaveBeenCalledWith(USER.id, INVITED_USER_ID, COMMAND)
     expect(store.getUser).toHaveBeenCalledWith(viewer, INVITED_USER_ID)
     expect(auth.deleteUser).not.toHaveBeenCalled()
@@ -36,7 +44,10 @@ describe('inviteUser', () => {
   it('stops at email_exists without provisioning', async () => {
     const auth = fakeAuthAdmin({ inviteUser: async () => 'email_exists' })
     const store = fakeDataStore()
-    await expect(inviteUser({ store, auth }, viewerFor(ADMIN_PROFILE), COMMAND, SET_PASSWORD_URL)).resolves.toEqual({ ok: false, outcome: 'email_exists' })
+    await expect(inviteUser({ store, auth }, viewerFor(ADMIN_PROFILE), COMMAND, SET_PASSWORD_URL)).resolves.toEqual({
+      ok: false,
+      outcome: 'email_exists',
+    })
     expect(store.provisionUser).not.toHaveBeenCalled()
     expect(auth.deleteUser).not.toHaveBeenCalled()
   })
@@ -44,7 +55,10 @@ describe('inviteUser', () => {
   it('does not remove an account that was already provisioned (a re-sent invitation)', async () => {
     const auth = fakeAuthAdmin({ inviteUser: async () => ({ id: INVITED_USER_ID }) })
     const store = fakeDataStore({ provisionUser: async () => ({ outcome: 'profile_exists', entityId: null }) })
-    await expect(inviteUser({ store, auth }, viewerFor(ADMIN_PROFILE), COMMAND, SET_PASSWORD_URL)).resolves.toEqual({ ok: false, outcome: 'profile_exists' })
+    await expect(inviteUser({ store, auth }, viewerFor(ADMIN_PROFILE), COMMAND, SET_PASSWORD_URL)).resolves.toEqual({
+      ok: false,
+      outcome: 'profile_exists',
+    })
     expect(auth.deleteUser).not.toHaveBeenCalled()
   })
 
@@ -59,7 +73,10 @@ describe('inviteUser', () => {
   ])('removes the Auth user again when provisioning answers %s', async (outcome) => {
     const auth = fakeAuthAdmin({ inviteUser: async () => ({ id: INVITED_USER_ID }) })
     const store = fakeDataStore({ provisionUser: async () => ({ outcome, entityId: null }) })
-    await expect(inviteUser({ store, auth }, viewerFor(ADMIN_PROFILE), COMMAND, SET_PASSWORD_URL)).resolves.toEqual({ ok: false, outcome })
+    await expect(inviteUser({ store, auth }, viewerFor(ADMIN_PROFILE), COMMAND, SET_PASSWORD_URL)).resolves.toEqual({
+      ok: false,
+      outcome,
+    })
     expect(auth.deleteUser).toHaveBeenCalledWith(INVITED_USER_ID)
     expect(store.getUser).not.toHaveBeenCalled()
   })
@@ -72,7 +89,10 @@ describe('inviteUser', () => {
       },
     })
     const store = fakeDataStore({ provisionUser: async () => ({ outcome: 'branch_inactive', entityId: null }) })
-    await expect(inviteUser({ store, auth }, viewerFor(ADMIN_PROFILE), COMMAND, SET_PASSWORD_URL)).resolves.toEqual({ ok: false, outcome: 'branch_inactive' })
+    await expect(inviteUser({ store, auth }, viewerFor(ADMIN_PROFILE), COMMAND, SET_PASSWORD_URL)).resolves.toEqual({
+      ok: false,
+      outcome: 'branch_inactive',
+    })
   })
 
   it('reports user_not_found when the provisioned user is not visible on re-read', async () => {
@@ -81,7 +101,10 @@ describe('inviteUser', () => {
       provisionUser: async () => ({ outcome: 'provisioned', entityId: INVITED_USER_ID }),
       getUser: async () => null,
     })
-    await expect(inviteUser({ store, auth }, viewerFor(ADMIN_PROFILE), COMMAND, SET_PASSWORD_URL)).resolves.toEqual({ ok: false, outcome: 'user_not_found' })
+    await expect(inviteUser({ store, auth }, viewerFor(ADMIN_PROFILE), COMMAND, SET_PASSWORD_URL)).resolves.toEqual({
+      ok: false,
+      outcome: 'user_not_found',
+    })
     expect(auth.deleteUser).not.toHaveBeenCalled()
   })
 })

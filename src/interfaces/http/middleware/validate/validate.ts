@@ -25,7 +25,10 @@ export function validateBody(schema: ZodType): RequestHandler {
 export function parseInput<S extends ZodType>(schema: S, input: unknown, label: 'query' | 'params'): z.infer<S> {
   const result = schema.safeParse(input)
   if (!result.success) {
-    throw validationError(label === 'query' ? 'Invalid query parameters' : 'Invalid path parameters', result.error.issues)
+    throw validationError(
+      label === 'query' ? 'Invalid query parameters' : 'Invalid path parameters',
+      result.error.issues,
+    )
   }
   return result.data
 }

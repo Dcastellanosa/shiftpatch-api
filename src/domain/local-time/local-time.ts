@@ -23,7 +23,14 @@ const parts = (instant: number, timeZone: string) => {
     second: '2-digit',
   }).formatToParts(new Date(instant))
   const get = (type: string) => formatted.find((p) => p.type === type)?.value ?? '00'
-  return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour'), minute: get('minute'), second: get('second') }
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: get('hour'),
+    minute: get('minute'),
+    second: get('second'),
+  }
 }
 
 export function toLocalDateTime(iso: string, timeZone: string): LocalDateTime {
@@ -34,7 +41,14 @@ export function toLocalDateTime(iso: string, timeZone: string): LocalDateTime {
 /** Offset (ms) of `timeZone` from UTC at `instant`. */
 function zoneOffset(instant: number, timeZone: string): number {
   const p = parts(instant, timeZone)
-  const asUtc = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second))
+  const asUtc = Date.UTC(
+    Number(p.year),
+    Number(p.month) - 1,
+    Number(p.day),
+    Number(p.hour),
+    Number(p.minute),
+    Number(p.second),
+  )
   return asUtc - instant
 }
 

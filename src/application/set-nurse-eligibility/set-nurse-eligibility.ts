@@ -6,7 +6,8 @@ import type { Viewer } from '../../domain/viewer/viewer.js'
 /** `eligibility_not_found` covers a row that is not visible on re-read. */
 export type SetEligibilityFailure = Exclude<SetEligibilityOutcome, 'updated'> | 'eligibility_not_found'
 
-export type SetEligibilityResult = { ok: true; eligibility: EligibilityRecord } | { ok: false; outcome: SetEligibilityFailure }
+export type SetEligibilityResult =
+  { ok: true; eligibility: EligibilityRecord } | { ok: false; outcome: SetEligibilityFailure }
 
 /**
  * Activates or suspends a nurse at a branch. The database enforces the

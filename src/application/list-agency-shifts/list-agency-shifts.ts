@@ -5,8 +5,7 @@ import type { DataStore } from '../../domain/ports/data-store/data-store.js'
 export type ListAgencyShiftsFailure = 'forbidden'
 
 export type ListAgencyShiftsResult =
-  | { ok: true; agencyId: string; shifts: Shift[] }
-  | { ok: false; outcome: ListAgencyShiftsFailure }
+  { ok: true; agencyId: string; shifts: Shift[] } | { ok: false; outcome: ListAgencyShiftsFailure }
 
 /**
  * One agency's posted shifts. Admins may read any agency, agency users only

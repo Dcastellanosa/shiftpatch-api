@@ -24,14 +24,7 @@ import type {
   UpdateAgencyOutcome,
   UpdateBranchOutcome,
 } from '../../outcomes/outcomes.js'
-import type {
-  Branch,
-  CancelReason,
-  CreateShiftCommand,
-  Shift,
-  ShiftEvent,
-  ShiftFilters,
-} from '../../shift/shift.js'
+import type { Branch, CancelReason, CreateShiftCommand, Shift, ShiftEvent, ShiftFilters } from '../../shift/shift.js'
 
 /**
  * Driven port: all business-data access. Every id crossing this port is a
@@ -57,18 +50,34 @@ export interface DataStore {
   getAgency(viewer: Viewer, agencyId: string): Promise<AgencyDetail | null>
   getAgencyBranch(viewer: Viewer, agencyId: string, branchId: string): Promise<AgencyBranch | null>
   createAgency(actorId: string, input: CreateAgencyInput): Promise<AdminCommandResult<CreateAgencyOutcome>>
-  updateAgency(actorId: string, agencyId: string, input: UpdateAgencyInput): Promise<AdminCommandResult<UpdateAgencyOutcome>>
+  updateAgency(
+    actorId: string,
+    agencyId: string,
+    input: UpdateAgencyInput,
+  ): Promise<AdminCommandResult<UpdateAgencyOutcome>>
   /** Removes an agency with its branches, memberships and eligibility records; refused once any shift exists. */
   deleteAgency(actorId: string, agencyId: string): Promise<AdminCommandResult<DeleteAgencyOutcome>>
-  createBranch(actorId: string, agencyId: string, input: CreateBranchInput): Promise<AdminCommandResult<CreateBranchOutcome>>
-  updateBranch(actorId: string, branchId: string, input: UpdateBranchInput): Promise<AdminCommandResult<UpdateBranchOutcome>>
+  createBranch(
+    actorId: string,
+    agencyId: string,
+    input: CreateBranchInput,
+  ): Promise<AdminCommandResult<CreateBranchOutcome>>
+  updateBranch(
+    actorId: string,
+    branchId: string,
+    input: UpdateBranchInput,
+  ): Promise<AdminCommandResult<UpdateBranchOutcome>>
 
   // User administration. Listing runs as the viewer (the database rejects
   // non-admins); provisioning calls the service-role-only command.
   listUsers(viewer: Viewer): Promise<AdminUser[]>
   getUser(viewer: Viewer, userId: string): Promise<AdminUser | null>
   /** `authUserId` is the Auth user's UUID (the account was just created); the result's entityId is the same UUID. */
-  provisionUser(actorId: string, authUserId: string, command: InviteUserCommand): Promise<AdminCommandResult<ProvisionOutcome>>
+  provisionUser(
+    actorId: string,
+    authUserId: string,
+    command: InviteUserCommand,
+  ): Promise<AdminCommandResult<ProvisionOutcome>>
   /** Removes the profile and its access records (not the Auth account); the result's entityId is the Auth user's UUID. */
   deleteUser(actorId: string, userId: string): Promise<AdminCommandResult<DeleteUserOutcome>>
 

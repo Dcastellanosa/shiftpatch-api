@@ -17,7 +17,11 @@ export interface AuthAdmin {
    * session is returned only when the password update succeeded; on every
    * failure the provisional session is revoked best-effort.
    */
-  completePassword(tokenHash: string, type: PasswordLinkType, password: string): Promise<AuthSession | 'invalid_link' | 'weak_password'>
+  completePassword(
+    tokenHash: string,
+    type: PasswordLinkType,
+    password: string,
+  ): Promise<AuthSession | 'invalid_link' | 'weak_password'>
   /** Sends a recovery email when the address exists; silent otherwise. */
   sendRecovery(email: string, redirectTo: string): Promise<void>
 }

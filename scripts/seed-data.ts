@@ -61,8 +61,7 @@ export interface SeedEligibility {
 
 /** Either a dated shift (facility-local, kept as is) or one relative to the seed run (moved forward on re-runs). */
 export type SeedShiftTime =
-  | { date: string; startTime: string; endTime: string }
-  | { dayOffset: number; startHourUtc: number; hours: number }
+  { date: string; startTime: string; endTime: string } | { dayOffset: number; startHourUtc: number; hours: number }
 
 export interface SeedShift {
   id: string
@@ -86,8 +85,18 @@ export interface SeedDataset {
 }
 
 export const AGENCIES = {
-  sunrise: { id: 'a2000000-0000-4000-8000-00000000000a', slug: 'agency-a', name: 'Sunrise Health Staffing', status: 'active' },
-  metro: { id: 'a2000000-0000-4000-8000-00000000000b', slug: 'agency-b', name: 'Metro Care Partners', status: 'active' },
+  sunrise: {
+    id: 'a2000000-0000-4000-8000-00000000000a',
+    slug: 'agency-a',
+    name: 'Sunrise Health Staffing',
+    status: 'active',
+  },
+  metro: {
+    id: 'a2000000-0000-4000-8000-00000000000b',
+    slug: 'agency-b',
+    name: 'Metro Care Partners',
+    status: 'active',
+  },
 } as const satisfies Record<string, SeedAgency>
 
 export const BRANCHES = {
@@ -158,8 +167,22 @@ export const MEMBERSHIPS = [
 ] as const satisfies readonly SeedMembership[]
 
 export const CREDENTIALS = [
-  { id: 'd2000000-0000-4000-8000-000000000011', nurseId: USERS.maria.id, code: 'nursing_license', issuedAt: '2024-01-01', expiresAt: '2027-01-01', status: 'valid' },
-  { id: 'd2000000-0000-4000-8000-000000000012', nurseId: USERS.james.id, code: 'nursing_license', issuedAt: '2022-06-01', expiresAt: '2026-06-01', status: 'valid' },
+  {
+    id: 'd2000000-0000-4000-8000-000000000011',
+    nurseId: USERS.maria.id,
+    code: 'nursing_license',
+    issuedAt: '2024-01-01',
+    expiresAt: '2027-01-01',
+    status: 'valid',
+  },
+  {
+    id: 'd2000000-0000-4000-8000-000000000012',
+    nurseId: USERS.james.id,
+    code: 'nursing_license',
+    issuedAt: '2022-06-01',
+    expiresAt: '2026-06-01',
+    status: 'valid',
+  },
 ] as const satisfies readonly SeedCredential[]
 
 export const ELIGIBILITY = [

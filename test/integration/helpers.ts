@@ -92,16 +92,13 @@ export async function createShift(
   options: { branchId?: string; actorId?: string; window: { startsAt: string; endsAt: string }; title?: string },
 ): Promise<FixtureShift> {
   const window = options.window
-  const { rows } = await db.query(
-    'select outcome, shift_id from shiftpatch.create_shift($1, $2, $3, $4, $5)',
-    [
-      options.actorId ?? USERS.northwindAgency.id,
-      options.branchId ?? BRANCHES.downtown.id,
-      options.title ?? 'Integration fixture',
-      window.startsAt,
-      window.endsAt,
-    ],
-  )
+  const { rows } = await db.query('select outcome, shift_id from shiftpatch.create_shift($1, $2, $3, $4, $5)', [
+    options.actorId ?? USERS.northwindAgency.id,
+    options.branchId ?? BRANCHES.downtown.id,
+    options.title ?? 'Integration fixture',
+    window.startsAt,
+    window.endsAt,
+  ])
   if (rows[0].outcome !== 'created') throw new Error(`fixture create_shift returned ${rows[0].outcome}`)
   const { rows: slugs } = await db.query('select slug from shiftpatch.shifts where id = $1', [rows[0].shift_id])
   return { id: rows[0].shift_id as string, slug: slugs[0].slug as string, ...window }

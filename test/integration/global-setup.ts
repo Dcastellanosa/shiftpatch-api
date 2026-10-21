@@ -17,7 +17,12 @@ export default async function setup(project: TestProject) {
   const seedPassword = randomBytes(18).toString('base64url')
   // The trial dataset first (what `pnpm seed` loads), then the suite's own fixtures on top.
   await seedWhenReady({ url: stack.apiUrl, serviceRoleKey: stack.serviceRoleKey, password: seedPassword })
-  await seedDatabase({ url: stack.apiUrl, serviceRoleKey: stack.serviceRoleKey, password: seedPassword, dataset: FIXTURE_DATASET })
+  await seedDatabase({
+    url: stack.apiUrl,
+    serviceRoleKey: stack.serviceRoleKey,
+    password: seedPassword,
+    dataset: FIXTURE_DATASET,
+  })
   project.provide('stack', stack)
   project.provide('seedPassword', seedPassword)
 }

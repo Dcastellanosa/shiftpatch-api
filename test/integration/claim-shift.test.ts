@@ -91,12 +91,20 @@ describe('claim_shift: rule failures leave the shift untouched', () => {
   })
 
   it('rejects inactive (suspended) eligibility', async () => {
-    const shift = await createShift(pool, { branchId: BRANCHES.bayview.id, actorId: USERS.harborAgency.id, window: nextWindow() })
+    const shift = await createShift(pool, {
+      branchId: BRANCHES.bayview.id,
+      actorId: USERS.harborAgency.id,
+      window: nextWindow(),
+    })
     expect(await inRollbackCommit((db) => claimAsService(db, shift.id, USERS.cora.id))).toBe('eligibility_inactive')
   })
 
   it('rejects a nurse with no eligibility record at the branch', async () => {
-    const shift = await createShift(pool, { branchId: BRANCHES.hillcrest.id, actorId: USERS.harborAgency.id, window: nextWindow() })
+    const shift = await createShift(pool, {
+      branchId: BRANCHES.hillcrest.id,
+      actorId: USERS.harborAgency.id,
+      window: nextWindow(),
+    })
     expect(await inRollbackCommit((db) => claimAsService(db, shift.id, USERS.ava.id))).toBe('eligibility_inactive')
   })
 
@@ -148,7 +156,10 @@ describe('claim_shift: schedule conflicts', () => {
     const first = await createShift(pool, { window })
     const overlapping = await createShift(pool, {
       branchId: BRANCHES.riverside.id,
-      window: { startsAt: new Date(Date.parse(window.startsAt) + 4 * 3_600_000).toISOString(), endsAt: new Date(Date.parse(window.endsAt) + 4 * 3_600_000).toISOString() },
+      window: {
+        startsAt: new Date(Date.parse(window.startsAt) + 4 * 3_600_000).toISOString(),
+        endsAt: new Date(Date.parse(window.endsAt) + 4 * 3_600_000).toISOString(),
+      },
     })
     const backToBack = await createShift(pool, {
       window: { startsAt: window.endsAt, endsAt: new Date(Date.parse(window.endsAt) + 4 * 3_600_000).toISOString() },
@@ -238,14 +249,30 @@ describe('claim_shift: inactive agencies and branches', () => {
     await inRollback(pool, async (db) => {
       const shift = await createShift(db, { window: nextWindow() })
       await db.query('set local role service_role')
-      expect(await command(db, 'shiftpatch.update_branch($1, $2, null, null, null, $3)', [USERS.admin.id, BRANCHES.downtown.id, 'inactive'])).toMatchObject({ outcome: 'updated' })
+      expect(
+        await command(db, 'shiftpatch.update_branch($1, $2, null, null, null, $3)', [
+          USERS.admin.id,
+          BRANCHES.downtown.id,
+          'inactive',
+        ]),
+      ).toMatchObject({ outcome: 'updated' })
       expect(await claim(db, shift.id, USERS.ava.id)).toBe('branch_inactive')
       const window = nextWindow()
       const { rows } = await db.query('select outcome from shiftpatch.create_shift($1, $2, $3, $4, $5)', [
-        USERS.northwindAgency.id, BRANCHES.downtown.id, 'Blocked', window.startsAt, window.endsAt,
+        USERS.northwindAgency.id,
+        BRANCHES.downtown.id,
+        'Blocked',
+        window.startsAt,
+        window.endsAt,
       ])
       expect(rows[0].outcome).toBe('branch_inactive')
-      expect(await command(db, 'shiftpatch.update_branch($1, $2, null, null, null, $3)', [USERS.admin.id, BRANCHES.downtown.id, 'active'])).toMatchObject({ outcome: 'updated' })
+      expect(
+        await command(db, 'shiftpatch.update_branch($1, $2, null, null, null, $3)', [
+          USERS.admin.id,
+          BRANCHES.downtown.id,
+          'active',
+        ]),
+      ).toMatchObject({ outcome: 'updated' })
       expect(await claim(db, shift.id, USERS.ava.id)).toBe('claimed')
     })
   })
@@ -254,14 +281,30 @@ describe('claim_shift: inactive agencies and branches', () => {
     await inRollback(pool, async (db) => {
       const shift = await createShift(db, { branchId: BRANCHES.riverside.id, window: nextWindow() })
       await db.query('set local role service_role')
-      expect(await command(db, 'shiftpatch.update_agency($1, $2, null, $3)', [USERS.admin.id, AGENCIES.northwind.id, 'inactive'])).toMatchObject({ outcome: 'updated' })
+      expect(
+        await command(db, 'shiftpatch.update_agency($1, $2, null, $3)', [
+          USERS.admin.id,
+          AGENCIES.northwind.id,
+          'inactive',
+        ]),
+      ).toMatchObject({ outcome: 'updated' })
       expect(await claim(db, shift.id, USERS.ava.id)).toBe('agency_inactive')
       const window = nextWindow()
       const { rows } = await db.query('select outcome from shiftpatch.create_shift($1, $2, $3, $4, $5)', [
-        USERS.admin.id, BRANCHES.downtown.id, 'Blocked', window.startsAt, window.endsAt,
+        USERS.admin.id,
+        BRANCHES.downtown.id,
+        'Blocked',
+        window.startsAt,
+        window.endsAt,
       ])
       expect(rows[0].outcome).toBe('agency_inactive')
-      expect(await command(db, 'shiftpatch.update_agency($1, $2, null, $3)', [USERS.admin.id, AGENCIES.northwind.id, 'active'])).toMatchObject({ outcome: 'updated' })
+      expect(
+        await command(db, 'shiftpatch.update_agency($1, $2, null, $3)', [
+          USERS.admin.id,
+          AGENCIES.northwind.id,
+          'active',
+        ]),
+      ).toMatchObject({ outcome: 'updated' })
       expect(await claim(db, shift.id, USERS.ava.id)).toBe('claimed')
     })
   })
@@ -270,9 +313,23 @@ describe('claim_shift: inactive agencies and branches', () => {
     await inRollback(pool, async (db) => {
       const shift = await createShift(db, { window: nextWindow() })
       await db.query('set local role service_role')
-      expect(await command(db, 'shiftpatch.set_branch_eligibility($1, $2, $3, $4)', [USERS.northwindAgency.id, USERS.ava.id, BRANCHES.downtown.id, 'suspended'])).toMatchObject({ outcome: 'updated' })
+      expect(
+        await command(db, 'shiftpatch.set_branch_eligibility($1, $2, $3, $4)', [
+          USERS.northwindAgency.id,
+          USERS.ava.id,
+          BRANCHES.downtown.id,
+          'suspended',
+        ]),
+      ).toMatchObject({ outcome: 'updated' })
       expect(await claim(db, shift.id, USERS.ava.id)).toBe('eligibility_inactive')
-      expect(await command(db, 'shiftpatch.set_branch_eligibility($1, $2, $3, $4)', [USERS.northwindAgency.id, USERS.ava.id, BRANCHES.downtown.id, 'active'])).toMatchObject({ outcome: 'updated' })
+      expect(
+        await command(db, 'shiftpatch.set_branch_eligibility($1, $2, $3, $4)', [
+          USERS.northwindAgency.id,
+          USERS.ava.id,
+          BRANCHES.downtown.id,
+          'active',
+        ]),
+      ).toMatchObject({ outcome: 'updated' })
       expect(await claim(db, shift.id, USERS.ava.id)).toBe('claimed')
     })
   })
@@ -290,7 +347,11 @@ describe('claim_shift: inactive agencies and branches', () => {
       await deactivating.query('begin')
       await deactivating.query('set local role service_role')
       let settled = false
-      const pending = command(deactivating, 'shiftpatch.update_branch($1, $2, null, null, null, $3)', [USERS.admin.id, BRANCHES.downtown.id, 'inactive']).finally(() => {
+      const pending = command(deactivating, 'shiftpatch.update_branch($1, $2, null, null, null, $3)', [
+        USERS.admin.id,
+        BRANCHES.downtown.id,
+        'inactive',
+      ]).finally(() => {
         settled = true
       })
       await new Promise((resolve) => setTimeout(resolve, 300))

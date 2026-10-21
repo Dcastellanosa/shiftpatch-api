@@ -27,12 +27,26 @@ beforeAll(async () => {
 function contractBody(branchId: string, role = 'RN', window = nextWindow()) {
   const timezone = Object.values(BRANCHES).find((b) => b.id === branchId)!.timezone
   const local = (iso: string) =>
-    new Intl.DateTimeFormat('en-CA', { timeZone: timezone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
       .formatToParts(new Date(iso))
       .reduce<Record<string, string>>((acc, p) => ({ ...acc, [p.type]: p.value }), {})
   const start = local(window.startsAt)
   const end = local(window.endsAt)
-  return { role, date: `${start.year}-${start.month}-${start.day}`, startTime: `${start.hour}:${start.minute}`, endTime: `${end.hour}:${end.minute}`, branchId }
+  return {
+    role,
+    date: `${start.year}-${start.month}-${start.day}`,
+    startTime: `${start.hour}:${start.minute}`,
+    endTime: `${end.hour}:${end.minute}`,
+    branchId,
+  }
 }
 
 async function createAs(agent: Agent, branchId: string, role = 'RN') {
@@ -41,7 +55,8 @@ async function createAs(agent: Agent, branchId: string, role = 'RN') {
   return shiftResponse.parse(res.body)
 }
 
-const claimAs = (agent: Agent, shiftId: string) => agent.post(`/shifts/${shiftId}/claim`).set('Origin', ALLOWED_ORIGIN).send()
+const claimAs = (agent: Agent, shiftId: string) =>
+  agent.post(`/shifts/${shiftId}/claim`).set('Origin', ALLOWED_ORIGIN).send()
 const cancelAs = (agent: Agent, shiftId: string, reason: string) =>
   agent.post(`/shifts/${shiftId}/cancel`).set('Origin', ALLOWED_ORIGIN).send({ reason })
 
@@ -54,17 +69,30 @@ describe('session payload', () => {
   ] as const)('%s gets role %s and public ids from the database', async (key, role, id, agencyId) => {
     const res = await agents[key].get('/auth/me')
     expect(res.status).toBe(200)
-    expect(res.body.user).toEqual({ id, name: USERS[key].fullName, email: USERS[key].email, role, agencyId, agencyIds: agencyId ? [agencyId] : [] })
+    expect(res.body.user).toEqual({
+      id,
+      name: USERS[key].fullName,
+      email: USERS[key].email,
+      role,
+      agencyId,
+      agencyIds: agencyId ? [agencyId] : [],
+    })
     expect(JSON.stringify(res.body)).not.toMatch(/token/i)
     expect(JSON.stringify(res.body)).not.toContain(USERS[key].id)
   })
 
   it('returns the access token on login for API clients, and accepts it as a bearer under /api', async () => {
-    const login = await agents.ava.post('/api/auth/login').set('Origin', ALLOWED_ORIGIN).send({ email: USERS.ava.email, password: (await import('vitest')).inject('seedPassword') })
+    const login = await agents.ava
+      .post('/api/auth/login')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send({ email: USERS.ava.email, password: (await import('vitest')).inject('seedPassword') })
     expect(login.status).toBe(200)
     expect(login.body.user).toMatchObject({ id: USERS.ava.slug, name: USERS.ava.fullName, role: 'nurse' })
     expect(typeof login.body.token).toBe('string')
-    const res = await agents.admin.get('/api/shifts').set('Cookie', '').set('Authorization', `Bearer ${login.body.token}`)
+    const res = await agents.admin
+      .get('/api/shifts')
+      .set('Cookie', '')
+      .set('Authorization', `Bearer ${login.body.token}`)
     expect(res.status).toBe(200)
     expect(shiftListResponse.parse(res.body).shifts.length).toBeGreaterThan(0)
   })
@@ -74,7 +102,13 @@ describe('the vertical slice: create → see → claim → status and history', 
   it('runs end to end across agency, nurse and admin', async () => {
     // 1. Agency creates an open shift for its branch (contract body).
     const created = await createAs(agents.northwindAgency, BRANCHES.downtown.id, 'Vertical slice RN')
-    expect(created).toMatchObject({ status: 'open', claimedBy: null, agencyId: AGENCIES.northwind.slug, agencyName: AGENCIES.northwind.name, role: 'Vertical slice RN' })
+    expect(created).toMatchObject({
+      status: 'open',
+      claimedBy: null,
+      agencyId: AGENCIES.northwind.slug,
+      agencyName: AGENCIES.northwind.name,
+      role: 'Vertical slice RN',
+    })
     expect(created.id).toMatch(/^shift-\d+$/)
 
     // 2. Every nurse sees it in the marketplace, eligible or not.
@@ -86,7 +120,12 @@ describe('the vertical slice: create → see → claim → status and history', 
     // 3. An eligible nurse claims it.
     const claimRes = await claimAs(agents.ava, created.id)
     expect(claimRes.status).toBe(200)
-    expect(shiftResponse.parse(claimRes.body)).toMatchObject({ id: created.id, status: 'filled', claimedBy: USERS.ava.slug, claimedByName: USERS.ava.fullName })
+    expect(shiftResponse.parse(claimRes.body)).toMatchObject({
+      id: created.id,
+      status: 'filled',
+      claimedBy: USERS.ava.slug,
+      claimedByName: USERS.ava.fullName,
+    })
 
     // It stays in the marketplace as filled and appears in My Shifts.
     const after = shiftListResponse.parse((await agents.ava.get('/shifts')).body)
@@ -117,9 +156,20 @@ describe('the vertical slice: create → see → claim → status and history', 
     // 6. The agency reports a no-show: the shift reopens and the history says so.
     const cancelled = await cancelAs(agents.northwindAgency, created.id, 'no-show')
     expect(cancelled.status).toBe(200)
-    expect(cancelResponse.parse(cancelled.body)).toMatchObject({ id: created.id, status: 'open', claimedBy: null, cancellation: { reason: 'no-show', previousNurseId: USERS.ava.slug } })
+    expect(cancelResponse.parse(cancelled.body)).toMatchObject({
+      id: created.id,
+      status: 'open',
+      claimedBy: null,
+      cancellation: { reason: 'no-show', previousNurseId: USERS.ava.slug },
+    })
     const events = shiftEventsResponse.parse((await agents.admin.get(`/shifts/${created.id}/events`)).body).events
-    expect(events.at(-1)).toMatchObject({ eventType: 'no_show', previousStatus: 'filled', newStatus: 'open', reason: 'no-show', actor: { id: USERS.northwindAgency.id } })
+    expect(events.at(-1)).toMatchObject({
+      eventType: 'no_show',
+      previousStatus: 'filled',
+      newStatus: 'open',
+      reason: 'no-show',
+      actor: { id: USERS.northwindAgency.id },
+    })
 
     // 7. Another nurse can take it now.
     expect((await claimAs(agents.eli, created.id)).status).toBe(200)
@@ -143,8 +193,14 @@ describe('claim rule failures over HTTP', () => {
 
   it('returns 409 schedule_conflict for an overlapping shift', async () => {
     const window = nextWindow()
-    const first = await agents.northwindAgency.post('/shifts').set('Origin', ALLOWED_ORIGIN).send(contractBody(BRANCHES.downtown.id, 'First', window))
-    const second = await agents.northwindAgency.post('/shifts').set('Origin', ALLOWED_ORIGIN).send(contractBody(BRANCHES.riverside.id, 'Overlapping', window))
+    const first = await agents.northwindAgency
+      .post('/shifts')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send(contractBody(BRANCHES.downtown.id, 'First', window))
+    const second = await agents.northwindAgency
+      .post('/shifts')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send(contractBody(BRANCHES.riverside.id, 'Overlapping', window))
     expect([first.status, second.status]).toEqual([201, 201])
 
     expect((await claimAs(agents.ava, first.body.id)).status).toBe(200)
@@ -163,7 +219,12 @@ describe('claim rule failures over HTTP', () => {
   })
 
   it('accepts a shift that already started (the contract seed is dated)', async () => {
-    const past = { ...contractBody(BRANCHES.downtown.id, 'Yesterday'), date: '2026-01-05', startTime: '08:00', endTime: '16:00' }
+    const past = {
+      ...contractBody(BRANCHES.downtown.id, 'Yesterday'),
+      date: '2026-01-05',
+      startTime: '08:00',
+      endTime: '16:00',
+    }
     const created = await agents.northwindAgency.post('/shifts').set('Origin', ALLOWED_ORIGIN).send(past)
     expect(created.status).toBe(201)
     expect(created.body).toMatchObject({ date: '2026-01-05', startTime: '08:00', endTime: '16:00' })
@@ -194,7 +255,10 @@ describe('cancellation over HTTP', () => {
     expect(notFilled.status).toBe(409)
     expect(notFilled.body.code).toBe('shift_not_filled')
     expect((await cancelAs(agents.admin, shift.id, 'late')).status).toBe(400)
-    expect(shiftResponse.parse((await agents.admin.get(`/shifts/${shift.id}`)).body)).toMatchObject({ status: 'filled', claimedBy: USERS.ava.slug })
+    expect(shiftResponse.parse((await agents.admin.get(`/shifts/${shift.id}`)).body)).toMatchObject({
+      status: 'filled',
+      claimedBy: USERS.ava.slug,
+    })
   })
 })
 
@@ -247,12 +311,18 @@ describe('agency views', () => {
     }
     expect((await agents.harborAgency.get(`/agencies/${AGENCIES.northwind.slug}/shifts`)).status).toBe(403)
     expect((await agents.ava.get(`/agencies/${AGENCIES.northwind.slug}/shifts`)).status).toBe(403)
-    expect((await agents.admin.get('/agencies/no-such-agency/shifts')).body).toEqual({ agencyId: 'no-such-agency', shifts: [] })
+    expect((await agents.admin.get('/agencies/no-such-agency/shifts')).body).toEqual({
+      agencyId: 'no-such-agency',
+      shifts: [],
+    })
   })
 
   it('an agency cannot create in another agency, and sees no history of its shifts', async () => {
     expect((await agents.northwindAgency.get(`/shifts/${OPEN_HILLCREST.slug}/events`)).status).toBe(404)
-    const res = await agents.northwindAgency.post('/shifts').set('Origin', ALLOWED_ORIGIN).send(contractBody(BRANCHES.bayview.id))
+    const res = await agents.northwindAgency
+      .post('/shifts')
+      .set('Origin', ALLOWED_ORIGIN)
+      .send(contractBody(BRANCHES.bayview.id))
     expect(res.status).toBe(404)
     expect(res.body.code).toBe('branch_not_found')
   })
@@ -290,10 +360,34 @@ describe('the marketplace', () => {
   it('shows every shift across every agency to every nurse, in the contract shape', async () => {
     for (const nurse of [agents.ava, agents.cora]) {
       const shifts = shiftListResponse.parse((await nurse.get('/shifts')).body).shifts
-      expect(shifts.map((s) => s.id)).toEqual(expect.arrayContaining(['shift-1', 'shift-2', 'shift-3', OPEN_HILLCREST.slug]))
+      expect(shifts.map((s) => s.id)).toEqual(
+        expect.arrayContaining(['shift-1', 'shift-2', 'shift-3', OPEN_HILLCREST.slug]),
+      )
       const shift2 = shifts.find((s) => s.id === 'shift-2')!
-      expect(shift2).toMatchObject({ agencyId: 'agency-a', agencyName: 'Sunrise Health Staffing', role: 'LPN', date: '2026-10-03', startTime: '07:00', endTime: '19:00', status: 'filled', claimedBy: 'nurse-1' })
-      for (const shift of shifts) expect(Object.keys(shift)).toEqual(expect.arrayContaining(['id', 'agencyId', 'agencyName', 'role', 'date', 'startTime', 'endTime', 'status', 'claimedBy']))
+      expect(shift2).toMatchObject({
+        agencyId: 'agency-a',
+        agencyName: 'Sunrise Health Staffing',
+        role: 'LPN',
+        date: '2026-10-03',
+        startTime: '07:00',
+        endTime: '19:00',
+        status: 'filled',
+        claimedBy: 'nurse-1',
+      })
+      for (const shift of shifts)
+        expect(Object.keys(shift)).toEqual(
+          expect.arrayContaining([
+            'id',
+            'agencyId',
+            'agencyName',
+            'role',
+            'date',
+            'startTime',
+            'endTime',
+            'status',
+            'claimedBy',
+          ]),
+        )
     }
   })
 

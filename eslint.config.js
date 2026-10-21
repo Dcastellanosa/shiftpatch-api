@@ -6,10 +6,15 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 // Hexagonal dependency rule: dependencies point inward only.
 // domain (types + ports) <- application (use cases) <- interfaces (http) / infrastructure (supabase, config) <- composition (create-app)
 const httpFrameworks = [
-  { group: ['express', 'express/*', 'cors', 'cookie-parser'], message: 'HTTP frameworks belong in src/interfaces/http.' },
+  {
+    group: ['express', 'express/*', 'cors', 'cookie-parser'],
+    message: 'HTTP frameworks belong in src/interfaces/http.',
+  },
 ]
 const supabase = [{ group: ['@supabase/*'], message: 'Supabase belongs in src/infrastructure.' }]
-const validation = [{ group: ['zod'], message: 'Input validation belongs in src/interfaces/http or an infrastructure adapter.' }]
+const validation = [
+  { group: ['zod'], message: 'Input validation belongs in src/interfaces/http or an infrastructure adapter.' },
+]
 const frameworks = [...httpFrameworks, ...supabase, ...validation]
 const outerLayers = (...layers) =>
   layers.map((layer) => ({

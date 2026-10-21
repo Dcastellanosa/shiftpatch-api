@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { ADMIN_PROFILE, AGENCY_ID, agencyBranchFixture, agencyFixture, fakeDataStore, viewerFor } from '../../test-support/fakes.js'
+import {
+  ADMIN_PROFILE,
+  AGENCY_ID,
+  agencyBranchFixture,
+  agencyFixture,
+  fakeDataStore,
+  viewerFor,
+} from '../../test-support/fakes.js'
 import { getAgency } from './get-agency.js'
 
 describe('getAgency', () => {
@@ -14,6 +21,9 @@ describe('getAgency', () => {
 
   it('reports agency_not_found when the viewer cannot see it', async () => {
     const store = fakeDataStore({ getAgency: async () => null })
-    await expect(getAgency({ store }, viewerFor(ADMIN_PROFILE), AGENCY_ID)).resolves.toEqual({ ok: false, outcome: 'agency_not_found' })
+    await expect(getAgency({ store }, viewerFor(ADMIN_PROFILE), AGENCY_ID)).resolves.toEqual({
+      ok: false,
+      outcome: 'agency_not_found',
+    })
   })
 })

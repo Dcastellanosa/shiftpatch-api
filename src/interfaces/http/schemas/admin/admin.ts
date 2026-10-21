@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { ELIGIBILITY_STATUSES, USER_STATUSES, type AdminUser, type InviteUserCommand } from '../../../../domain/admin/admin.js'
+import {
+  ELIGIBILITY_STATUSES,
+  USER_STATUSES,
+  type AdminUser,
+  type InviteUserCommand,
+} from '../../../../domain/admin/admin.js'
 import { APP_ROLES } from '../../../../domain/shift/shift.js'
 import { publicIdSchema } from '../ids/ids.js'
 import {
@@ -76,9 +81,10 @@ export const updateAgencyBody = z
     message: 'at least one of name or status is required',
   }) satisfies z.ZodType<UpdateAgencyInput, unknown>
 
-export const createBranchBody = z
-  .object({ name, address, timezone: timezoneSchema })
-  .strict() satisfies z.ZodType<CreateBranchInput, unknown>
+export const createBranchBody = z.object({ name, address, timezone: timezoneSchema }).strict() satisfies z.ZodType<
+  CreateBranchInput,
+  unknown
+>
 
 export const updateBranchBody = z
   .object({
@@ -110,7 +116,9 @@ export const adminUserSchema = z.object({
   invitedAt: isoTimestamp.nullable(),
   lastSignInAt: isoTimestamp.nullable(),
   agencies: z.array(agencyRef),
-  eligibleBranches: z.array(z.object({ id: z.uuid(), name: z.string(), agency: agencyRef, status: eligibilityStatusSchema })),
+  eligibleBranches: z.array(
+    z.object({ id: z.uuid(), name: z.string(), agency: agencyRef, status: eligibilityStatusSchema }),
+  ),
 }) satisfies z.ZodType<AdminUser>
 
 export const userListResponse = z.object({ users: z.array(adminUserSchema) })

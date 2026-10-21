@@ -23,7 +23,11 @@ const LOOPBACK = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/
 export function localStack(cwd = process.cwd()): LocalStack {
   let raw: string
   try {
-    raw = execFileSync('supabase', ['status', '-o', 'json'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    raw = execFileSync('supabase', ['status', '-o', 'json'], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
   } catch {
     throw new Error('Local Supabase is not running. Start it with `pnpm db:start` (see README).')
   }

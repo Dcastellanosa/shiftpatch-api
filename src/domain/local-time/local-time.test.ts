@@ -4,7 +4,10 @@ import { fromLocalDateTime, toLocalDateTime } from './local-time.js'
 describe('toLocalDateTime', () => {
   it('reads the wall clock of an instant in a zone', () => {
     expect(toLocalDateTime('2026-10-02T19:00:00.000Z', 'UTC')).toEqual({ date: '2026-10-02', time: '19:00' })
-    expect(toLocalDateTime('2026-10-02T23:00:00.000Z', 'America/New_York')).toEqual({ date: '2026-10-02', time: '19:00' })
+    expect(toLocalDateTime('2026-10-02T23:00:00.000Z', 'America/New_York')).toEqual({
+      date: '2026-10-02',
+      time: '19:00',
+    })
     expect(toLocalDateTime('2026-10-03T07:00:00.000Z', 'UTC')).toEqual({ date: '2026-10-03', time: '07:00' })
   })
 

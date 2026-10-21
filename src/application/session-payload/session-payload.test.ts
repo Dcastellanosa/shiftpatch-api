@@ -16,11 +16,14 @@ describe('toSessionPayload', () => {
     })
   })
 
-  it.each([NURSE_PROFILE, ADMIN_PROFILE])('identifies a $role by their profile public id, never the Auth UUID', (profile) => {
-    const { user } = toSessionPayload(USER, profile)
-    expect(user.id).toBe(profile.slug)
-    expect(JSON.stringify(user)).not.toContain(USER.id)
-  })
+  it.each([NURSE_PROFILE, ADMIN_PROFILE])(
+    'identifies a $role by their profile public id, never the Auth UUID',
+    (profile) => {
+      const { user } = toSessionPayload(USER, profile)
+      expect(user.id).toBe(profile.slug)
+      expect(JSON.stringify(user)).not.toContain(USER.id)
+    },
+  )
 
   it('returns null profile fields for a user without a profile', () => {
     expect(toSessionPayload(USER, null).user).toEqual({

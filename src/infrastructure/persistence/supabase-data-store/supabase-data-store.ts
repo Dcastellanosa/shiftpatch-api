@@ -1,17 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import { DataStoreError, DataUnavailableError, type DataStore } from '../../../domain/ports/data-store/data-store.js'
 import {
-  DataStoreError,
-  DataUnavailableError,
-  type DataStore,
-} from '../../../domain/ports/data-store/data-store.js'
-import { ELIGIBILITY_STATUSES, type AdminUser, type EligibilityRecord, type NurseEligibility } from '../../../domain/admin/admin.js'
-import {
-  ENTITY_STATUSES,
-  type Agency,
-  type AgencyBranch,
-  type AgencyDetail,
-} from '../../../domain/agency/agency.js'
+  ELIGIBILITY_STATUSES,
+  type AdminUser,
+  type EligibilityRecord,
+  type NurseEligibility,
+} from '../../../domain/admin/admin.js'
+import { ENTITY_STATUSES, type Agency, type AgencyBranch, type AgencyDetail } from '../../../domain/agency/agency.js'
 import { toLocalDateTime } from '../../../domain/local-time/local-time.js'
 import type {
   AdminCommandResult,
@@ -187,7 +183,8 @@ const NURSE_ELIGIBILITY_COLUMNS = `
 `
 
 const AGENCY_COLUMNS = 'id, slug, name, status, created_at, updated_at, agency_branches (count)'
-const AGENCY_BRANCH_COLUMNS = 'id, name, address, timezone, status, created_at, updated_at, agency:agencies!inner (id, slug)'
+const AGENCY_BRANCH_COLUMNS =
+  'id, name, address, timezone, status, created_at, updated_at, agency:agencies!inner (id, slug)'
 
 const profileRow = z.object({
   id: z.uuid(),
@@ -316,9 +313,7 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
 
   // Used only for the workflow and admin RPCs (which client roles cannot
   // execute) and for resolving public ids to the UUIDs those RPCs take.
-  const serviceClient = config.serviceRoleKey
-    ? createClient(config.url, config.serviceRoleKey, CLIENT_OPTIONS)
-    : null
+  const serviceClient = config.serviceRoleKey ? createClient(config.url, config.serviceRoleKey, CLIENT_OPTIONS) : null
 
   function service() {
     if (!serviceClient) throw new DataUnavailableError()
@@ -382,7 +377,8 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
       )
       if (!data) return null
       const [row] = parseRows(profileRow, [data], 'profile lookup')
-      const active = row!.role === 'agency' ? row!.agency_memberships.filter((m) => m.status === 'active' && m.agency) : []
+      const active =
+        row!.role === 'agency' ? row!.agency_memberships.filter((m) => m.status === 'active' && m.agency) : []
       const agencyIds = active.map((m) => m.agency_id)
       const agencySlugs = active.map((m) => m.agency!.slug)
       return {
@@ -476,7 +472,14 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
 
     async cancelClaim(actorId, shiftId, reason): Promise<CancelCommandResult> {
       const uuid = await uuidOf('shifts', shiftId)
-      if (!uuid) return { outcome: 'shift_not_found', shiftId: null, eventId: null, previousNurseId: null, previousNurseSlug: null }
+      if (!uuid)
+        return {
+          outcome: 'shift_not_found',
+          shiftId: null,
+          eventId: null,
+          previousNurseId: null,
+          previousNurseSlug: null,
+        }
       const data = unwrap(
         await service().rpc('cancel_shift_claim', { p_actor_id: actorId, p_shift_id: uuid, p_reason: reason }),
         'cancel_shift_claim',
@@ -495,19 +498,33 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
     async listAgencyNurses(viewer) {
       let query = asUser(viewer.accessToken).from('branch_nurse_eligibility').select(NURSE_ELIGIBILITY_COLUMNS)
       if (viewer.role === 'agency') query = query.in('branch.agency_id', agencyScope(viewer))
-      const rows = parseRows(nurseEligibilityRow, unwrap(await query.limit(LIST_LIMIT), 'list agency nurses'), 'list agency nurses')
+      const rows = parseRows(
+        nurseEligibilityRow,
+        unwrap(await query.limit(LIST_LIMIT), 'list agency nurses'),
+        'list agency nurses',
+      )
       const byNurse = new Map<string, NurseEligibility>()
       for (const row of rows) {
-        const entry = byNurse.get(row.nurse_id) ?? { nurse: { id: row.nurse.slug, fullName: row.nurse.full_name }, branches: [] }
+        const entry = byNurse.get(row.nurse_id) ?? {
+          nurse: { id: row.nurse.slug, fullName: row.nurse.full_name },
+          branches: [],
+        }
         entry.branches.push({
-          branch: { id: row.branch.id, name: row.branch.name, agency: { id: row.branch.agency.slug, name: row.branch.agency.name } },
+          branch: {
+            id: row.branch.id,
+            name: row.branch.name,
+            agency: { id: row.branch.agency.slug, name: row.branch.agency.name },
+          },
           status: row.status,
           activatedAt: row.activated_at ? iso(row.activated_at) : null,
         })
         byNurse.set(row.nurse_id, entry)
       }
       return [...byNurse.values()]
-        .map((entry) => ({ ...entry, branches: entry.branches.sort((a, b) => a.branch.name.localeCompare(b.branch.name)) }))
+        .map((entry) => ({
+          ...entry,
+          branches: entry.branches.sort((a, b) => a.branch.name.localeCompare(b.branch.name)),
+        }))
         .sort((a, b) => a.nurse.fullName.localeCompare(b.nurse.fullName) || a.nurse.id.localeCompare(b.nurse.id))
     },
 
@@ -523,7 +540,12 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
       )
       if (!row) return null
       const parsed = parseRows(eligibilityRecordRow, [row], 'get eligibility')[0]!
-      return { nurseId: parsed.nurse.slug, branchId: parsed.branch_id, status: parsed.status, activatedAt: parsed.activated_at ? iso(parsed.activated_at) : null }
+      return {
+        nurseId: parsed.nurse.slug,
+        branchId: parsed.branch_id,
+        status: parsed.status,
+        activatedAt: parsed.activated_at ? iso(parsed.activated_at) : null,
+      }
     },
 
     async setBranchEligibility(actorId, nurseId, branchId, status) {
@@ -541,14 +563,20 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
       const client = asUser(viewer.accessToken)
       const users = parseRows(adminUserRow, unwrap(await client.rpc('list_users_admin'), 'list users'), 'list users')
       const slugs = new Map(
-        parseRows(profileSlugRow, unwrap(await client.from('profiles').select('id, slug').limit(LIST_LIMIT), 'list profile ids'), 'list profile ids').map(
-          (p) => [p.id, p.slug],
-        ),
+        parseRows(
+          profileSlugRow,
+          unwrap(await client.from('profiles').select('id, slug').limit(LIST_LIMIT), 'list profile ids'),
+          'list profile ids',
+        ).map((p) => [p.id, p.slug]),
       )
       const memberships = parseRows(
         membershipRow,
         unwrap(
-          await client.from('agency_memberships').select('profile_id, agency:agencies!inner (id, slug, name)').eq('status', 'active').limit(LIST_LIMIT),
+          await client
+            .from('agency_memberships')
+            .select('profile_id, agency:agencies!inner (id, slug, name)')
+            .eq('status', 'active')
+            .limit(LIST_LIMIT),
           'list memberships',
         ),
         'list memberships',
@@ -564,8 +592,8 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
         ),
         'list eligibility',
       )
-      return users.map(
-        (row): AdminUser & { uuid: string } => ({
+      return users
+        .map((row): AdminUser & { uuid: string } => ({
           uuid: row.id,
           id: slugs.get(row.id) ?? row.id,
           email: row.email,
@@ -574,19 +602,30 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
           status: row.confirmed_at ? 'active' : 'invited',
           invitedAt: row.invited_at ? iso(row.invited_at) : null,
           lastSignInAt: row.last_sign_in_at ? iso(row.last_sign_in_at) : null,
-          agencies: memberships.filter((m) => m.profile_id === row.id).map((m) => ({ id: m.agency.slug, name: m.agency.name })),
+          agencies: memberships
+            .filter((m) => m.profile_id === row.id)
+            .map((m) => ({ id: m.agency.slug, name: m.agency.name })),
           eligibleBranches: eligibility
             .filter((e) => e.nurse_id === row.id)
-            .map((e) => ({ id: e.branch.id, name: e.branch.name, agency: { id: e.branch.agency.slug, name: e.branch.agency.name }, status: e.status })),
-        }),
-      ).map(({ uuid: _uuid, ...user }) => user)
+            .map((e) => ({
+              id: e.branch.id,
+              name: e.branch.name,
+              agency: { id: e.branch.agency.slug, name: e.branch.agency.name },
+              status: e.status,
+            })),
+        }))
+        .map(({ uuid: _uuid, ...user }) => user)
     },
 
     async getUser(viewer, userId) {
       // Accepts the public id or, right after provisioning, the Auth UUID.
       const client = asUser(viewer.accessToken)
       const match = unwrap(
-        await client.from('profiles').select('id, slug').or(`slug.eq.${userId},id.eq.${isUuid(userId) ? userId : NIL_UUID}`).maybeSingle(),
+        await client
+          .from('profiles')
+          .select('id, slug')
+          .or(`slug.eq.${userId},id.eq.${isUuid(userId) ? userId : NIL_UUID}`)
+          .maybeSingle(),
         'user lookup',
       )
       if (!match) return null
@@ -632,11 +671,19 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
 
     async getAgency(viewer, agencyId): Promise<AgencyDetail | null> {
       const client = asUser(viewer.accessToken)
-      const row = unwrap(await client.from('agencies').select(AGENCY_COLUMNS).eq('slug', agencyId).maybeSingle(), 'get agency')
+      const row = unwrap(
+        await client.from('agencies').select(AGENCY_COLUMNS).eq('slug', agencyId).maybeSingle(),
+        'get agency',
+      )
       if (!row) return null
       const agency = parseRows(agencyRow, [row], 'get agency')[0]!
       const branches = unwrap(
-        await client.from('agency_branches').select(AGENCY_BRANCH_COLUMNS).eq('agency_id', agency.id).order('name').limit(LIST_LIMIT),
+        await client
+          .from('agency_branches')
+          .select(AGENCY_BRANCH_COLUMNS)
+          .eq('agency_id', agency.id)
+          .order('name')
+          .limit(LIST_LIMIT),
         'list agency branches',
       )
       return {
@@ -659,7 +706,10 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
     },
 
     async createAgency(actorId, input) {
-      const result = await runAdminCommand<CreateAgencyOutcome>('create_agency', { p_actor_id: actorId, p_name: input.name })
+      const result = await runAdminCommand<CreateAgencyOutcome>('create_agency', {
+        p_actor_id: actorId,
+        p_name: input.name,
+      })
       return result.entityId ? { ...result, entityId: await slugOf('agencies', result.entityId) } : result
     },
 
@@ -678,7 +728,10 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
     async deleteAgency(actorId, agencyId) {
       const uuid = await uuidOf('agencies', agencyId)
       if (!uuid) return { outcome: 'agency_not_found', entityId: null }
-      const result = await runAdminCommand<DeleteAgencyOutcome>('delete_agency', { p_actor_id: actorId, p_agency_id: uuid })
+      const result = await runAdminCommand<DeleteAgencyOutcome>('delete_agency', {
+        p_actor_id: actorId,
+        p_agency_id: uuid,
+      })
       return { ...result, entityId: result.entityId ? agencyId : null }
     },
 

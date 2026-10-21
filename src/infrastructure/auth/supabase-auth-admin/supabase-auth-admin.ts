@@ -47,7 +47,12 @@ export function createSupabaseAuthAdmin(config: SupabaseAuthAdminConfig): AuthAd
       const auth = userClient()
       const verified = await auth.verifyOtp({ token_hash: tokenHash, type })
       if (verified.error || !verified.data.session) {
-        if (verified.error && isAuthApiError(verified.error) && verified.error.status < 500 && verified.error.status !== 429) {
+        if (
+          verified.error &&
+          isAuthApiError(verified.error) &&
+          verified.error.status < 500 &&
+          verified.error.status !== 429
+        ) {
           return 'invalid_link'
         }
         throw verified.error ? mapError(verified.error) : new AuthUnavailableError()

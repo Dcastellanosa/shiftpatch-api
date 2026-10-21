@@ -69,14 +69,16 @@ const UPDATE_BRANCH_ERRORS: Record<UpdateBranchFailure, () => AppError> = {
 const DELETE_AGENCY_ERRORS: Record<DeleteAgencyFailure, () => AppError> = {
   actor_not_allowed: forbidden,
   agency_not_found: agencyNotFound,
-  agency_has_shifts: () => new AppError(409, 'agency_has_shifts', 'This agency has shifts and cannot be deleted; deactivate it instead'),
+  agency_has_shifts: () =>
+    new AppError(409, 'agency_has_shifts', 'This agency has shifts and cannot be deleted; deactivate it instead'),
 }
 
 const DELETE_USER_ERRORS: Record<DeleteUserFailure, () => AppError> = {
   actor_not_allowed: forbidden,
   user_not_found: () => new AppError(404, 'user_not_found', 'User not found'),
   self_delete: () => new AppError(409, 'cannot_delete_self', 'You cannot delete your own account'),
-  user_has_history: () => new AppError(409, 'user_has_history', 'This user has shifts or recorded actions and cannot be deleted'),
+  user_has_history: () =>
+    new AppError(409, 'user_has_history', 'This user has shifts or recorded actions and cannot be deleted'),
 }
 
 const INVITE_ERRORS: Record<InviteUserFailure, () => AppError> = {
@@ -86,9 +88,11 @@ const INVITE_ERRORS: Record<InviteUserFailure, () => AppError> = {
   profile_exists: () => new AppError(409, 'email_exists', 'An account with this email already exists'),
   invalid_assignment: () => new AppError(422, 'invalid_assignment', 'The access assignment does not match the role'),
   agency_not_found: agencyNotFound,
-  agency_inactive: () => new AppError(422, 'agency_inactive', 'This agency is inactive; activate it before assigning users'),
+  agency_inactive: () =>
+    new AppError(422, 'agency_inactive', 'This agency is inactive; activate it before assigning users'),
   branch_not_found: branchNotFound,
-  branch_inactive: () => new AppError(422, 'branch_inactive', 'This branch is inactive; activate it before assigning nurses'),
+  branch_inactive: () =>
+    new AppError(422, 'branch_inactive', 'This branch is inactive; activate it before assigning nurses'),
   user_not_found: () => new AppError(404, 'user_not_found', 'User not found'),
 }
 
@@ -154,7 +158,13 @@ export function createAdminRouter(
     validateBody(updateBranchBody),
     async (req, res) => {
       const { agencyId, branchId } = parseInput(agencyBranchParams, req.params, 'params')
-      const result = await updateBranch({ store: store! }, req.viewer!, agencyId, branchId, req.body as UpdateBranchInput)
+      const result = await updateBranch(
+        { store: store! },
+        req.viewer!,
+        agencyId,
+        branchId,
+        req.body as UpdateBranchInput,
+      )
       if (!result.ok) throw UPDATE_BRANCH_ERRORS[result.outcome]()
       res.json({ branch: result.branch })
     },
@@ -166,7 +176,12 @@ export function createAdminRouter(
 
   router.post('/users', ...asAdmin, validateBody(inviteUserBody), async (req, res) => {
     if (!authAdmin) throw authUnavailable()
-    const result = await inviteUser({ store: store!, auth: authAdmin }, req.viewer!, req.body as InviteUserCommand, setPasswordUrl)
+    const result = await inviteUser(
+      { store: store!, auth: authAdmin },
+      req.viewer!,
+      req.body as InviteUserCommand,
+      setPasswordUrl,
+    )
     if (!result.ok) throw INVITE_ERRORS[result.outcome]()
     res.status(201).json({ user: result.user })
   })

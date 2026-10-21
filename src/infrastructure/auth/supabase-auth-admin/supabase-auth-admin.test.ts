@@ -19,7 +19,11 @@ vi.mock('@supabase/supabase-js', async (importOriginal) => ({
   createClient: supabase.createClient,
 }))
 
-const CONFIG = { url: 'https://ref.supabase.co', publishableKey: 'sb_publishable_test', serviceRoleKey: 'sb_secret_test' }
+const CONFIG = {
+  url: 'https://ref.supabase.co',
+  publishableKey: 'sb_publishable_test',
+  serviceRoleKey: 'sb_secret_test',
+}
 const USER = { id: '7c1e0d52-0000-4000-8000-000000000001', email: 'new@example.com' }
 const SUPABASE_SESSION = { access_token: 'access-1', refresh_token: 'refresh-1', expires_in: 3600, user: USER }
 const SESSION = { accessToken: 'access-1', refreshToken: 'refresh-1', expiresIn: 3600, user: USER }
@@ -52,13 +56,23 @@ describe('createSupabaseAuthAdmin', () => {
   describe('inviteUser', () => {
     it('invites with the full name and redirect and returns the new id', async () => {
       supabase.auth.admin.inviteUserByEmail.mockResolvedValue({ data: { user: USER }, error: null })
-      await expect(createSupabaseAuthAdmin(CONFIG).inviteUser('new@example.com', { fullName: 'New', redirectTo: REDIRECT })).resolves.toEqual({ id: USER.id })
-      expect(supabase.auth.admin.inviteUserByEmail).toHaveBeenCalledWith('new@example.com', { data: { full_name: 'New' }, redirectTo: REDIRECT })
+      await expect(
+        createSupabaseAuthAdmin(CONFIG).inviteUser('new@example.com', { fullName: 'New', redirectTo: REDIRECT }),
+      ).resolves.toEqual({ id: USER.id })
+      expect(supabase.auth.admin.inviteUserByEmail).toHaveBeenCalledWith('new@example.com', {
+        data: { full_name: 'New' },
+        redirectTo: REDIRECT,
+      })
     })
 
     it('reports an existing address', async () => {
-      supabase.auth.admin.inviteUserByEmail.mockResolvedValue({ data: { user: null }, error: new AuthApiError('exists', 422, 'email_exists') })
-      await expect(createSupabaseAuthAdmin(CONFIG).inviteUser('new@example.com', { fullName: 'New', redirectTo: REDIRECT })).resolves.toBe('email_exists')
+      supabase.auth.admin.inviteUserByEmail.mockResolvedValue({
+        data: { user: null },
+        error: new AuthApiError('exists', 422, 'email_exists'),
+      })
+      await expect(
+        createSupabaseAuthAdmin(CONFIG).inviteUser('new@example.com', { fullName: 'New', redirectTo: REDIRECT }),
+      ).resolves.toBe('email_exists')
     })
 
     it.each([
@@ -67,7 +81,9 @@ describe('createSupabaseAuthAdmin', () => {
       ['network failures', new AuthRetryableFetchError('fetch failed', 0), AuthUnavailableError],
     ])('throws a typed error for %s', async (_label, error, expected) => {
       supabase.auth.admin.inviteUserByEmail.mockResolvedValue({ data: { user: null }, error })
-      await expect(createSupabaseAuthAdmin(CONFIG).inviteUser('new@example.com', { fullName: 'New', redirectTo: REDIRECT })).rejects.toBeInstanceOf(expected)
+      await expect(
+        createSupabaseAuthAdmin(CONFIG).inviteUser('new@example.com', { fullName: 'New', redirectTo: REDIRECT }),
+      ).rejects.toBeInstanceOf(expected)
     })
   })
 
@@ -76,7 +92,10 @@ describe('createSupabaseAuthAdmin', () => {
       supabase.auth.admin.deleteUser.mockResolvedValue({ data: {}, error: null })
       await expect(createSupabaseAuthAdmin(CONFIG).deleteUser(USER.id)).resolves.toBeUndefined()
       expect(supabase.auth.admin.deleteUser).toHaveBeenCalledWith(USER.id)
-      supabase.auth.admin.deleteUser.mockResolvedValue({ data: {}, error: new AuthApiError('boom', 500, 'unexpected_failure') })
+      supabase.auth.admin.deleteUser.mockResolvedValue({
+        data: {},
+        error: new AuthApiError('boom', 500, 'unexpected_failure'),
+      })
       await expect(createSupabaseAuthAdmin(CONFIG).deleteUser(USER.id)).rejects.toBeInstanceOf(AuthUnavailableError)
     })
   })
@@ -85,37 +104,64 @@ describe('createSupabaseAuthAdmin', () => {
     it('verifies the hash, updates the password and returns the session', async () => {
       supabase.auth.verifyOtp.mockResolvedValue({ data: { session: SUPABASE_SESSION }, error: null })
       supabase.auth.updateUser.mockResolvedValue({ data: { user: USER }, error: null })
-      await expect(createSupabaseAuthAdmin(CONFIG).completePassword('hash-1', 'recovery', 'correct horse battery')).resolves.toEqual(SESSION)
+      await expect(
+        createSupabaseAuthAdmin(CONFIG).completePassword('hash-1', 'recovery', 'correct horse battery'),
+      ).resolves.toEqual(SESSION)
       expect(supabase.auth.verifyOtp).toHaveBeenCalledWith({ token_hash: 'hash-1', type: 'recovery' })
       expect(supabase.auth.updateUser).toHaveBeenCalledWith({ password: 'correct horse battery' })
       expect(supabase.auth.signOut).not.toHaveBeenCalled()
     })
 
     it('reports an invalid or expired link without touching the password', async () => {
-      supabase.auth.verifyOtp.mockResolvedValue({ data: { session: null }, error: new AuthApiError('expired', 403, 'otp_expired') })
-      await expect(createSupabaseAuthAdmin(CONFIG).completePassword('hash-1', 'invite', 'pw-pw-pw-pw')).resolves.toBe('invalid_link')
+      supabase.auth.verifyOtp.mockResolvedValue({
+        data: { session: null },
+        error: new AuthApiError('expired', 403, 'otp_expired'),
+      })
+      await expect(createSupabaseAuthAdmin(CONFIG).completePassword('hash-1', 'invite', 'pw-pw-pw-pw')).resolves.toBe(
+        'invalid_link',
+      )
       expect(supabase.auth.updateUser).not.toHaveBeenCalled()
     })
 
     it('revokes the provisional session and reports a weak password', async () => {
       supabase.auth.verifyOtp.mockResolvedValue({ data: { session: SUPABASE_SESSION }, error: null })
-      supabase.auth.updateUser.mockResolvedValue({ data: { user: null }, error: new AuthApiError('weak', 422, 'weak_password') })
-      await expect(createSupabaseAuthAdmin(CONFIG).completePassword('hash-1', 'invite', 'password')).resolves.toBe('weak_password')
+      supabase.auth.updateUser.mockResolvedValue({
+        data: { user: null },
+        error: new AuthApiError('weak', 422, 'weak_password'),
+      })
+      await expect(createSupabaseAuthAdmin(CONFIG).completePassword('hash-1', 'invite', 'password')).resolves.toBe(
+        'weak_password',
+      )
       expect(supabase.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
     })
 
     it('revokes the provisional session and throws when the update fails otherwise', async () => {
       supabase.auth.verifyOtp.mockResolvedValue({ data: { session: SUPABASE_SESSION }, error: null })
-      supabase.auth.updateUser.mockResolvedValue({ data: { user: null }, error: new AuthApiError('boom', 500, 'unexpected_failure') })
-      await expect(createSupabaseAuthAdmin(CONFIG).completePassword('hash-1', 'invite', 'correct horse battery')).rejects.toBeInstanceOf(AuthUnavailableError)
+      supabase.auth.updateUser.mockResolvedValue({
+        data: { user: null },
+        error: new AuthApiError('boom', 500, 'unexpected_failure'),
+      })
+      await expect(
+        createSupabaseAuthAdmin(CONFIG).completePassword('hash-1', 'invite', 'correct horse battery'),
+      ).rejects.toBeInstanceOf(AuthUnavailableError)
       expect(supabase.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
     })
 
     it('throws for rate limits and outages during verification', async () => {
-      supabase.auth.verifyOtp.mockResolvedValue({ data: { session: null }, error: new AuthApiError('slow', 429, 'over_request_rate_limit') })
-      await expect(createSupabaseAuthAdmin(CONFIG).completePassword('h', 'invite', 'correct horse battery')).rejects.toBeInstanceOf(AuthRateLimitedError)
-      supabase.auth.verifyOtp.mockResolvedValue({ data: { session: null }, error: new AuthRetryableFetchError('down', 0) })
-      await expect(createSupabaseAuthAdmin(CONFIG).completePassword('h', 'invite', 'correct horse battery')).rejects.toBeInstanceOf(AuthUnavailableError)
+      supabase.auth.verifyOtp.mockResolvedValue({
+        data: { session: null },
+        error: new AuthApiError('slow', 429, 'over_request_rate_limit'),
+      })
+      await expect(
+        createSupabaseAuthAdmin(CONFIG).completePassword('h', 'invite', 'correct horse battery'),
+      ).rejects.toBeInstanceOf(AuthRateLimitedError)
+      supabase.auth.verifyOtp.mockResolvedValue({
+        data: { session: null },
+        error: new AuthRetryableFetchError('down', 0),
+      })
+      await expect(
+        createSupabaseAuthAdmin(CONFIG).completePassword('h', 'invite', 'correct horse battery'),
+      ).rejects.toBeInstanceOf(AuthUnavailableError)
     })
   })
 
@@ -124,15 +170,28 @@ describe('createSupabaseAuthAdmin', () => {
       supabase.auth.resetPasswordForEmail.mockResolvedValue({ data: {}, error: null })
       await expect(createSupabaseAuthAdmin(CONFIG).sendRecovery('new@example.com', REDIRECT)).resolves.toBeUndefined()
       expect(supabase.auth.resetPasswordForEmail).toHaveBeenCalledWith('new@example.com', { redirectTo: REDIRECT })
-      supabase.auth.resetPasswordForEmail.mockResolvedValue({ data: {}, error: new AuthApiError('nope', 400, 'user_not_found') })
+      supabase.auth.resetPasswordForEmail.mockResolvedValue({
+        data: {},
+        error: new AuthApiError('nope', 400, 'user_not_found'),
+      })
       await expect(createSupabaseAuthAdmin(CONFIG).sendRecovery('new@example.com', REDIRECT)).resolves.toBeUndefined()
     })
 
     it('throws for rate limits and outages', async () => {
-      supabase.auth.resetPasswordForEmail.mockResolvedValue({ data: {}, error: new AuthApiError('slow', 429, 'over_email_send_rate_limit') })
-      await expect(createSupabaseAuthAdmin(CONFIG).sendRecovery('new@example.com', REDIRECT)).rejects.toBeInstanceOf(AuthRateLimitedError)
-      supabase.auth.resetPasswordForEmail.mockResolvedValue({ data: {}, error: new AuthApiError('boom', 500, 'unexpected_failure') })
-      await expect(createSupabaseAuthAdmin(CONFIG).sendRecovery('new@example.com', REDIRECT)).rejects.toBeInstanceOf(AuthUnavailableError)
+      supabase.auth.resetPasswordForEmail.mockResolvedValue({
+        data: {},
+        error: new AuthApiError('slow', 429, 'over_email_send_rate_limit'),
+      })
+      await expect(createSupabaseAuthAdmin(CONFIG).sendRecovery('new@example.com', REDIRECT)).rejects.toBeInstanceOf(
+        AuthRateLimitedError,
+      )
+      supabase.auth.resetPasswordForEmail.mockResolvedValue({
+        data: {},
+        error: new AuthApiError('boom', 500, 'unexpected_failure'),
+      })
+      await expect(createSupabaseAuthAdmin(CONFIG).sendRecovery('new@example.com', REDIRECT)).rejects.toBeInstanceOf(
+        AuthUnavailableError,
+      )
     })
   })
 })

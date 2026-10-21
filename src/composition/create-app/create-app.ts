@@ -95,7 +95,10 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
   routes.get('/health', (_req, res) => {
     res.json({ status: 'ok' })
   })
-  routes.use('/auth', createAuthRouter({ provider: authProvider, store: dataStore, cookieConfig, authAdmin, setPasswordUrl }))
+  routes.use(
+    '/auth',
+    createAuthRouter({ provider: authProvider, store: dataStore, cookieConfig, authAdmin, setPasswordUrl }),
+  )
   const authenticate = [resolveSession(authProvider, cookieConfig), requireSession]
   routes.use(createShiftRouter(dataStore, authenticate))
   routes.use(createEligibilityRouter(dataStore, authenticate))

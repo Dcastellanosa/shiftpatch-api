@@ -34,7 +34,8 @@ const post = (app: App, path: string, body?: object) =>
   request(app).post(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send(body)
 const patch = (app: App, path: string, body?: object) =>
   request(app).patch(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send(body)
-const del = (app: App, path: string) => request(app).delete(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE)
+const del = (app: App, path: string) =>
+  request(app).delete(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE)
 
 const AGENCY_PATH = `/admin/agencies/${AGENCY_ID}`
 const BRANCH_PATH = `${AGENCY_PATH}/branches/${BRANCH_ID}`
@@ -56,36 +57,54 @@ describe('access control', () => {
     ['DELETE', `/admin/users/${INVITED_USER_ID}`],
   ] as const)('%s %s needs a session', async (method, path) => {
     const store = fakeDataStore()
-    const res = await request(buildSignedInApp(store))[method.toLowerCase() as 'get' | 'post' | 'patch' | 'delete'](path).set('Origin', ALLOWED_ORIGIN)
+    const res = await request(buildSignedInApp(store))
+      [method.toLowerCase() as 'get' | 'post' | 'patch' | 'delete'](path)
+      .set('Origin', ALLOWED_ORIGIN)
     expect(res.status).toBe(401)
     expect(store.getProfile).not.toHaveBeenCalled()
   })
 
-  it.each([NURSE_PROFILE, AGENCY_PROFILE])('refuses a $role on every admin route without touching the store', async (profile) => {
-    const store = fakeDataStore({ getProfile: asProfile(profile) })
-    const app = buildSignedInApp(store)
-    const responses = await Promise.all([
-      get(app, '/admin/agencies'),
-      post(app, '/admin/agencies', { name: 'x' }),
-      get(app, AGENCY_PATH),
-      patch(app, AGENCY_PATH, { status: 'inactive' }),
-      post(app, `${AGENCY_PATH}/branches`, BRANCH_BODY),
-      patch(app, BRANCH_PATH, { status: 'inactive' }),
-      del(app, AGENCY_PATH),
-      del(app, `/admin/users/${INVITED_USER_ID}`),
-    ])
-    for (const res of responses) {
-      expect(res.status).toBe(403)
-      expect(res.body.code).toBe('forbidden')
-    }
-    for (const method of ['listAgencies', 'getAgency', 'createAgency', 'updateAgency', 'createBranch', 'updateBranch', 'deleteAgency', 'deleteUser'] as const) {
-      expect(store[method]).not.toHaveBeenCalled()
-    }
-  })
+  it.each([NURSE_PROFILE, AGENCY_PROFILE])(
+    'refuses a $role on every admin route without touching the store',
+    async (profile) => {
+      const store = fakeDataStore({ getProfile: asProfile(profile) })
+      const app = buildSignedInApp(store)
+      const responses = await Promise.all([
+        get(app, '/admin/agencies'),
+        post(app, '/admin/agencies', { name: 'x' }),
+        get(app, AGENCY_PATH),
+        patch(app, AGENCY_PATH, { status: 'inactive' }),
+        post(app, `${AGENCY_PATH}/branches`, BRANCH_BODY),
+        patch(app, BRANCH_PATH, { status: 'inactive' }),
+        del(app, AGENCY_PATH),
+        del(app, `/admin/users/${INVITED_USER_ID}`),
+      ])
+      for (const res of responses) {
+        expect(res.status).toBe(403)
+        expect(res.body.code).toBe('forbidden')
+      }
+      for (const method of [
+        'listAgencies',
+        'getAgency',
+        'createAgency',
+        'updateAgency',
+        'createBranch',
+        'updateBranch',
+        'deleteAgency',
+        'deleteUser',
+      ] as const) {
+        expect(store[method]).not.toHaveBeenCalled()
+      }
+    },
+  )
 
   it('rejects cross-site writes before touching the store', async () => {
     const store = adminStore()
-    const res = await request(buildSignedInApp(store)).post('/admin/agencies').set('Origin', 'https://evil.example').set('Cookie', SESSION_COOKIE).send({ name: 'x' })
+    const res = await request(buildSignedInApp(store))
+      .post('/admin/agencies')
+      .set('Origin', 'https://evil.example')
+      .set('Cookie', SESSION_COOKIE)
+      .send({ name: 'x' })
     expect(res.status).toBe(403)
     expect(store.getProfile).not.toHaveBeenCalled()
   })
@@ -93,7 +112,15 @@ describe('access control', () => {
 
 describe('agencies', () => {
   it('lists agencies of every status', async () => {
-    const agencies = [agencyFixture(), agencyFixture({ id: 'a1000000-0000-4000-8000-000000000003', name: 'Lakeside', status: 'inactive', branchCount: 1 })]
+    const agencies = [
+      agencyFixture(),
+      agencyFixture({
+        id: 'a1000000-0000-4000-8000-000000000003',
+        name: 'Lakeside',
+        status: 'inactive',
+        branchCount: 1,
+      }),
+    ]
     const res = await get(buildSignedInApp(adminStore({ listAgencies: async () => agencies })), '/admin/agencies')
     expect(res.status).toBe(200)
     expect(agencyListResponse.parse(res.body).agencies).toEqual(agencies)
@@ -135,7 +162,10 @@ describe('agencies', () => {
     const res = await patch(buildSignedInApp(store), AGENCY_PATH, { name: 'Northwind Care Group', status: 'inactive' })
     expect(res.status).toBe(200)
     expect(agencyResponse.parse(res.body).agency).toEqual(agency)
-    expect(store.updateAgency).toHaveBeenCalledWith(ADMIN_PROFILE.id, AGENCY_ID, { name: 'Northwind Care Group', status: 'inactive' })
+    expect(store.updateAgency).toHaveBeenCalledWith(ADMIN_PROFILE.id, AGENCY_ID, {
+      name: 'Northwind Care Group',
+      status: 'inactive',
+    })
   })
 
   it.each([
@@ -248,7 +278,16 @@ describe('users', () => {
   const NURSE_INVITE = { email: 'new.nurse@example.test', fullName: 'Nina Nurse', role: 'nurse', branchId: BRANCH_ID }
 
   it('lists users with their access', async () => {
-    const users = [adminUserFixture(), adminUserFixture({ id: 'a1000000-0000-4000-8000-0000000000aa', role: 'agency', status: 'active', agencies: [{ id: AGENCY_ID, name: 'Northwind' }], eligibleBranches: [] })]
+    const users = [
+      adminUserFixture(),
+      adminUserFixture({
+        id: 'a1000000-0000-4000-8000-0000000000aa',
+        role: 'agency',
+        status: 'active',
+        agencies: [{ id: AGENCY_ID, name: 'Northwind' }],
+        eligibleBranches: [],
+      }),
+    ]
     const res = await get(buildSignedInApp(adminStore({ listUsers: async () => users })), '/admin/users')
     expect(res.status).toBe(200)
     expect(userListResponse.parse(res.body).users).toEqual(users)
@@ -264,7 +303,10 @@ describe('users', () => {
     const res = await post(buildSignedInApp(store, auth), '/admin/users', NURSE_INVITE)
     expect(res.status).toBe(201)
     expect(userResponse.parse(res.body).user).toEqual(user)
-    expect(auth.inviteUser).toHaveBeenCalledWith(NURSE_INVITE.email, { fullName: 'Nina Nurse', redirectTo: `${ALLOWED_ORIGIN}/set-password` })
+    expect(auth.inviteUser).toHaveBeenCalledWith(NURSE_INVITE.email, {
+      fullName: 'Nina Nurse',
+      redirectTo: `${ALLOWED_ORIGIN}/set-password`,
+    })
     expect(store.provisionUser).toHaveBeenCalledWith(ADMIN_PROFILE.id, INVITED_USER_ID, NURSE_INVITE)
   })
 
@@ -272,7 +314,10 @@ describe('users', () => {
     ['an admin with an agency', { email: 'a@example.test', fullName: 'A', role: 'admin', agencyIds: [AGENCY_ID] }],
     ['an agency user without agencies', { email: 'a@example.test', fullName: 'A', role: 'agency' }],
     ['an agency user with an empty list', { email: 'a@example.test', fullName: 'A', role: 'agency', agencyIds: [] }],
-    ['a nurse with agencies', { email: 'a@example.test', fullName: 'A', role: 'nurse', branchId: BRANCH_ID, agencyIds: [AGENCY_ID] }],
+    [
+      'a nurse with agencies',
+      { email: 'a@example.test', fullName: 'A', role: 'nurse', branchId: BRANCH_ID, agencyIds: [AGENCY_ID] },
+    ],
     ['an unknown role', { email: 'a@example.test', fullName: 'A', role: 'owner' }],
     ['a password', { ...NURSE_INVITE, password: 'hunter2-secret' }],
     ['an id', { ...NURSE_INVITE, id: INVITED_USER_ID }],

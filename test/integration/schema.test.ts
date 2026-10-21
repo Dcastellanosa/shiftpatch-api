@@ -46,7 +46,16 @@ describe('schema', () => {
       credential_status: ['valid', 'expired', 'revoked'],
       shift_event_type: ['created', 'claimed', 'cancelled', 'completed', 'no_show'],
       audit_entity_type: ['agency', 'agency_branch', 'agency_membership', 'branch_nurse_eligibility', 'profile'],
-      audit_action: ['created', 'updated', 'activated', 'deactivated', 'invited', 'eligibility_activated', 'eligibility_suspended', 'deleted'],
+      audit_action: [
+        'created',
+        'updated',
+        'activated',
+        'deactivated',
+        'invited',
+        'eligibility_activated',
+        'eligibility_suspended',
+        'deleted',
+      ],
     })
   })
 
@@ -153,10 +162,10 @@ describe('bridge-table uniqueness', () => {
 
   it('allows an agency user to hold several active memberships', async () => {
     await inRollback(pool, async (db) => {
-      await db.query(`insert into shiftpatch.agency_memberships (profile_id, agency_id, status) values ($1, $2, 'active')`, [
-        USERS.northwindAgency.id,
-        AGENCIES.harbor.id,
-      ])
+      await db.query(
+        `insert into shiftpatch.agency_memberships (profile_id, agency_id, status) values ($1, $2, 'active')`,
+        [USERS.northwindAgency.id, AGENCIES.harbor.id],
+      )
       const { rows } = await db.query(
         `select agency_id from shiftpatch.agency_memberships where profile_id = $1 and status = 'active' order by agency_id`,
         [USERS.northwindAgency.id],
@@ -218,7 +227,10 @@ describe('shift_events is append-only', () => {
     await inRollback(pool, async (db) => {
       const shift = await createShift(db, { window: nextWindow() })
       await db.query('savepoint s')
-      await expectSqlState(db.query(`update shiftpatch.shift_events set reason = 'x' where shift_id = $1`, [shift.id]), '42501')
+      await expectSqlState(
+        db.query(`update shiftpatch.shift_events set reason = 'x' where shift_id = $1`, [shift.id]),
+        '42501',
+      )
       await db.query('rollback to savepoint s')
       await expectSqlState(db.query(`delete from shiftpatch.shift_events where shift_id = $1`, [shift.id]), '42501')
     })
@@ -247,18 +259,15 @@ describe('function privileges', () => {
     'delete_agency(uuid, uuid)',
     'delete_user(uuid, uuid)',
     'cancel_shift_claim(uuid, uuid, text)',
-  ])(
-    '%s is executable only by service_role',
-    async (signature) => {
-      const { rows } = await pool.query(
-        `select has_function_privilege('anon', $1, 'EXECUTE') as anon,
+  ])('%s is executable only by service_role', async (signature) => {
+    const { rows } = await pool.query(
+      `select has_function_privilege('anon', $1, 'EXECUTE') as anon,
                 has_function_privilege('authenticated', $1, 'EXECUTE') as authenticated,
                 has_function_privilege('service_role', $1, 'EXECUTE') as service_role`,
-        [`shiftpatch.${signature}`],
-      )
-      expect(rows[0]).toEqual({ anon: false, authenticated: false, service_role: true })
-    },
-  )
+      [`shiftpatch.${signature}`],
+    )
+    expect(rows[0]).toEqual({ anon: false, authenticated: false, service_role: true })
+  })
 
   it('client roles have no write privileges on any application table', async () => {
     const { rows } = await pool.query(
@@ -275,10 +284,12 @@ describe('profile provisioning trigger', () => {
   const insertAuthUser = (db: Parameters<Parameters<typeof inRollback>[1]>[0], appMeta: object, userMeta: object) => {
     const id = randomUUID()
     return db
-      .query(
-        `insert into auth.users (id, email, raw_app_meta_data, raw_user_meta_data) values ($1, $2, $3, $4)`,
-        [id, `${id}@shiftpatch.test`, appMeta, userMeta],
-      )
+      .query(`insert into auth.users (id, email, raw_app_meta_data, raw_user_meta_data) values ($1, $2, $3, $4)`, [
+        id,
+        `${id}@shiftpatch.test`,
+        appMeta,
+        userMeta,
+      ])
       .then(() => db.query('select full_name, role from shiftpatch.profiles where id = $1', [id]))
   }
 
@@ -305,11 +316,15 @@ describe('agency administration schema', () => {
     )
     expect(rows).toEqual([{ column_name: 'status', column_default: "'active'::text", is_nullable: 'NO' }])
     await expectSqlState(
-      inRollback(pool, (db) => db.query(`update shiftpatch.agency_branches set status = 'closed' where id = $1`, [BRANCHES.downtown.id])),
+      inRollback(pool, (db) =>
+        db.query(`update shiftpatch.agency_branches set status = 'closed' where id = $1`, [BRANCHES.downtown.id]),
+      ),
       '23514',
     )
     await expectSqlState(
-      inRollback(pool, (db) => db.query(`update shiftpatch.agencies set status = 'closed' where id = $1`, [AGENCIES.northwind.id])),
+      inRollback(pool, (db) =>
+        db.query(`update shiftpatch.agencies set status = 'closed' where id = $1`, [AGENCIES.northwind.id]),
+      ),
       '23514',
     )
   })
@@ -378,7 +393,10 @@ describe('audit_events is write-only', () => {
         [USERS.admin.id, AGENCIES.northwind.id],
       )
       await db.query('savepoint s')
-      await expectSqlState(db.query(`update shiftpatch.audit_events set action = 'created' where id = $1`, [rows[0].id]), '42501')
+      await expectSqlState(
+        db.query(`update shiftpatch.audit_events set action = 'created' where id = $1`, [rows[0].id]),
+        '42501',
+      )
       await db.query('rollback to savepoint s')
       await expectSqlState(db.query(`delete from shiftpatch.audit_events where id = $1`, [rows[0].id]), '42501')
     })

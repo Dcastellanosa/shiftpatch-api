@@ -7,8 +7,7 @@ import { loadSessionPayload, type SessionPayload } from '../session-payload/sess
 export type CompletePasswordFailure = 'invalid_link' | 'weak_password'
 
 export type CompletePasswordResult =
-  | { ok: true; session: AuthSession; payload: SessionPayload }
-  | { ok: false; outcome: CompletePasswordFailure }
+  { ok: true; session: AuthSession; payload: SessionPayload } | { ok: false; outcome: CompletePasswordFailure }
 
 /**
  * Finishes an invitation or a password recovery: exchanges the one-time link

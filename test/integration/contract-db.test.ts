@@ -30,7 +30,9 @@ async function asService<T>(db: Queryable, fn: () => Promise<T>) {
 
 describe('the trial dataset is seeded exactly', () => {
   it('holds agency-a, agency-b, admin-1, nurse-1, nurse-2 and shift-1..3 with the listed statuses', async () => {
-    const { rows: agencies } = await pool.query(`select slug, name from shiftpatch.agencies where slug in ('agency-a', 'agency-b') order by slug`)
+    const { rows: agencies } = await pool.query(
+      `select slug, name from shiftpatch.agencies where slug in ('agency-a', 'agency-b') order by slug`,
+    )
     expect(agencies).toEqual([
       { slug: 'agency-a', name: 'Sunrise Health Staffing' },
       { slug: 'agency-b', name: 'Metro Care Partners' },
@@ -49,10 +51,36 @@ describe('the trial dataset is seeded exactly', () => {
        from shiftpatch.shifts s join shiftpatch.agency_branches b on b.id = s.branch_id join shiftpatch.agencies a on a.id = b.agency_id
        left join shiftpatch.profiles n on n.id = s.assigned_nurse_id where s.slug in ('shift-1', 'shift-2', 'shift-3') order by s.slug`,
     )
-    expect(shifts.map((s) => ({ ...s, starts_at: s.starts_at.toISOString(), ends_at: s.ends_at.toISOString() }))).toEqual([
-      { slug: 'shift-1', agency: 'agency-a', title: 'RN', starts_at: '2026-10-02T19:00:00.000Z', ends_at: '2026-10-03T07:00:00.000Z', status: 'open', claimed_by: null },
-      { slug: 'shift-2', agency: 'agency-a', title: 'LPN', starts_at: '2026-10-03T07:00:00.000Z', ends_at: '2026-10-03T19:00:00.000Z', status: 'claimed', claimed_by: 'nurse-1' },
-      { slug: 'shift-3', agency: 'agency-b', title: 'RN', starts_at: '2026-10-04T19:00:00.000Z', ends_at: '2026-10-05T07:00:00.000Z', status: 'open', claimed_by: null },
+    expect(
+      shifts.map((s) => ({ ...s, starts_at: s.starts_at.toISOString(), ends_at: s.ends_at.toISOString() })),
+    ).toEqual([
+      {
+        slug: 'shift-1',
+        agency: 'agency-a',
+        title: 'RN',
+        starts_at: '2026-10-02T19:00:00.000Z',
+        ends_at: '2026-10-03T07:00:00.000Z',
+        status: 'open',
+        claimed_by: null,
+      },
+      {
+        slug: 'shift-2',
+        agency: 'agency-a',
+        title: 'LPN',
+        starts_at: '2026-10-03T07:00:00.000Z',
+        ends_at: '2026-10-03T19:00:00.000Z',
+        status: 'claimed',
+        claimed_by: 'nurse-1',
+      },
+      {
+        slug: 'shift-3',
+        agency: 'agency-b',
+        title: 'RN',
+        starts_at: '2026-10-04T19:00:00.000Z',
+        ends_at: '2026-10-05T07:00:00.000Z',
+        status: 'open',
+        claimed_by: null,
+      },
     ])
     expect(SPEC_SHIFTS.map((s) => s.slug)).toEqual(['shift-1', 'shift-2', 'shift-3'])
   })
@@ -76,9 +104,13 @@ describe('public slugs', () => {
 
   it('assigns agency-N, shift-N and role-based profile slugs to new rows and keeps explicit ones', async () => {
     await inRollback(pool, async (db) => {
-      const { rows: agency } = await db.query(`insert into shiftpatch.agencies (name) values ('Slug Agency') returning slug`)
+      const { rows: agency } = await db.query(
+        `insert into shiftpatch.agencies (name) values ('Slug Agency') returning slug`,
+      )
       expect(agency[0].slug).toMatch(/^agency-\d+$/)
-      const { rows: explicit } = await db.query(`insert into shiftpatch.agencies (name, slug) values ('Explicit', 'agency-z') returning slug`)
+      const { rows: explicit } = await db.query(
+        `insert into shiftpatch.agencies (name, slug) values ('Explicit', 'agency-z') returning slug`,
+      )
       expect(explicit[0].slug).toBe('agency-z')
 
       const window = nextWindow()
@@ -90,7 +122,10 @@ describe('public slugs', () => {
 
       const id = randomUUID()
       await db.query(`insert into auth.users (id, email) values ($1, $2)`, [id, `${id}@shiftpatch.test`])
-      const { rows: nurse } = await db.query(`insert into shiftpatch.profiles (id, full_name, role) values ($1, 'Slug Nurse', 'nurse') returning slug`, [id])
+      const { rows: nurse } = await db.query(
+        `insert into shiftpatch.profiles (id, full_name, role) values ($1, 'Slug Nurse', 'nurse') returning slug`,
+        [id],
+      )
       expect(nurse[0].slug).toMatch(/^nurse-\d+$/)
     })
   })
@@ -110,7 +145,13 @@ describe('list_shifts_marketplace', () => {
   const list = (userId: string | null, args = 'null, null') =>
     asUser(pool, userId, async (db) => {
       const { rows } = await db.query(`select * from shiftpatch.list_shifts_marketplace(${args})`)
-      return rows as { id: string; slug: string; status: string; agency_slug: string; assigned_nurse_slug: string | null }[]
+      return rows as {
+        id: string
+        slug: string
+        status: string
+        agency_slug: string
+        assigned_nurse_slug: string | null
+      }[]
     })
 
   it('shows every shift of every agency to a nurse without eligibility, claimed ones included', async () => {
@@ -122,7 +163,9 @@ describe('list_shifts_marketplace', () => {
   })
 
   it('shows every agency to agency users and admins, and narrows by agency slug', async () => {
-    const { rows: northwind } = await pool.query('select slug from shiftpatch.agencies where id = $1', [AGENCIES.northwind.id])
+    const { rows: northwind } = await pool.query('select slug from shiftpatch.agencies where id = $1', [
+      AGENCIES.northwind.id,
+    ])
     for (const user of [USERS.harborAgency.id, USERS.admin.id]) {
       const shifts = await list(user)
       expect(shifts.some((s) => s.agency_slug === northwind[0].slug)).toBe(true)
@@ -163,8 +206,18 @@ describe('timing guards are gone', () => {
 describe('cancel_shift_claim', () => {
   const cancel = (db: Queryable, actor: string, shiftId: string, reason: string) =>
     asService(db, async () => {
-      const { rows } = await db.query('select * from shiftpatch.cancel_shift_claim($1, $2, $3)', [actor, shiftId, reason])
-      return rows[0] as { outcome: string; shift_id: string | null; event_id: string | null; previous_nurse_id: string | null; previous_nurse_slug: string | null }
+      const { rows } = await db.query('select * from shiftpatch.cancel_shift_claim($1, $2, $3)', [
+        actor,
+        shiftId,
+        reason,
+      ])
+      return rows[0] as {
+        outcome: string
+        shift_id: string | null
+        event_id: string | null
+        previous_nurse_id: string | null
+        previous_nurse_slug: string | null
+      }
     })
 
   async function claimedShift(db: Queryable) {
@@ -184,14 +237,23 @@ describe('cancel_shift_claim', () => {
 
       const result = await cancel(db, actor(), shift.id, reason)
 
-      expect(result).toMatchObject({ outcome: 'cancelled', shift_id: shift.id, previous_nurse_id: USERS.ava.id, previous_nurse_slug: ava[0].slug })
-      const { rows } = await db.query('select status, assigned_nurse_id from shiftpatch.shifts where id = $1', [shift.id])
+      expect(result).toMatchObject({
+        outcome: 'cancelled',
+        shift_id: shift.id,
+        previous_nurse_id: USERS.ava.id,
+        previous_nurse_slug: ava[0].slug,
+      })
+      const { rows } = await db.query('select status, assigned_nurse_id from shiftpatch.shifts where id = $1', [
+        shift.id,
+      ])
       expect(rows).toEqual([{ status: 'open', assigned_nurse_id: null }])
       const { rows: events } = await db.query(
         'select event_type, previous_status, new_status, reason, actor_id from shiftpatch.shift_events where id = $1',
         [result.event_id],
       )
-      expect(events).toEqual([{ event_type: eventType, previous_status: 'claimed', new_status: 'open', reason, actor_id: actor() }])
+      expect(events).toEqual([
+        { event_type: eventType, previous_status: 'claimed', new_status: 'open', reason, actor_id: actor() },
+      ])
     })
   })
 
@@ -205,7 +267,9 @@ describe('cancel_shift_claim', () => {
       expect((await cancel(db, USERS.admin.id, randomUUID(), 'advance')).outcome).toBe('shift_not_found')
       const open = await createShift(db, { window: nextWindow() })
       expect((await cancel(db, USERS.admin.id, open.id, 'advance')).outcome).toBe('shift_not_claimed')
-      const { rows } = await db.query('select status, assigned_nurse_id from shiftpatch.shifts where id = $1', [shift.id])
+      const { rows } = await db.query('select status, assigned_nurse_id from shiftpatch.shifts where id = $1', [
+        shift.id,
+      ])
       expect(rows).toEqual([{ status: 'claimed', assigned_nurse_id: USERS.ava.id }])
     })
   })
