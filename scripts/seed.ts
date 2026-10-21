@@ -12,8 +12,8 @@
 import { existsSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { parseSeedEnv } from '../src/infrastructure/config/env/index.js'
-import { DB_SCHEMA } from '../src/infrastructure/persistence/supabase-data-store/index.js'
+import { parseSeedEnv } from '../src/infrastructure/config/env/env.js'
+import { DB_SCHEMA } from '../src/infrastructure/persistence/supabase-data-store/supabase-data-store.js'
 import {
   AGENCIES,
   BRANCHES,

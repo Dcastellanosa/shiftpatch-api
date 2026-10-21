@@ -1,8 +1,8 @@
 import type { RequestHandler } from 'express'
-import type { DataStore } from '../../../../domain/ports/data-store/index.js'
-import { resolveViewer, type ResolveViewerFailure } from '../../../../application/resolve-viewer/index.js'
-import type { AppRole } from '../../../../domain/shift/index.js'
-import { AppError, unauthenticated } from '../../errors/index.js'
+import type { DataStore } from '../../../../domain/ports/data-store/data-store.js'
+import { resolveViewer, type ResolveViewerFailure } from '../../../../application/resolve-viewer/resolve-viewer.js'
+import type { AppRole } from '../../../../domain/shift/shift.js'
+import { AppError, unauthenticated } from '../../errors/errors.js'
 
 export const dataUnavailable = () =>
   new AppError(503, 'data_unavailable', 'Data service is not available')

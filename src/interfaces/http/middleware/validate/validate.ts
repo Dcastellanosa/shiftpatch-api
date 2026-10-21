@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express'
 import type { ZodType, z } from 'zod'
-import { AppError } from '../../errors/index.js'
+import { AppError } from '../../errors/errors.js'
 
 function validationError(message: string, issues: z.core.$ZodIssue[]) {
   return new AppError(

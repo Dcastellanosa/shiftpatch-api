@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DataStoreError, DataUnavailableError } from '../../../domain/ports/data-store/index.js'
-import type { Viewer } from '../../../domain/identity/index.js'
+import { DataStoreError, DataUnavailableError } from '../../../domain/ports/data-store/data-store.js'
+import type { Viewer } from '../../../domain/identity/identity.js'
 import { DB_SCHEMA, createSupabaseDataStore } from './supabase-data-store.js'
 
 type Result = { data: unknown; error: { code?: string } | null }

@@ -17,9 +17,8 @@ Architecture rules:
 - The API owns login, session lifecycle (HttpOnly cookies, validation, refresh), authorization, business logic, and
   all database access.
 - `api/index.ts` is the Vercel entrypoint. `src/composition/create-app/` builds the Express app. `src/dev-server.ts` is for local
-  development only. Do not create `app.ts`, `index.ts`, or `server.ts` directly in `src/` (or the repo root), because Vercel would
-  auto-detect them as an alternative Express entrypoint. Vercel only looks at those two directories, so the
-  `index.ts` barrel inside each module folder is fine.
+  development only. Do not name any file under `src/` (or the repo root) `app.ts`, `index.ts`, or `server.ts`, including
+  inside subdirectories, because Vercel would auto-detect them as an alternative Express entrypoint. No barrel files.
 - Environment variables are read only through `src/infrastructure/config/env/` (Zod-validated, fail-fast).
 - Business invariants (one claim per shift, credential validity) must be enforced atomically in the database, not by
   read-then-write logic in the API or checks in the frontend.
@@ -33,10 +32,9 @@ Architecture rules:
   - `src/infrastructure/`: driven adapters implementing the ports (`auth/`, `persistence/`) and the environment
     config (`config/`).
   - `src/composition/create-app/`: composition root that wires adapters together. Tests inject fake ports through it.
-- Every module is a folder (package) holding its file, its test and an `index.ts` barrel:
-  `claim-shift/claim-shift.ts`, `claim-shift/claim-shift.test.ts`, `claim-shift/index.ts`. Other modules import it
-  only through its index (`../../domain/shift/index.js`); ESLint rejects deep imports into another module's
-  folder. The test imports its file directly (`./claim-shift.js`). Exceptions to the folder rule: `src/dev-server.ts` (entrypoint), `src/types/` (ambient declarations)
+- Every module is a folder holding its file and its test: `claim-shift/claim-shift.ts`,
+  `claim-shift/claim-shift.test.ts`. Import a module by its file path (`../../domain/shift/shift.js`), never through
+  an `index.ts`. Exceptions to the folder rule: `src/dev-server.ts` (entrypoint), `src/types/` (ambient declarations)
   and `src/test-support/` (shared fakes). Tests and test support are excluded from the build. Database integration
   tests stay in `test/integration/`.
 - Schema changes are versioned SQL in `supabase/migrations/` (additive; never edit a migration that has been

@@ -170,7 +170,7 @@ src/infrastructure/auth/             Supabase Auth provider
 src/infrastructure/persistence/      Supabase data store: RLS-scoped reads and service-role workflow RPCs
 src/infrastructure/config/env/       Zod-validated environment (app + seed)
 src/test-support/                    Shared test fakes and fixtures (not built)
-src/**/<module>/                     One folder per module: <module>.ts, <module>.test.ts, index.ts (barrel)
+src/**/<module>/                     One folder per module: <module>.ts, <module>.test.ts (no index.ts barrels)
 supabase/config.toml                 Local stack (ports 553xx, sign-up disabled)
 supabase/migrations/                 Versioned SQL migrations
 scripts/seed.ts, scripts/seed-data.ts  Idempotent seed and deterministic fixtures

@@ -10,12 +10,6 @@ const frameworks = [
   { group: ['@supabase/*'], message: 'Supabase belongs in src/infrastructure.' },
   { group: ['zod'], message: 'Input validation belongs in src/interfaces/http.' },
 ]
-// Each module is a folder (`name/name.ts`, `name/name.test.ts`, `name/index.ts`).
-// Other modules are imported through their `index.js`, never a file inside the folder.
-const barrelOnly = {
-  regex: '^\\.\\./(?!.*test-support/).*(?<!/index)\\.js$',
-  message: 'Import another module through its index.js.',
-}
 const outerLayers = (...layers) =>
   layers.map((layer) => ({
     group: [`**/${layer}/**`, `**/${layer}.js`],
@@ -35,18 +29,12 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/**/*.ts'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [barrelOnly] }],
-    },
-  },
-  {
     files: ['src/domain/**/*.ts'],
     ignores: ['**/*.test.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: [barrelOnly, ...frameworks, ...outerLayers('application', 'interfaces', 'infrastructure', 'composition')] },
+        { patterns: [...frameworks, ...outerLayers('application', 'interfaces', 'infrastructure', 'composition')] },
       ],
     },
   },
@@ -56,7 +44,7 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: [barrelOnly, ...frameworks, ...outerLayers('interfaces', 'infrastructure', 'composition')] },
+        { patterns: [...frameworks, ...outerLayers('interfaces', 'infrastructure', 'composition')] },
       ],
     },
   },
@@ -66,7 +54,7 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: [barrelOnly, ...outerLayers('composition', 'config')] },
+        { patterns: outerLayers('composition', 'config') },
       ],
     },
   },

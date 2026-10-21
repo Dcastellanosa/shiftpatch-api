@@ -1,6 +1,6 @@
-import type { Viewer } from '../../domain/identity/index.js'
-import type { ClaimOutcome, Shift } from '../../domain/shift/index.js'
-import type { DataStore } from '../../domain/ports/data-store/index.js'
+import type { Viewer } from '../../domain/identity/identity.js'
+import type { ClaimOutcome, Shift } from '../../domain/shift/shift.js'
+import type { DataStore } from '../../domain/ports/data-store/data-store.js'
 
 export type ClaimShiftFailure = Exclude<ClaimOutcome, 'claimed'>
 

@@ -1,5 +1,5 @@
 import type { RequestHandler } from 'express'
-import { AppError } from '../../errors/index.js'
+import { AppError } from '../../errors/errors.js'
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
