@@ -1,5 +1,23 @@
 import type { Profile, Viewer } from '../../viewer/viewer.js'
-import type { ClaimOutcome, CommandResult, CreateOutcome } from '../../outcomes/outcomes.js'
+import type {
+  Agency,
+  AgencyBranch,
+  AgencyDetail,
+  CreateAgencyInput,
+  CreateBranchInput,
+  UpdateAgencyInput,
+  UpdateBranchInput,
+} from '../../agency/agency.js'
+import type {
+  AdminCommandResult,
+  ClaimOutcome,
+  CommandResult,
+  CreateAgencyOutcome,
+  CreateBranchOutcome,
+  CreateOutcome,
+  UpdateAgencyOutcome,
+  UpdateBranchOutcome,
+} from '../../outcomes/outcomes.js'
 import type {
   Branch,
   CreateShiftInput,
@@ -22,6 +40,16 @@ export interface DataStore {
   listBranches(viewer: Viewer): Promise<Branch[]>
   createShift(actorId: string, input: CreateShiftInput): Promise<CommandResult<CreateOutcome>>
   claimShift(nurseId: string, shiftId: string): Promise<CommandResult<ClaimOutcome>>
+
+  // Agency administration. Reads run as the viewer (RLS applies); commands
+  // call the service-role-only admin functions.
+  listAgencies(viewer: Viewer): Promise<Agency[]>
+  getAgency(viewer: Viewer, agencyId: string): Promise<AgencyDetail | null>
+  getAgencyBranch(viewer: Viewer, agencyId: string, branchId: string): Promise<AgencyBranch | null>
+  createAgency(actorId: string, input: CreateAgencyInput): Promise<AdminCommandResult<CreateAgencyOutcome>>
+  updateAgency(actorId: string, agencyId: string, input: UpdateAgencyInput): Promise<AdminCommandResult<UpdateAgencyOutcome>>
+  createBranch(actorId: string, agencyId: string, input: CreateBranchInput): Promise<AdminCommandResult<CreateBranchOutcome>>
+  updateBranch(actorId: string, branchId: string, input: UpdateBranchInput): Promise<AdminCommandResult<UpdateBranchOutcome>>
 }
 
 /** A data-layer failure. The message is safe to log; it never contains row data or tokens. */

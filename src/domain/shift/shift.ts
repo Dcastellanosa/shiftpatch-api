@@ -1,3 +1,5 @@
+import type { EntityStatus } from '../agency/agency.js'
+
 /**
  * Staffing domain model. Plain types with no framework or I/O dependencies;
  * every timestamp is an ISO 8601 UTC string.
@@ -22,6 +24,7 @@ export interface Branch {
   name: string
   address: string
   timezone: string
+  status: EntityStatus
   agency: Agency
 }
 

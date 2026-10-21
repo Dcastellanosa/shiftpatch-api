@@ -5,7 +5,22 @@ import {
   DataUnavailableError,
   type DataStore,
 } from '../../../domain/ports/data-store/data-store.js'
-import type { ClaimOutcome, CommandResult, CreateOutcome } from '../../../domain/outcomes/outcomes.js'
+import {
+  ENTITY_STATUSES,
+  type Agency,
+  type AgencyBranch,
+  type AgencyDetail,
+} from '../../../domain/agency/agency.js'
+import type {
+  AdminCommandResult,
+  ClaimOutcome,
+  CommandResult,
+  CreateAgencyOutcome,
+  CreateBranchOutcome,
+  CreateOutcome,
+  UpdateAgencyOutcome,
+  UpdateBranchOutcome,
+} from '../../../domain/outcomes/outcomes.js'
 import type { Viewer } from '../../../domain/viewer/viewer.js'
 import {
   APP_ROLES,
@@ -38,13 +53,14 @@ const NIL_UUID = '00000000-0000-0000-0000-000000000000'
 // cannot see under RLS instead of returning it half-populated.
 const SHIFT_COLUMNS = `
   id, title, starts_at, ends_at, status, created_at, updated_at,
-  branch:agency_branches!inner (id, name, address, timezone, agency_id, agency:agencies!inner (id, name)),
+  branch:agency_branches!inner (id, name, address, timezone, status, agency_id, agency:agencies!inner (id, name)),
   assigned_nurse:profiles!shifts_assigned_nurse_id_fkey (id, full_name)
 `
 
 const appRoleSchema = z.enum(APP_ROLES)
 const shiftStatusSchema = z.enum(SHIFT_STATUSES)
 const shiftEventTypeSchema = z.enum(SHIFT_EVENT_TYPES)
+const entityStatusSchema = z.enum(ENTITY_STATUSES)
 
 const shiftRow = z.object({
   id: z.uuid(),
@@ -59,6 +75,7 @@ const shiftRow = z.object({
     name: z.string(),
     address: z.string(),
     timezone: z.string(),
+    status: entityStatusSchema,
     agency: z.object({ id: z.uuid(), name: z.string() }),
   }),
   assigned_nurse: z.object({ id: z.uuid(), full_name: z.string() }).nullable(),
@@ -80,8 +97,32 @@ const branchRow = z.object({
   name: z.string(),
   address: z.string(),
   timezone: z.string(),
+  status: entityStatusSchema,
   agency: z.object({ id: z.uuid(), name: z.string() }),
 })
+
+const agencyRow = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  status: entityStatusSchema,
+  created_at: z.string(),
+  updated_at: z.string(),
+  agency_branches: z.array(z.object({ count: z.number() })),
+})
+
+const agencyBranchRow = z.object({
+  id: z.uuid(),
+  agency_id: z.uuid(),
+  name: z.string(),
+  address: z.string(),
+  timezone: z.string(),
+  status: entityStatusSchema,
+  created_at: z.string(),
+  updated_at: z.string(),
+})
+
+const AGENCY_COLUMNS = 'id, name, status, created_at, updated_at, agency_branches (count)'
+const AGENCY_BRANCH_COLUMNS = 'id, agency_id, name, address, timezone, status, created_at, updated_at'
 
 const profileRow = z.object({
   id: z.uuid(),
@@ -96,6 +137,11 @@ const commandRow = z.object({
   event_id: z.uuid().nullable(),
 })
 
+const adminCommandRow = z.object({
+  outcome: z.string(),
+  entity_id: z.uuid().nullable(),
+})
+
 const iso = (value: string) => new Date(value).toISOString()
 
 function toShift(row: z.infer<typeof shiftRow>): Shift {
@@ -105,9 +151,39 @@ function toShift(row: z.infer<typeof shiftRow>): Shift {
     startsAt: iso(row.starts_at),
     endsAt: iso(row.ends_at),
     status: row.status,
-    branch: { id: row.branch.id, name: row.branch.name, address: row.branch.address, timezone: row.branch.timezone },
+    branch: {
+      id: row.branch.id,
+      name: row.branch.name,
+      address: row.branch.address,
+      timezone: row.branch.timezone,
+      status: row.branch.status,
+    },
     agency: { id: row.branch.agency.id, name: row.branch.agency.name },
     assignedNurse: row.assigned_nurse ? { id: row.assigned_nurse.id, fullName: row.assigned_nurse.full_name } : null,
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+  }
+}
+
+function toAgency(row: z.infer<typeof agencyRow>): Agency {
+  return {
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    branchCount: row.agency_branches[0]?.count ?? 0,
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+  }
+}
+
+function toAgencyBranch(row: z.infer<typeof agencyBranchRow>): AgencyBranch {
+  return {
+    id: row.id,
+    agencyId: row.agency_id,
+    name: row.name,
+    address: row.address,
+    timezone: row.timezone,
+    status: row.status,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   }
@@ -154,10 +230,21 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
       global: { headers: { Authorization: `Bearer ${accessToken}` } },
     })
 
-  // Used only for the two workflow RPCs, which client roles cannot execute.
+  // Used only for the workflow and admin RPCs, which client roles cannot execute.
   const serviceClient = config.serviceRoleKey
     ? createClient(config.url, config.serviceRoleKey, CLIENT_OPTIONS)
     : null
+
+  async function runAdminCommand<Outcome extends string>(
+    fn: string,
+    args: Record<string, unknown>,
+  ): Promise<AdminCommandResult<Outcome>> {
+    if (!serviceClient) throw new DataUnavailableError()
+    const data = unwrap(await serviceClient.rpc(fn, args), fn)
+    const parsed = adminCommandRow.safeParse(data)
+    if (!parsed.success) throw new DataStoreError(` returned an unexpected shape`)
+    return { outcome: parsed.data.outcome as Outcome, entityId: parsed.data.entity_id }
+  }
 
   async function runCommand<Outcome extends string>(
     fn: 'create_shift' | 'claim_shift',
@@ -252,7 +339,7 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
     async listBranches(viewer) {
       let query = asUser(viewer.accessToken)
         .from('agency_branches')
-        .select('id, name, address, timezone, agency:agencies!inner (id, name)')
+        .select('id, name, address, timezone, status, agency:agencies!inner (id, name)')
       if (viewer.role === 'agency') query = query.eq('agency_id', viewer.agencyId ?? NIL_UUID)
       const rows = unwrap(await query.order('name').limit(LIST_LIMIT), 'list branches')
       return parseRows(branchRow, rows, 'list branches')
@@ -270,6 +357,75 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
 
     claimShift(nurseId, shiftId) {
       return runCommand<ClaimOutcome>('claim_shift', { p_shift_id: shiftId, p_nurse_id: nurseId })
+    },
+
+    async listAgencies(viewer) {
+      const rows = unwrap(
+        await asUser(viewer.accessToken).from('agencies').select(AGENCY_COLUMNS).order('name').limit(LIST_LIMIT),
+        'list agencies',
+      )
+      return parseRows(agencyRow, rows, 'list agencies').map(toAgency)
+    },
+
+    async getAgency(viewer, agencyId): Promise<AgencyDetail | null> {
+      const client = asUser(viewer.accessToken)
+      const row = unwrap(await client.from('agencies').select(AGENCY_COLUMNS).eq('id', agencyId).maybeSingle(), 'get agency')
+      if (!row) return null
+      const branches = unwrap(
+        await client.from('agency_branches').select(AGENCY_BRANCH_COLUMNS).eq('agency_id', agencyId).order('name').limit(LIST_LIMIT),
+        'list agency branches',
+      )
+      return {
+        agency: toAgency(parseRows(agencyRow, [row], 'get agency')[0]!),
+        branches: parseRows(agencyBranchRow, branches, 'list agency branches').map(toAgencyBranch),
+      }
+    },
+
+    async getAgencyBranch(viewer, agencyId, branchId) {
+      const row = unwrap(
+        await asUser(viewer.accessToken)
+          .from('agency_branches')
+          .select(AGENCY_BRANCH_COLUMNS)
+          .eq('id', branchId)
+          .eq('agency_id', agencyId)
+          .maybeSingle(),
+        'get agency branch',
+      )
+      return row ? toAgencyBranch(parseRows(agencyBranchRow, [row], 'get agency branch')[0]!) : null
+    },
+
+    createAgency(actorId, input) {
+      return runAdminCommand<CreateAgencyOutcome>('create_agency', { p_actor_id: actorId, p_name: input.name })
+    },
+
+    updateAgency(actorId, agencyId, input) {
+      return runAdminCommand<UpdateAgencyOutcome>('update_agency', {
+        p_actor_id: actorId,
+        p_agency_id: agencyId,
+        p_name: input.name ?? null,
+        p_status: input.status ?? null,
+      })
+    },
+
+    createBranch(actorId, agencyId, input) {
+      return runAdminCommand<CreateBranchOutcome>('create_branch', {
+        p_actor_id: actorId,
+        p_agency_id: agencyId,
+        p_name: input.name,
+        p_address: input.address,
+        p_timezone: input.timezone,
+      })
+    },
+
+    updateBranch(actorId, branchId, input) {
+      return runAdminCommand<UpdateBranchOutcome>('update_branch', {
+        p_actor_id: actorId,
+        p_branch_id: branchId,
+        p_name: input.name ?? null,
+        p_address: input.address ?? null,
+        p_timezone: input.timezone ?? null,
+        p_status: input.status ?? null,
+      })
     },
   }
 }

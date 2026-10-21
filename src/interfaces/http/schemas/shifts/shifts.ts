@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ENTITY_STATUSES } from '../../../../domain/agency/agency.js'
 import {
   APP_ROLES,
   SHIFT_EVENT_TYPES,
@@ -19,6 +20,7 @@ import {
 export const appRoleSchema = z.enum(APP_ROLES)
 export const shiftStatusSchema = z.enum(SHIFT_STATUSES)
 export const shiftEventTypeSchema = z.enum(SHIFT_EVENT_TYPES)
+export const entityStatusSchema = z.enum(ENTITY_STATUSES)
 
 const isoTimestamp = z.iso.datetime()
 
@@ -27,6 +29,7 @@ export const branchSchema = z.object({
   name: z.string(),
   address: z.string(),
   timezone: z.string(),
+  status: entityStatusSchema,
   agency: z.object({ id: z.uuid(), name: z.string() }),
 }) satisfies z.ZodType<Branch>
 
@@ -36,7 +39,7 @@ export const shiftSchema = z.object({
   startsAt: isoTimestamp,
   endsAt: isoTimestamp,
   status: shiftStatusSchema,
-  branch: z.object({ id: z.uuid(), name: z.string(), address: z.string(), timezone: z.string() }),
+  branch: z.object({ id: z.uuid(), name: z.string(), address: z.string(), timezone: z.string(), status: entityStatusSchema }),
   agency: z.object({ id: z.uuid(), name: z.string() }),
   assignedNurse: z.object({ id: z.uuid(), fullName: z.string() }).nullable(),
   createdAt: isoTimestamp,

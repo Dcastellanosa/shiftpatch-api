@@ -10,6 +10,7 @@ describe('listBranches', () => {
       name: 'Downtown Clinic',
       address: '120 Main Street',
       timezone: 'America/New_York',
+      status: 'active' as const,
       agency: { id: AGENCY_PROFILE.agencyId!, name: 'Northwind Care Staffing' },
     }
     const store = fakeDataStore({ listBranches: async () => [branch] })

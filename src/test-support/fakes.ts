@@ -4,6 +4,7 @@ import type { DataStore } from '../domain/ports/data-store/data-store.js'
 import { parseEnv } from '../infrastructure/config/env/env.js'
 import { createApp } from '../composition/create-app/create-app.js'
 import type { AuthUser, Profile, Viewer } from '../domain/viewer/viewer.js'
+import type { Agency, AgencyBranch } from '../domain/agency/agency.js'
 import type { Shift } from '../domain/shift/shift.js'
 
 export const ALLOWED_ORIGIN = 'http://localhost:5173'
@@ -52,6 +53,13 @@ export function fakeDataStore(overrides: Partial<DataStore> = {}) {
     listBranches: vi.fn<DataStore['listBranches']>(overrides.listBranches ?? unexpected('listBranches')),
     createShift: vi.fn<DataStore['createShift']>(overrides.createShift ?? unexpected('createShift')),
     claimShift: vi.fn<DataStore['claimShift']>(overrides.claimShift ?? unexpected('claimShift')),
+    listAgencies: vi.fn<DataStore['listAgencies']>(overrides.listAgencies ?? unexpected('listAgencies')),
+    getAgency: vi.fn<DataStore['getAgency']>(overrides.getAgency ?? unexpected('getAgency')),
+    getAgencyBranch: vi.fn<DataStore['getAgencyBranch']>(overrides.getAgencyBranch ?? unexpected('getAgencyBranch')),
+    createAgency: vi.fn<DataStore['createAgency']>(overrides.createAgency ?? unexpected('createAgency')),
+    updateAgency: vi.fn<DataStore['updateAgency']>(overrides.updateAgency ?? unexpected('updateAgency')),
+    createBranch: vi.fn<DataStore['createBranch']>(overrides.createBranch ?? unexpected('createBranch')),
+    updateBranch: vi.fn<DataStore['updateBranch']>(overrides.updateBranch ?? unexpected('updateBranch')),
   }
 }
 
@@ -79,7 +87,7 @@ export function shiftFixture(overrides: Partial<Shift> = {}): Shift {
     startsAt: '2030-01-10T12:00:00.000Z',
     endsAt: '2030-01-10T20:00:00.000Z',
     status: 'open',
-    branch: { id: BRANCH_ID, name: 'Downtown Clinic', address: '120 Main Street', timezone: 'America/New_York' },
+    branch: { id: BRANCH_ID, name: 'Downtown Clinic', address: '120 Main Street', timezone: 'America/New_York', status: 'active' },
     agency: { id: 'a1000000-0000-4000-8000-000000000001', name: 'Northwind Care Staffing' },
     assignedNurse: null,
     createdAt: '2029-12-01T00:00:00.000Z',
@@ -113,4 +121,32 @@ export function setCookies(headers: Record<string, unknown>): string[] {
 
 export function cookieFor(cookies: string[], name: string): string | undefined {
   return cookies.find((line) => line.startsWith(`${name}=`))
+}
+
+export const AGENCY_ID = 'a1000000-0000-4000-8000-000000000001'
+
+export function agencyFixture(overrides: Partial<Agency> = {}): Agency {
+  return {
+    id: AGENCY_ID,
+    name: 'Northwind Care Staffing',
+    status: 'active',
+    branchCount: 2,
+    createdAt: '2029-11-01T00:00:00.000Z',
+    updatedAt: '2029-11-02T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export function agencyBranchFixture(overrides: Partial<AgencyBranch> = {}): AgencyBranch {
+  return {
+    id: BRANCH_ID,
+    agencyId: AGENCY_ID,
+    name: 'Downtown Clinic',
+    address: '120 Main Street',
+    timezone: 'America/New_York',
+    status: 'active',
+    createdAt: '2029-11-01T00:00:00.000Z',
+    updatedAt: '2029-11-02T00:00:00.000Z',
+    ...overrides,
+  }
 }

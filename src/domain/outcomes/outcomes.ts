@@ -34,3 +34,14 @@ export interface CommandResult<Outcome extends string> {
   shiftId: string | null
   eventId: string | null
 }
+
+/** What an admin command returns: its outcome plus the id of the entity it touched. */
+export interface AdminCommandResult<Outcome extends string> {
+  outcome: Outcome
+  entityId: string | null
+}
+
+export type CreateAgencyOutcome = 'created' | 'actor_not_allowed' | 'name_taken'
+export type UpdateAgencyOutcome = 'updated' | 'actor_not_allowed' | 'agency_not_found' | 'name_taken'
+export type CreateBranchOutcome = 'created' | 'actor_not_allowed' | 'agency_not_found' | 'agency_inactive' | 'name_taken'
+export type UpdateBranchOutcome = 'updated' | 'actor_not_allowed' | 'branch_not_found' | 'name_taken'

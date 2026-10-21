@@ -34,7 +34,7 @@ function shift(overrides: Partial<Shift> = {}): Shift {
     startsAt: '2030-01-10T12:00:00.000Z',
     endsAt: '2030-01-10T20:00:00.000Z',
     status: 'open',
-    branch: { id: BRANCH_ID, name: 'Downtown Clinic', address: '120 Main Street', timezone: 'America/New_York' },
+    branch: { id: BRANCH_ID, name: 'Downtown Clinic', address: '120 Main Street', timezone: 'America/New_York', status: 'active' },
     agency: { id: 'a1000000-0000-4000-8000-000000000001', name: 'Northwind Care Staffing' },
     assignedNurse: null,
     createdAt: '2029-12-01T00:00:00.000Z',
@@ -385,6 +385,7 @@ describe('GET /branches', () => {
       name: 'Downtown Clinic',
       address: '120 Main Street',
       timezone: 'America/New_York',
+      status: 'active' as const,
       agency: { id: AGENCY_PROFILE.agencyId!, name: 'Northwind Care Staffing' },
     }
     const store = fakeDataStore({ getProfile: asProfile(AGENCY_PROFILE), listBranches: async () => [branch] })

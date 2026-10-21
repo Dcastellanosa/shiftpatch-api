@@ -79,6 +79,7 @@ const SHIFT_ROW = {
     name: 'Downtown',
     address: '120 Main',
     timezone: 'America/New_York',
+    status: 'active',
     agency: { id: AGENCY_ID, name: 'Northwind' },
   },
   assigned_nurse: { id: NURSE_ID, full_name: 'Ava Thompson' },
@@ -90,7 +91,7 @@ const SHIFT = {
   startsAt: '2030-01-10T12:00:00.000Z',
   endsAt: '2030-01-10T20:00:00.000Z',
   status: 'claimed',
-  branch: { id: BRANCH_ID, name: 'Downtown', address: '120 Main', timezone: 'America/New_York' },
+  branch: { id: BRANCH_ID, name: 'Downtown', address: '120 Main', timezone: 'America/New_York', status: 'active' },
   agency: { id: AGENCY_ID, name: 'Northwind' },
   assignedNurse: { id: NURSE_ID, fullName: 'Ava Thompson' },
   createdAt: '2029-12-01T00:00:00.000Z',
@@ -304,6 +305,7 @@ describe('createSupabaseDataStore', () => {
       name: 'Downtown',
       address: '120 Main',
       timezone: 'America/New_York',
+      status: 'active' as const,
       agency: { id: AGENCY_ID, name: 'Northwind' },
     }
 
@@ -379,5 +381,91 @@ describe('createSupabaseDataStore', () => {
         new DataStoreError('create_shift failed (P0001)'),
       )
     })
+  })
+})
+
+describe('agency administration', () => {
+  const AGENCY_ROW = {
+    id: AGENCY_ID,
+    name: 'Northwind',
+    status: 'active',
+    created_at: '2029-11-01 00:00:00+00',
+    updated_at: '2029-11-02 00:00:00+00',
+    agency_branches: [{ count: 2 }],
+  }
+  const AGENCY = {
+    id: AGENCY_ID,
+    name: 'Northwind',
+    status: 'active',
+    branchCount: 2,
+    createdAt: '2029-11-01T00:00:00.000Z',
+    updatedAt: '2029-11-02T00:00:00.000Z',
+  }
+  const BRANCH_ROW = {
+    id: BRANCH_ID,
+    agency_id: AGENCY_ID,
+    name: 'Downtown',
+    address: '120 Main',
+    timezone: 'America/New_York',
+    status: 'inactive',
+    created_at: '2029-11-01 00:00:00+00',
+    updated_at: '2029-11-02 00:00:00+00',
+  }
+  const BRANCH = {
+    id: BRANCH_ID,
+    agencyId: AGENCY_ID,
+    name: 'Downtown',
+    address: '120 Main',
+    timezone: 'America/New_York',
+    status: 'inactive',
+    createdAt: '2029-11-01T00:00:00.000Z',
+    updatedAt: '2029-11-02T00:00:00.000Z',
+  }
+  const withService = () => createSupabaseDataStore({ ...CONFIG, serviceRoleKey: 'service-key' })
+
+  it('lists agencies with their branch counts as the viewer', async () => {
+    respond(ok([AGENCY_ROW]))
+    await expect(createSupabaseDataStore(CONFIG).listAgencies(admin)).resolves.toEqual([AGENCY])
+    expect(tables).toEqual(['agencies'])
+    expect(call('select')).toEqual([['id, name, status, created_at, updated_at, agency_branches (count)']])
+  })
+
+  it('reads one agency with its branches, or null', async () => {
+    respond(ok(AGENCY_ROW), ok([BRANCH_ROW]))
+    await expect(createSupabaseDataStore(CONFIG).getAgency(admin, AGENCY_ID)).resolves.toEqual({ agency: AGENCY, branches: [BRANCH] })
+    expect(tables).toEqual(['agencies', 'agency_branches'])
+    expect(call('eq', 1)).toEqual([['agency_id', AGENCY_ID]])
+
+    respond(ok(null))
+    await expect(createSupabaseDataStore(CONFIG).getAgency(admin, AGENCY_ID)).resolves.toBeNull()
+  })
+
+  it('reads a branch only through its agency', async () => {
+    respond(ok(BRANCH_ROW))
+    await expect(createSupabaseDataStore(CONFIG).getAgencyBranch(admin, AGENCY_ID, BRANCH_ID)).resolves.toEqual(BRANCH)
+    expect(call('eq')).toEqual([['id', BRANCH_ID], ['agency_id', AGENCY_ID]])
+  })
+
+  it('runs the admin commands as the service role and maps null arguments to unchanged', async () => {
+    rpc.mockResolvedValue({ data: { outcome: 'updated', entity_id: AGENCY_ID }, error: null })
+    const store = withService()
+    await expect(store.updateAgency(NURSE_ID, AGENCY_ID, { status: 'inactive' })).resolves.toEqual({ outcome: 'updated', entityId: AGENCY_ID })
+    expect(rpc).toHaveBeenLastCalledWith('update_agency', { p_actor_id: NURSE_ID, p_agency_id: AGENCY_ID, p_name: null, p_status: 'inactive' })
+    await store.createAgency(NURSE_ID, { name: 'Summit' })
+    expect(rpc).toHaveBeenLastCalledWith('create_agency', { p_actor_id: NURSE_ID, p_name: 'Summit' })
+    await store.createBranch(NURSE_ID, AGENCY_ID, { name: 'Up', address: '1 Up', timezone: 'UTC' })
+    expect(rpc).toHaveBeenLastCalledWith('create_branch', { p_actor_id: NURSE_ID, p_agency_id: AGENCY_ID, p_name: 'Up', p_address: '1 Up', p_timezone: 'UTC' })
+    await store.updateBranch(NURSE_ID, BRANCH_ID, { name: 'Renamed' })
+    expect(rpc).toHaveBeenLastCalledWith('update_branch', { p_actor_id: NURSE_ID, p_branch_id: BRANCH_ID, p_name: 'Renamed', p_address: null, p_timezone: null, p_status: null })
+  })
+
+  it('refuses admin commands without the service-role key', async () => {
+    await expect(createSupabaseDataStore(CONFIG).createAgency(NURSE_ID, { name: 'x' })).rejects.toBeInstanceOf(DataUnavailableError)
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unexpected command shape', async () => {
+    rpc.mockResolvedValue({ data: { outcome: 'created' }, error: null })
+    await expect(withService().createAgency(NURSE_ID, { name: 'x' })).rejects.toBeInstanceOf(DataStoreError)
   })
 })
