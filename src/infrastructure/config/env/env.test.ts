@@ -93,12 +93,12 @@ describe('parseSeedEnv', () => {
   it('rejects a short seed password without echoing it', () => {
     const error = (() => {
       try {
-        parseSeedEnv({ ...valid, SEED_USER_PASSWORD: 'short-pw' })
+        parseSeedEnv({ ...valid, SEED_USER_PASSWORD: 'shortpw' })
       } catch (e) {
         return String(e)
       }
     })()
-    expect(error).toMatch(/SEED_USER_PASSWORD: must be at least 12 characters/)
-    expect(error).not.toContain('short-pw')
+    expect(error).toMatch(/SEED_USER_PASSWORD: must be at least 8 characters/)
+    expect(error).not.toContain('shortpw')
   })
 })

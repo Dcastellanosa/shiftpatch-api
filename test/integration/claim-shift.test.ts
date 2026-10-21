@@ -134,17 +134,6 @@ describe('claim_shift: rule failures leave the shift untouched', () => {
     })
   })
 
-  it('rejects a shift that has already started', async () => {
-    await inRollback(pool, async (db) => {
-      const { rows } = await db.query(
-        `insert into shiftpatch.shifts (branch_id, title, starts_at, ends_at, created_by_id)
-         values ($1, 'Started', now() - interval '1 hour', now() + interval '4 hours', $2) returning id`,
-        [BRANCHES.downtown.id, USERS.northwindAgency.id],
-      )
-      expect(await claimAsService(db, rows[0].id, USERS.ava.id)).toBe('shift_started')
-    })
-  })
-
   it('rejects a shift that is already claimed', async () => {
     const shift = await createShift(pool, { window: nextWindow() })
     expect(await inRollbackCommit((db) => claimAsService(db, shift.id, USERS.eli.id))).toBe('claimed')

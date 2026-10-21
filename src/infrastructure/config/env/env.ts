@@ -30,8 +30,8 @@ const envSchema = z
     ),
     SUPABASE_URL: z.preprocess(blankAsUndefined, z.url({ protocol: /^https?$/ }).optional()),
     SUPABASE_PUBLISHABLE_KEY: z.preprocess(blankAsUndefined, z.string().optional()),
-    // Server-only. Used exclusively to call the shift workflow functions
-    // (create_shift, claim_shift), which client roles cannot execute.
+    // Server-only. Used for the SECURITY DEFINER commands (which client roles
+    // cannot execute), public-id resolution and the Auth admin API.
     SUPABASE_SERVICE_ROLE_KEY: z.preprocess(blankAsUndefined, z.string().optional()),
     // Origin of the web app that receives invitation and recovery links
     // (<origin>/set-password). Defaults to the first CORS origin.
@@ -62,7 +62,7 @@ const seedEnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.preprocess(blankAsUndefined, z.string('is required')),
   SEED_USER_PASSWORD: z.preprocess(
     blankAsUndefined,
-    z.string('is required (password for every seeded test account)').min(12, 'must be at least 12 characters'),
+    z.string('is required (password for every seeded test account)').min(8, 'must be at least 8 characters'),
   ),
 })
 

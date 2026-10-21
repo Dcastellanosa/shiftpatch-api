@@ -1,11 +1,11 @@
 import pg from 'pg'
 import request from 'supertest'
 import { afterAll, inject } from 'vitest'
-import { BRANCHES, USERS, type SeedUser } from '../../scripts/seed-data.js'
+import { BRANCHES, USERS, type SeedUser } from './fixtures.js'
 import { parseEnv } from '../../src/infrastructure/config/env/env.js'
 import { createApp } from '../../src/composition/create-app/create-app.js'
 
-export { AGENCIES, BRANCHES, SHIFTS, USERS } from '../../scripts/seed-data.js'
+export { AGENCIES, BRANCHES, SHIFTS, USERS } from './fixtures.js'
 
 export const ALLOWED_ORIGIN = 'http://localhost:5173'
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -78,7 +78,10 @@ export function windows(firstDay: number) {
 }
 
 export interface FixtureShift {
+  /** Internal UUID (for SQL). */
   id: string
+  /** Public id (for HTTP). */
+  slug: string
   startsAt: string
   endsAt: string
 }
@@ -100,7 +103,8 @@ export async function createShift(
     ],
   )
   if (rows[0].outcome !== 'created') throw new Error(`fixture create_shift returned ${rows[0].outcome}`)
-  return { id: rows[0].shift_id as string, ...window }
+  const { rows: slugs } = await db.query('select slug from shiftpatch.shifts where id = $1', [rows[0].shift_id])
+  return { id: rows[0].shift_id as string, slug: slugs[0].slug as string, ...window }
 }
 
 export async function claim(db: Queryable, shiftId: string, nurseId: string): Promise<string> {

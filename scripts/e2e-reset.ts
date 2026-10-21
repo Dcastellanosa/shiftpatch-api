@@ -10,8 +10,8 @@ import { execFileSync } from 'node:child_process'
 import { localStack, seedWhenReady } from './local-stack.js'
 
 const password = process.env.SEED_USER_PASSWORD ?? ''
-if (password.length < 12) {
-  console.error('SEED_USER_PASSWORD must be set (at least 12 characters) for the seeded accounts of this run.')
+if (password.length < 8) {
+  console.error('SEED_USER_PASSWORD must be set (at least 8 characters) for the seeded accounts of this run.')
   process.exit(1)
 }
 

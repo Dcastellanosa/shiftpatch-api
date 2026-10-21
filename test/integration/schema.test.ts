@@ -244,6 +244,9 @@ describe('function privileges', () => {
     'update_branch(uuid, uuid, text, text, text, text)',
     'provision_user(uuid, uuid, text, shiftpatch.app_role, uuid[], uuid)',
     'set_branch_eligibility(uuid, uuid, uuid, shiftpatch.eligibility_status)',
+    'delete_agency(uuid, uuid)',
+    'delete_user(uuid, uuid)',
+    'cancel_shift_claim(uuid, uuid, text)',
   ])(
     '%s is executable only by service_role',
     async (signature) => {
