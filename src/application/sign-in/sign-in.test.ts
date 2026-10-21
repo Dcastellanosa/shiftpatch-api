@@ -13,7 +13,7 @@ describe('signIn', () => {
       ok: true,
       session: SESSION,
       payload: {
-        user: { id: USER.id, email: USER.email, fullName: NURSE_PROFILE.fullName, role: 'nurse', agencyId: null },
+        user: { id: USER.id, email: USER.email, fullName: NURSE_PROFILE.fullName, role: 'nurse', agencyId: null, agencyIds: [] },
       },
     })
     expect(auth.signInWithPassword).toHaveBeenCalledWith('nurse@example.com', 'pw')
@@ -37,6 +37,7 @@ describe('signIn', () => {
       fullName: null,
       role: null,
       agencyId: null,
+      agencyIds: [],
     })
   })
 })

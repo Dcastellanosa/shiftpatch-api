@@ -8,7 +8,10 @@ export interface SessionUser {
   email: string | null
   fullName: string | null
   role: AppRole | null
+  /** First active agency (agency users). Prefer `agencyIds`. */
   agencyId: string | null
+  /** Every agency the user manages through an active membership. */
+  agencyIds: string[]
 }
 
 export interface SessionPayload {
@@ -28,6 +31,7 @@ export function toSessionPayload(user: AuthUser, profile: Profile | null): Sessi
       fullName: profile?.fullName ?? null,
       role: profile?.role ?? null,
       agencyId: profile?.agencyId ?? null,
+      agencyIds: profile?.agencyIds ?? [],
     },
   }
 }

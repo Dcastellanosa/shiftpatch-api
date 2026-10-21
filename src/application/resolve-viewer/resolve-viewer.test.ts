@@ -18,7 +18,7 @@ describe('resolveViewer', () => {
   })
 
   it('fails with membership_inactive for an agency user without an active agency', async () => {
-    const store = fakeDataStore({ getProfile: async () => ({ ...AGENCY_PROFILE, agencyId: null }) })
+    const store = fakeDataStore({ getProfile: async () => ({ ...AGENCY_PROFILE, agencyIds: [], agencyId: null }) })
     await expect(resolveViewer({ store }, USER, 'token')).resolves.toEqual({
       ok: false,
       outcome: 'membership_inactive',
@@ -28,6 +28,6 @@ describe('resolveViewer', () => {
   it('accepts an agency user with an active agency', async () => {
     const store = fakeDataStore({ getProfile: async () => AGENCY_PROFILE })
     const result = await resolveViewer({ store }, USER, 'token')
-    expect(result.ok && result.viewer.agencyId).toBe(AGENCY_PROFILE.agencyId)
+    expect(result.ok && result.viewer.agencyIds).toEqual(AGENCY_PROFILE.agencyIds)
   })
 })

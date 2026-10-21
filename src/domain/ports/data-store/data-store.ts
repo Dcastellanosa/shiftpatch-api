@@ -1,5 +1,5 @@
 import type { Profile, Viewer } from '../../viewer/viewer.js'
-import type { AdminUser, InviteUserCommand } from '../../admin/admin.js'
+import type { AdminUser, EligibilityRecord, InviteUserCommand, NurseEligibility } from '../../admin/admin.js'
 import type {
   Agency,
   AgencyBranch,
@@ -17,6 +17,7 @@ import type {
   CreateBranchOutcome,
   CreateOutcome,
   ProvisionOutcome,
+  SetEligibilityOutcome,
   UpdateAgencyOutcome,
   UpdateBranchOutcome,
 } from '../../outcomes/outcomes.js'
@@ -58,6 +59,17 @@ export interface DataStore {
   listUsers(viewer: Viewer): Promise<AdminUser[]>
   getUser(viewer: Viewer, userId: string): Promise<AdminUser | null>
   provisionUser(actorId: string, userId: string, command: InviteUserCommand): Promise<AdminCommandResult<ProvisionOutcome>>
+
+  // Nurse eligibility. Reads run as the viewer (RLS limits agency users to
+  // their branches); the command re-checks the actor's scope.
+  listAgencyNurses(viewer: Viewer): Promise<NurseEligibility[]>
+  getEligibility(viewer: Viewer, nurseId: string, branchId: string): Promise<EligibilityRecord | null>
+  setBranchEligibility(
+    actorId: string,
+    nurseId: string,
+    branchId: string,
+    status: 'active' | 'suspended',
+  ): Promise<AdminCommandResult<SetEligibilityOutcome>>
 }
 
 /** A data-layer failure. The message is safe to log; it never contains row data or tokens. */

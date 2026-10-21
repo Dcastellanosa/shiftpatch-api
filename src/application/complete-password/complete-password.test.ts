@@ -12,7 +12,7 @@ describe('completePassword', () => {
     expect(result).toEqual({
       ok: true,
       session: SESSION,
-      payload: { user: { id: USER.id, email: USER.email, fullName: NURSE_PROFILE.fullName, role: 'nurse', agencyId: null } },
+      payload: { user: { id: USER.id, email: USER.email, fullName: NURSE_PROFILE.fullName, role: 'nurse', agencyId: null, agencyIds: [] } },
     })
     expect(auth.completePassword).toHaveBeenCalledWith('hash-1', 'invite', 'correct horse battery')
     expect(store.getProfile).toHaveBeenCalledWith(SESSION.accessToken, USER.id)

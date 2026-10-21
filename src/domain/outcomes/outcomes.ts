@@ -57,3 +57,12 @@ export type ProvisionOutcome =
   | 'agency_inactive'
   | 'branch_not_found'
   | 'branch_inactive'
+
+/** Outcomes of `set_branch_eligibility`. */
+export type SetEligibilityOutcome =
+  | 'updated'
+  | 'actor_not_allowed'
+  | 'branch_not_found'
+  | 'nurse_not_found'
+  | 'agency_inactive'
+  | 'branch_inactive'

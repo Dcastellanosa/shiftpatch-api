@@ -5,7 +5,7 @@ import {
   DataUnavailableError,
   type DataStore,
 } from '../../../domain/ports/data-store/data-store.js'
-import { ELIGIBILITY_STATUSES, type AdminUser } from '../../../domain/admin/admin.js'
+import { ELIGIBILITY_STATUSES, type AdminUser, type EligibilityRecord, type NurseEligibility } from '../../../domain/admin/admin.js'
 import {
   ENTITY_STATUSES,
   type Agency,
@@ -20,6 +20,7 @@ import type {
   CreateBranchOutcome,
   CreateOutcome,
   ProvisionOutcome,
+  SetEligibilityOutcome,
   UpdateAgencyOutcome,
   UpdateBranchOutcome,
 } from '../../../domain/outcomes/outcomes.js'
@@ -50,6 +51,9 @@ const CLIENT_OPTIONS = {
 const LIST_LIMIT = 500
 // Matches nothing; used if an agency viewer somehow has no agency.
 const NIL_UUID = '00000000-0000-0000-0000-000000000000'
+
+/** Agencies an agency viewer is pinned to (defense in depth on top of RLS). */
+const agencyScope = (viewer: Viewer) => (viewer.agencyIds.length > 0 ? viewer.agencyIds : [NIL_UUID])
 
 // PostgREST embeds. `!inner` drops a shift whose branch or agency the caller
 // cannot see under RLS instead of returning it half-populated.
@@ -143,6 +147,27 @@ const eligibilityRow = z.object({
   status: z.enum(ELIGIBILITY_STATUSES),
   branch: z.object({ id: z.uuid(), name: z.string(), agency: z.object({ id: z.uuid(), name: z.string() }) }),
 })
+
+const nurseEligibilityRow = z.object({
+  nurse_id: z.uuid(),
+  status: z.enum(ELIGIBILITY_STATUSES),
+  activated_at: z.string().nullable(),
+  nurse: z.object({ id: z.uuid(), full_name: z.string() }),
+  branch: z.object({ id: z.uuid(), name: z.string(), agency: z.object({ id: z.uuid(), name: z.string() }) }),
+})
+
+const eligibilityRecordRow = z.object({
+  nurse_id: z.uuid(),
+  branch_id: z.uuid(),
+  status: z.enum(ELIGIBILITY_STATUSES),
+  activated_at: z.string().nullable(),
+})
+
+const NURSE_ELIGIBILITY_COLUMNS = `
+  nurse_id, status, activated_at,
+  nurse:profiles!branch_nurse_eligibility_nurse_id_fkey!inner (id, full_name),
+  branch:agency_branches!inner (id, name, agency_id, agency:agencies!inner (id, name))
+`
 
 const AGENCY_COLUMNS = 'id, name, status, created_at, updated_at, agency_branches (count)'
 const AGENCY_BRANCH_COLUMNS = 'id, agency_id, name, address, timezone, status, created_at, updated_at'
@@ -287,7 +312,7 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
   function shiftQuery(viewer: Viewer) {
     let query = asUser(viewer.accessToken).from('shifts').select(SHIFT_COLUMNS)
     // Defense in depth on top of RLS: agency users are pinned to their agency.
-    if (viewer.role === 'agency') query = query.eq('branch.agency_id', viewer.agencyId ?? NIL_UUID)
+    if (viewer.role === 'agency') query = query.in('branch.agency_id', agencyScope(viewer))
     return query
   }
 
@@ -303,12 +328,14 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
       )
       if (!data) return null
       const [row] = parseRows(profileRow, [data], 'profile lookup')
-      const active = row!.agency_memberships.find((m) => m.status === 'active')
+      const agencyIds =
+        row!.role === 'agency' ? row!.agency_memberships.filter((m) => m.status === 'active').map((m) => m.agency_id) : []
       return {
         id: row!.id,
         fullName: row!.full_name,
         role: row!.role,
-        agencyId: row!.role === 'agency' ? (active?.agency_id ?? null) : null,
+        agencyIds,
+        agencyId: agencyIds[0] ?? null,
       }
     },
 
@@ -363,7 +390,7 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
       let query = asUser(viewer.accessToken)
         .from('agency_branches')
         .select('id, name, address, timezone, status, agency:agencies!inner (id, name)')
-      if (viewer.role === 'agency') query = query.eq('agency_id', viewer.agencyId ?? NIL_UUID)
+      if (viewer.role === 'agency') query = query.in('agency_id', agencyScope(viewer))
       const rows = unwrap(await query.order('name').limit(LIST_LIMIT), 'list branches')
       return parseRows(branchRow, rows, 'list branches')
     },
@@ -380,6 +407,49 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
 
     claimShift(nurseId, shiftId) {
       return runCommand<ClaimOutcome>('claim_shift', { p_shift_id: shiftId, p_nurse_id: nurseId })
+    },
+
+    async listAgencyNurses(viewer) {
+      let query = asUser(viewer.accessToken).from('branch_nurse_eligibility').select(NURSE_ELIGIBILITY_COLUMNS)
+      if (viewer.role === 'agency') query = query.in('branch.agency_id', agencyScope(viewer))
+      const rows = parseRows(nurseEligibilityRow, unwrap(await query.limit(LIST_LIMIT), 'list agency nurses'), 'list agency nurses')
+      const byNurse = new Map<string, NurseEligibility>()
+      for (const row of rows) {
+        const entry = byNurse.get(row.nurse_id) ?? { nurse: { id: row.nurse.id, fullName: row.nurse.full_name }, branches: [] }
+        entry.branches.push({
+          branch: { id: row.branch.id, name: row.branch.name, agency: row.branch.agency },
+          status: row.status,
+          activatedAt: row.activated_at ? iso(row.activated_at) : null,
+        })
+        byNurse.set(row.nurse_id, entry)
+      }
+      return [...byNurse.values()]
+        .map((entry) => ({ ...entry, branches: entry.branches.sort((a, b) => a.branch.name.localeCompare(b.branch.name)) }))
+        .sort((a, b) => a.nurse.fullName.localeCompare(b.nurse.fullName) || a.nurse.id.localeCompare(b.nurse.id))
+    },
+
+    async getEligibility(viewer, nurseId, branchId): Promise<EligibilityRecord | null> {
+      const row = unwrap(
+        await asUser(viewer.accessToken)
+          .from('branch_nurse_eligibility')
+          .select('nurse_id, branch_id, status, activated_at')
+          .eq('nurse_id', nurseId)
+          .eq('branch_id', branchId)
+          .maybeSingle(),
+        'get eligibility',
+      )
+      if (!row) return null
+      const parsed = parseRows(eligibilityRecordRow, [row], 'get eligibility')[0]!
+      return { nurseId: parsed.nurse_id, branchId: parsed.branch_id, status: parsed.status, activatedAt: parsed.activated_at ? iso(parsed.activated_at) : null }
+    },
+
+    setBranchEligibility(actorId, nurseId, branchId, status) {
+      return runAdminCommand<SetEligibilityOutcome>('set_branch_eligibility', {
+        p_actor_id: actorId,
+        p_nurse_id: nurseId,
+        p_branch_id: branchId,
+        p_status: status,
+      })
     },
 
     async listUsers(viewer) {

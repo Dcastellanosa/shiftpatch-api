@@ -14,7 +14,7 @@ import {
 } from '../../../../test-support/fakes.js'
 
 const EXPECTED_PAYLOAD = {
-  user: { id: USER.id, email: USER.email, fullName: null, role: null, agencyId: null },
+  user: { id: USER.id, email: USER.email, fullName: null, role: null, agencyId: null, agencyIds: [] },
 }
 
 const CLEARED = /Expires=Thu, 01 Jan 1970 00:00:00 GMT/
@@ -127,6 +127,7 @@ describe('POST /auth/login', () => {
       id: 'attacker-chosen-id',
       role: 'admin',
       agencyId: 'agency-1',
+      agencyIds: ['agency-1'],
     })
 
     expect(res.body).toEqual(EXPECTED_PAYLOAD)

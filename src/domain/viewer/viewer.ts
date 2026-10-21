@@ -11,7 +11,9 @@ export interface Profile {
   id: string
   fullName: string
   role: AppRole
-  /** Agency of the active membership (agency users only). */
+  /** Agencies of the caller's active memberships (agency users only; empty otherwise). */
+  agencyIds: string[]
+  /** First active agency, kept for callers that expect a single one. */
   agencyId: string | null
 }
 

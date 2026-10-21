@@ -62,9 +62,10 @@ const SHIFT_ID = 'e1000000-0000-4000-8000-0000000000aa'
 const BRANCH_ID = 'b1000000-0000-4000-8000-000000000001'
 const EVENT_ID = 'f1000000-0000-4000-8000-000000000001'
 
-const nurse: Viewer = { id: NURSE_ID, fullName: 'Ava', role: 'nurse', agencyId: null, accessToken: 'jwt-nurse' }
-const agency: Viewer = { id: NURSE_ID, fullName: 'Riley', role: 'agency', agencyId: AGENCY_ID, accessToken: 'jwt' }
-const admin: Viewer = { id: NURSE_ID, fullName: 'Morgan', role: 'admin', agencyId: null, accessToken: 'jwt' }
+const nurse: Viewer = { id: NURSE_ID, fullName: 'Ava', role: 'nurse', agencyIds: [], agencyId: null, accessToken: 'jwt-nurse' }
+const agency: Viewer = { id: NURSE_ID, fullName: 'Riley', role: 'agency', agencyIds: [AGENCY_ID], agencyId: AGENCY_ID, accessToken: 'jwt' }
+const admin: Viewer = { id: NURSE_ID, fullName: 'Morgan', role: 'admin', agencyIds: [], agencyId: null, accessToken: 'jwt' }
+const NO_AGENCY: Viewer = { ...agency, agencyIds: [], agencyId: null }
 
 const SHIFT_ROW = {
   id: SHIFT_ID,
@@ -133,17 +134,19 @@ describe('createSupabaseDataStore', () => {
       expect(call('eq')).toEqual([['id', NURSE_ID]])
     })
 
-    it('uses the active membership agency for agency users', async () => {
+    it('collects every active membership agency for agency users', async () => {
       respond(
         profileRow('agency', [
           { agency_id: 'a2000000-0000-4000-8000-000000000002', status: 'inactive' },
           { agency_id: AGENCY_ID, status: 'active' },
+          { agency_id: 'a3000000-0000-4000-8000-000000000003', status: 'active' },
         ]),
       )
       await expect(createSupabaseDataStore(CONFIG).getProfile('jwt', NURSE_ID)).resolves.toEqual({
         id: NURSE_ID,
         fullName: 'Riley',
         role: 'agency',
+        agencyIds: [AGENCY_ID, 'a3000000-0000-4000-8000-000000000003'],
         agencyId: AGENCY_ID,
       })
     })
@@ -152,6 +155,7 @@ describe('createSupabaseDataStore', () => {
       respond(profileRow('agency', [{ agency_id: AGENCY_ID, status: 'inactive' }]))
       const profile = await createSupabaseDataStore(CONFIG).getProfile('jwt', NURSE_ID)
       expect(profile?.agencyId).toBeNull()
+      expect(profile?.agencyIds).toEqual([])
     })
 
     it('ignores memberships for non-agency roles', async () => {
@@ -202,12 +206,12 @@ describe('createSupabaseDataStore', () => {
 
     it('pins agency users to their own agency', async () => {
       await createSupabaseDataStore(CONFIG).listShifts(agency, {})
-      expect(call('eq')).toEqual([['branch.agency_id', AGENCY_ID]])
+      expect(call('in')).toEqual([['branch.agency_id', [AGENCY_ID]]])
     })
 
     it('pins an agency viewer without an agency to a uuid that matches nothing', async () => {
-      await createSupabaseDataStore(CONFIG).listShifts({ ...agency, agencyId: null }, {})
-      expect(call('eq')).toEqual([['branch.agency_id', '00000000-0000-0000-0000-000000000000']])
+      await createSupabaseDataStore(CONFIG).listShifts(NO_AGENCY, {})
+      expect(call('in')).toEqual([['branch.agency_id', ['00000000-0000-0000-0000-000000000000']]])
     })
 
     it('shows nurses only open shifts that have not started', async () => {
@@ -318,12 +322,12 @@ describe('createSupabaseDataStore', () => {
 
     it('pins agency users to their agency', async () => {
       await createSupabaseDataStore(CONFIG).listBranches(agency)
-      expect(call('eq')).toEqual([['agency_id', AGENCY_ID]])
+      expect(call('in')).toEqual([['agency_id', [AGENCY_ID]]])
     })
 
     it('pins an agency viewer without an agency to a uuid that matches nothing', async () => {
-      await createSupabaseDataStore(CONFIG).listBranches({ ...agency, agencyId: null })
-      expect(call('eq')).toEqual([['agency_id', '00000000-0000-0000-0000-000000000000']])
+      await createSupabaseDataStore(CONFIG).listBranches(NO_AGENCY)
+      expect(call('in')).toEqual([['agency_id', ['00000000-0000-0000-0000-000000000000']]])
     })
   })
 
@@ -537,5 +541,56 @@ describe('user administration', () => {
     expect(rpc).toHaveBeenLastCalledWith('provision_user', { p_actor_id: AGENCY_ID, p_user_id: NURSE_ID, p_full_name: 'Pat', p_role: 'agency', p_agency_ids: [AGENCY_ID], p_branch_id: null })
     await store.provisionUser(AGENCY_ID, NURSE_ID, { email: 'x@example.test', fullName: 'Sam', role: 'admin' })
     expect(rpc).toHaveBeenLastCalledWith('provision_user', { p_actor_id: AGENCY_ID, p_user_id: NURSE_ID, p_full_name: 'Sam', p_role: 'admin', p_agency_ids: null, p_branch_id: null })
+  })
+})
+
+describe('nurse eligibility', () => {
+  const ROW = (nurseId: string, fullName: string, branchId: string, branchName: string, status: string) => ({
+    nurse_id: nurseId,
+    status,
+    activated_at: status === 'active' ? '2030-01-01 00:00:00+00' : null,
+    nurse: { id: nurseId, full_name: fullName },
+    branch: { id: branchId, name: branchName, agency: { id: AGENCY_ID, name: 'Northwind' } },
+  })
+
+  it('groups eligibility rows by nurse, pinned to the agency viewer agencies', async () => {
+    respond(ok([ROW(NURSE_ID, 'Ava', BRANCH_ID, 'Riverside', 'active'), ROW(NURSE_ID, 'Ava', 'b1000000-0000-4000-8000-000000000002', 'Downtown', 'suspended'), ROW('c1000000-0000-4000-8000-000000000012', 'Ben', BRANCH_ID, 'Riverside', 'pending')]))
+    const nurses = await createSupabaseDataStore(CONFIG).listAgencyNurses(agency)
+    expect(tables).toEqual(['branch_nurse_eligibility'])
+    expect(call('in')).toEqual([['branch.agency_id', [AGENCY_ID]]])
+    expect(nurses).toEqual([
+      {
+        nurse: { id: NURSE_ID, fullName: 'Ava' },
+        branches: [
+          { branch: { id: 'b1000000-0000-4000-8000-000000000002', name: 'Downtown', agency: { id: AGENCY_ID, name: 'Northwind' } }, status: 'suspended', activatedAt: null },
+          { branch: { id: BRANCH_ID, name: 'Riverside', agency: { id: AGENCY_ID, name: 'Northwind' } }, status: 'active', activatedAt: '2030-01-01T00:00:00.000Z' },
+        ],
+      },
+      {
+        nurse: { id: 'c1000000-0000-4000-8000-000000000012', fullName: 'Ben' },
+        branches: [{ branch: { id: BRANCH_ID, name: 'Riverside', agency: { id: AGENCY_ID, name: 'Northwind' } }, status: 'pending', activatedAt: null }],
+      },
+    ])
+  })
+
+  it('does not pin admins', async () => {
+    respond(ok([]))
+    await createSupabaseDataStore(CONFIG).listAgencyNurses(admin)
+    expect(call('in')).toEqual([])
+  })
+
+  it('reads one eligibility row or null', async () => {
+    respond(ok({ nurse_id: NURSE_ID, branch_id: BRANCH_ID, status: 'active', activated_at: '2030-01-01 00:00:00+00' }))
+    await expect(createSupabaseDataStore(CONFIG).getEligibility(agency, NURSE_ID, BRANCH_ID)).resolves.toEqual({ nurseId: NURSE_ID, branchId: BRANCH_ID, status: 'active', activatedAt: '2030-01-01T00:00:00.000Z' })
+    expect(call('eq')).toEqual([['nurse_id', NURSE_ID], ['branch_id', BRANCH_ID]])
+    respond(ok(null))
+    await expect(createSupabaseDataStore(CONFIG).getEligibility(agency, NURSE_ID, BRANCH_ID)).resolves.toBeNull()
+  })
+
+  it('sets eligibility through the service role', async () => {
+    rpc.mockResolvedValue({ data: { outcome: 'updated', entity_id: 'f1000000-0000-4000-8000-000000000001' }, error: null })
+    const store = createSupabaseDataStore({ ...CONFIG, serviceRoleKey: 'service-key' })
+    await expect(store.setBranchEligibility(AGENCY_ID, NURSE_ID, BRANCH_ID, 'suspended')).resolves.toEqual({ outcome: 'updated', entityId: 'f1000000-0000-4000-8000-000000000001' })
+    expect(rpc).toHaveBeenLastCalledWith('set_branch_eligibility', { p_actor_id: AGENCY_ID, p_nurse_id: NURSE_ID, p_branch_id: BRANCH_ID, p_status: 'suspended' })
   })
 })

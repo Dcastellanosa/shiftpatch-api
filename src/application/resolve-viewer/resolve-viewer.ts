@@ -16,6 +16,6 @@ export async function resolveViewer(
 ): Promise<ResolveViewerResult> {
   const profile = await store.getProfile(accessToken, user.id)
   if (!profile) return { ok: false, outcome: 'profile_missing' }
-  if (profile.role === 'agency' && !profile.agencyId) return { ok: false, outcome: 'membership_inactive' }
+  if (profile.role === 'agency' && profile.agencyIds.length === 0) return { ok: false, outcome: 'membership_inactive' }
   return { ok: true, viewer: { ...profile, accessToken } }
 }

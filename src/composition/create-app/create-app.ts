@@ -6,6 +6,7 @@ import { errorHandler, notFoundHandler } from '../../interfaces/http/error-handl
 import { requireTrustedOrigin } from '../../interfaces/http/middleware/origin-check/origin-check.js'
 import { requireSession, resolveSession } from '../../interfaces/http/middleware/session/session.js'
 import { createAdminRouter } from '../../interfaces/http/routes/admin-routes/admin-routes.js'
+import { createEligibilityRouter } from '../../interfaces/http/routes/eligibility-routes/eligibility-routes.js'
 import { createShiftRouter } from '../../interfaces/http/routes/shift-routes/shift-routes.js'
 import { createSupabaseAuthAdmin } from '../../infrastructure/auth/supabase-auth-admin/supabase-auth-admin.js'
 import { createSupabaseAuthProvider } from '../../infrastructure/auth/supabase-auth-provider/supabase-auth-provider.js'
@@ -93,6 +94,7 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
   app.use('/auth', createAuthRouter({ provider: authProvider, store: dataStore, cookieConfig, authAdmin, setPasswordUrl }))
   const authenticate = [resolveSession(authProvider, cookieConfig), requireSession]
   app.use(createShiftRouter(dataStore, authenticate))
+  app.use(createEligibilityRouter(dataStore, authenticate))
   app.use('/admin', createAdminRouter({ store: dataStore, authAdmin, setPasswordUrl }, authenticate))
 
   app.use(notFoundHandler)

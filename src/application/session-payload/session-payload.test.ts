@@ -11,6 +11,7 @@ describe('toSessionPayload', () => {
         fullName: AGENCY_PROFILE.fullName,
         role: 'agency',
         agencyId: AGENCY_PROFILE.agencyId,
+        agencyIds: AGENCY_PROFILE.agencyIds,
       },
     })
   })
@@ -22,6 +23,7 @@ describe('toSessionPayload', () => {
       fullName: null,
       role: null,
       agencyId: null,
+      agencyIds: [],
     })
   })
 
@@ -32,6 +34,7 @@ describe('toSessionPayload', () => {
       'fullName',
       'role',
       'agencyId',
+      'agencyIds',
     ])
   })
 })

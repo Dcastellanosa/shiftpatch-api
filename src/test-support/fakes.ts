@@ -5,7 +5,7 @@ import type { DataStore } from '../domain/ports/data-store/data-store.js'
 import { parseEnv } from '../infrastructure/config/env/env.js'
 import { createApp } from '../composition/create-app/create-app.js'
 import type { AuthUser, Profile, Viewer } from '../domain/viewer/viewer.js'
-import type { AdminUser } from '../domain/admin/admin.js'
+import type { AdminUser, EligibilityRecord, NurseEligibility } from '../domain/admin/admin.js'
 import type { Agency, AgencyBranch } from '../domain/agency/agency.js'
 import type { Shift } from '../domain/shift/shift.js'
 
@@ -65,17 +65,21 @@ export function fakeDataStore(overrides: Partial<DataStore> = {}) {
     listUsers: vi.fn<DataStore['listUsers']>(overrides.listUsers ?? unexpected('listUsers')),
     getUser: vi.fn<DataStore['getUser']>(overrides.getUser ?? unexpected('getUser')),
     provisionUser: vi.fn<DataStore['provisionUser']>(overrides.provisionUser ?? unexpected('provisionUser')),
+    listAgencyNurses: vi.fn<DataStore['listAgencyNurses']>(overrides.listAgencyNurses ?? unexpected('listAgencyNurses')),
+    getEligibility: vi.fn<DataStore['getEligibility']>(overrides.getEligibility ?? unexpected('getEligibility')),
+    setBranchEligibility: vi.fn<DataStore['setBranchEligibility']>(overrides.setBranchEligibility ?? unexpected('setBranchEligibility')),
   }
 }
 
-export const NURSE_PROFILE: Profile = { id: USER.id, fullName: 'Ava Thompson', role: 'nurse', agencyId: null }
+export const NURSE_PROFILE: Profile = { id: USER.id, fullName: 'Ava Thompson', role: 'nurse', agencyIds: [], agencyId: null }
 export const AGENCY_PROFILE: Profile = {
   id: USER.id,
   fullName: 'Riley Northwind',
   role: 'agency',
+  agencyIds: ['a1000000-0000-4000-8000-000000000001'],
   agencyId: 'a1000000-0000-4000-8000-000000000001',
 }
-export const ADMIN_PROFILE: Profile = { id: USER.id, fullName: 'Morgan Admin', role: 'admin', agencyId: null }
+export const ADMIN_PROFILE: Profile = { id: USER.id, fullName: 'Morgan Admin', role: 'admin', agencyIds: [], agencyId: null }
 
 /** The viewer `loadViewer` would build for the given profile in a session. */
 export function viewerFor(profile: Profile): Viewer {
@@ -183,6 +187,26 @@ export function agencyBranchFixture(overrides: Partial<AgencyBranch> = {}): Agen
     status: 'active',
     createdAt: '2029-11-01T00:00:00.000Z',
     updatedAt: '2029-11-02T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+export const NURSE_ID = 'c1000000-0000-4000-8000-000000000011'
+
+export function eligibilityFixture(overrides: Partial<EligibilityRecord> = {}): EligibilityRecord {
+  return { nurseId: NURSE_ID, branchId: BRANCH_ID, status: 'active', activatedAt: '2030-01-01T00:00:00.000Z', ...overrides }
+}
+
+export function nurseEligibilityFixture(overrides: Partial<NurseEligibility> = {}): NurseEligibility {
+  return {
+    nurse: { id: NURSE_ID, fullName: 'Ava Thompson' },
+    branches: [
+      {
+        branch: { id: BRANCH_ID, name: 'Downtown Clinic', agency: { id: AGENCY_ID, name: 'Northwind Care Staffing' } },
+        status: 'active',
+        activatedAt: '2030-01-01T00:00:00.000Z',
+      },
+    ],
     ...overrides,
   }
 }

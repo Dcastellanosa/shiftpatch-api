@@ -84,7 +84,7 @@ describe('authentication and profile gate', () => {
   })
 
   it('returns 403 membership_inactive for an agency user without an active membership', async () => {
-    const store = fakeDataStore({ getProfile: asProfile({ ...AGENCY_PROFILE, agencyId: null }) })
+    const store = fakeDataStore({ getProfile: asProfile({ ...AGENCY_PROFILE, agencyIds: [], agencyId: null }) })
     const res = await get(buildSignedInApp(store), '/shifts')
     expect(res.status).toBe(403)
     expect(res.body.error.code).toBe('membership_inactive')
@@ -116,6 +116,7 @@ describe('GET /auth/me with a profile', () => {
         fullName: AGENCY_PROFILE.fullName,
         role: 'agency',
         agencyId: AGENCY_PROFILE.agencyId,
+        agencyIds: AGENCY_PROFILE.agencyIds,
       },
     })
   })

@@ -38,3 +38,21 @@ export type InviteUserCommand = { email: string; fullName: string } & (
 
 export const PASSWORD_LINK_TYPES = ['invite', 'recovery'] as const
 export type PasswordLinkType = (typeof PASSWORD_LINK_TYPES)[number]
+
+/** One nurse connected to the viewer's agencies, with their status at each of those agencies' branches. */
+export interface NurseEligibility {
+  nurse: { id: string; fullName: string }
+  branches: {
+    branch: { id: string; name: string; agency: { id: string; name: string } }
+    status: EligibilityStatus
+    activatedAt: string | null
+  }[]
+}
+
+/** One nurse-branch eligibility row. */
+export interface EligibilityRecord {
+  nurseId: string
+  branchId: string
+  status: EligibilityStatus
+  activatedAt: string | null
+}
