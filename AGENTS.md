@@ -92,17 +92,27 @@ binaries, so its install script is not needed. Revisit this only if `pnpm dev` f
   never print keys. Keep them local-only.
 - On every failure path of invitation, password completion and recovery, do not return or log passwords, hashes,
   tokens or invitation URLs, and do not set cookies. `POST /auth/recover` always answers `204`.
-- Supabase access and refresh tokens live only in HttpOnly cookies set by this API. Never return tokens in JSON.
-  Responses expose only the safe session payload (`src/application/session-payload/`).
-- Identity comes only from the validated cookie session (`req.auth`, set by `resolveSession`). Never trust a user ID,
-  role, agency ID, credential state, or token sent in a body, query string, or custom header. Never derive roles
-  from `user_metadata`.
+- Sessions: the refresh token lives only in its HttpOnly cookie and is never returned in JSON. The access token
+  is set as an HttpOnly cookie **and** returned once as `token` by `POST /auth/login` and
+  `POST /auth/complete-password`, because the trial contract requires `Authorization: Bearer <token>` for API
+  clients. The web app ignores `token` and relies on cookies. Bearer requests are validated as is, never
+  refreshed, and never fall back to cookies. Responses otherwise expose only the safe session payload
+  (`src/application/session-payload/`).
+- Public identifiers are slugs (`agency-a`, `nurse-1`, `shift-1`, column `slug`), never database UUIDs. Every
+  route accepts and returns them; the data store resolves them to UUIDs for the SECURITY DEFINER commands.
+  Branch ids stay UUIDs. Shift status is `filled` on the wire (`claimed` in the database).
+- `pnpm seed` loads exactly the trial dataset of `scripts/seed-data.ts`. Integration-test fixtures live in
+  `test/integration/fixtures.ts` and are seeded by the test global setup only, never by `pnpm seed`.
+- Identity comes only from the validated session (`req.auth`, set by `resolveSession` from the cookies or from
+  `Authorization: Bearer`). Never trust a user ID, role, agency ID, credential state, or token sent in a body, query
+  string, or custom header. Never derive roles from `user_metadata`.
 - Unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) must pass the Origin check (`src/interfaces/http/middleware/origin-check/`). Do not
   bypass it for new routes.
 - Never log credentials, cookies, tokens, authorization headers, request bodies, or raw Supabase error objects.
 - CORS is an exact-origin allowlist from `CORS_ORIGINS` with credentials enabled. Never use `*` and never allow
   arbitrary `*.vercel.app` origins.
-- Validate all request input (params, query, body) with Zod. Error responses must not leak stack traces or internals.
+- Validate all request input (params, query, body) with Zod. Error responses are always
+  `{ "error": "<safe message>", "code": "<machine_code>", "details"? }` and must not leak stack traces or internals.
 - Do not commit machine-specific files or files containing local absolute paths (agent tooling directories such as
   `.claude/`, `.codex/`, `.kiro/`, `.agents/`, `skills/` are gitignored for this reason).
 

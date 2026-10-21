@@ -2,9 +2,17 @@
 
 Express + TypeScript API for ShiftPatch, a healthcare staffing platform. Deployed to Vercel as a serverless function.
 
-> Status: first vertical slice. Agencies post open shifts, eligible nurses claim them atomically, and agencies and
-> admins see the status and history. Cancellation, completion, credential uploads, notifications and reporting
-> are not built yet.
+> Status: vertical slice, agency administration and the trial contract. Agencies post open shifts, eligible nurses
+> claim them atomically, agencies and admins see status and history, admins manage agencies, branches and users,
+> agencies manage nurse eligibility, and claimed shifts can be cancelled (no-show / advance). Credential uploads,
+> timesheets, the audit-log reader, completion and notifications are not built yet.
+>
+> **Trial contract.** The six routes of the required specification (`POST /api/auth/login`, `GET /api/shifts`,
+> `POST /api/shifts`, `POST /api/shifts/:id/claim`, `POST /api/shifts/:id/cancel`,
+> `GET /api/agencies/:agencyId/shifts`) are served with `Authorization: Bearer <token>`, public ids
+> (`agency-a`, `nurse-1`, `shift-1`), the flat shift shape and `{ "error": "<message>" }` envelopes, both at
+> `/api/...` on this host and, prefix-less, behind the web proxy. `pnpm seed` loads exactly the specification's
+> sample data. `test/integration/contract-api.test.ts` replays the specification request by request.
 
 ## Architecture: backend-for-frontend (BFF)
 
@@ -18,8 +26,9 @@ Browser ──same-origin /api/*──▶ shiftpatch-web (Vite dev proxy / Verce
 - This API is the **only** component that talks to Supabase. The React app never imports a Supabase client and
   never sees a Supabase key or token.
 - The API owns login, session lifecycle, token validation, authorization, business logic, and database access.
-- Supabase access and refresh tokens are stored only in `HttpOnly` cookies set by this API. JSON responses never
-  contain tokens.
+- The refresh token is stored only in an `HttpOnly` cookie set by this API and never appears in JSON. The access
+  token is set as an `HttpOnly` cookie **and** returned once as `token` by the sign-in responses, for API clients
+  that authenticate with `Authorization: Bearer <token>` (the trial contract). The React app ignores it.
 
 ## Security model
 
@@ -31,24 +40,45 @@ Three independent layers, each sufficient to stop the common mistakes of the oth
 2. **Row Level Security** on every table. Reads run through a request-scoped Supabase client that carries the
    caller's access token, so Postgres applies the policies to every query. Client roles (`anon`, `authenticated`)
    have `SELECT` only. They have no `INSERT`, `UPDATE` or `DELETE` privilege on any table.
-3. **Workflow functions** (`create_shift`, `claim_shift`) are `SECURITY DEFINER`, executable only by
-   `service_role`, and do all their checks and writes in one transaction. The API calls them with the service-role
-   key, but only after it has verified the session and role. It passes the verified profile ID, never a
-   client-supplied one.
+3. **Workflow functions** (`create_shift`, `claim_shift`, `cancel_shift_claim` and the admin commands) are
+   `SECURITY DEFINER`, executable only by `service_role`, and do all their checks and writes in one transaction.
+   The API calls them with the service-role key, but only after it has verified the session and role. It passes
+   the verified profile ID, never a client-supplied one.
 
-The service-role key is used only for those two RPCs (and by `pnpm seed`). It never reaches the browser.
+The service-role key is used only for those commands, for resolving public ids to UUIDs, for the Auth admin API
+(invitations, deletions) and by `pnpm seed`. It never reaches the browser.
+
+**Marketplace reads.** `GET /shifts` lists every shift of every agency to every signed-in user (the specification's
+marketplace). It reads through `list_shifts_marketplace`, a `SECURITY DEFINER` projection that returns only shift,
+branch, agency and assigned-nurse columns, so the table policies stay as strict as before: nurses still cannot
+read other nurses' profiles or credentials, and shift *history* stays scoped (own claims for nurses, own agencies
+for agency users).
+
+**Public ids.** Agencies, users and shifts carry a `slug` (`agency-a`, `nurse-1`, `shift-1`; new rows get
+`agency-N`, `nurse-N`, `admin-N`, `shift-N` from a trigger) and every route accepts and returns those, never the
+UUIDs. Branch ids are UUIDs.
 
 ### Atomic claim (`claim_shift`)
 
 One transaction: lock the shift row (`FOR UPDATE`) → lock the nurse's profile row (serializes one nurse's
-concurrent claims) → shift exists and is `open` → actor is a nurse → shift has not started → `active` eligibility
-at the branch → every required credential has a row with `status = 'valid'` and
+concurrent claims) → shift exists and is `open` → actor is a nurse → branch and agency active → `active`
+eligibility at the branch → every required credential has a row with `status = 'valid'` and
 `expires_at >= (starts_at AT TIME ZONE 'UTC')::date` → no overlapping `claimed` shift → assign + `claimed` +
 append a `shift_events` row. It returns a typed outcome (`shift_command_result`) instead of raising for domain
 failures. A `claimed`-only exclusion constraint (`btree_gist`) backs up the overlap rule at the table level.
 
 Concurrent claims of the same shift queue on the row lock. The loser re-reads the committed row and gets
 `shift_not_open`. The integration suite covers this with a deterministic lock test and a 10-way race.
+
+There is no "shift already started" or "shift in the past" rule: the specification's sample shifts are dated and
+must stay claimable, and its create example posts a dated shift.
+
+### Cancellation (`cancel_shift_claim`)
+
+`POST /shifts/:id/cancel` with `{ "reason": "no-show" | "advance" }` releases the claim and reopens the shift in
+one transaction: the owning agency, an admin, or the assigned nurse may cancel; the shift must be `filled`; a
+`shift_events` row (`no_show` or `cancelled`, `claimed → open`) records it. The response is the reopened shift
+plus `cancellation: { reason, previousNurseId }`.
 
 ## Data model
 
@@ -65,6 +95,9 @@ Migrations are in `supabase/migrations/` (additive only):
 | `20261017210000_staffing_schema.sql` | Enums, 10 tables, FKs, checks, unique pairs, indexes, `updated_at` triggers, cross-table role triggers, append-only trigger on `shift_events`, Auth → profile trigger, `credential_types` reference rows |
 | `20261017210100_row_level_security.sql` | Privileges (client roles: `SELECT` only), RLS on every table, policy helpers in a non-exposed `shiftpatch_private` schema |
 | `20261017210200_shift_workflow_functions.sql` | `create_shift`, `claim_shift`, `shift_command_result` type, `EXECUTE` revoked from client roles |
+| `20261021120000_agency_administration.sql` | Branch status, enforced agency status, write-only `audit_events`, admin commands, inactive guards in `create_shift` / `claim_shift` |
+| `20261022090000_delete_agency_and_user.sql` | `delete_agency`, `delete_user`, audit action `deleted` |
+| `20261023100000_contract_compatibility.sql` | `slug` columns + trigger, `list_shifts_marketplace`, `cancel_shift_claim`, `create_shift` / `claim_shift` without timing guards |
 
 Tables: `profiles`, `agencies`, `agency_branches`, `agency_memberships`, `credential_types`, `nurse_credentials`,
 `branch_credential_requirements`, `branch_nurse_eligibility`, `shifts`, `shift_events`.
@@ -89,11 +122,13 @@ Integrity rules enforced in the database, not only in Express:
 
 | Capability | Admin | Agency user | Nurse |
 |---|---|---|---|
-| List shifts (`GET /shifts`) | all | own agency | future open shifts at branches with `active` eligibility (+ own with `includeAssigned=true`) |
-| Read one shift | any | own agency | the same open shifts, plus shifts assigned to them |
-| Create shift | any branch | own agency's branches | — |
+| List shifts (`GET /shifts`, the marketplace) | all | all | all |
+| Agency view (`GET /agencies/:agencyId/shifts`) | any agency | own agencies | — |
+| Read one shift | any | any | any |
+| Create shift | any branch (`branchId` required) | own agency's branches (`branchId` optional with one branch) | — |
 | Claim shift | — | — | yes, if every claim rule passes |
-| Shift history | any | own agency | shifts assigned to them |
+| Cancel a filled shift (no-show / advance) | any | own agency's shifts | own claim |
+| Shift history | any | own agencies | shifts assigned to them |
 | `GET /me/shifts` | — | — | own |
 | `GET /branches` | all | own agency | branches with an eligibility record or an assigned shift |
 | Agencies and branches (`/admin/agencies*`) | create, rename, activate / deactivate, delete (only without shift history) | — | — |
@@ -103,21 +138,25 @@ Integrity rules enforced in the database, not only in Express:
 
 ## API routes
 
-Paths are relative to this API. The frontend reaches them as `/api/...`. Every shift route needs a cookie session.
-Errors always use `{ "error": { "code", "message", "details"? } }`.
+Every route is served both prefix-less (what the web proxy forwards) and under `/api/...` (what API clients call
+on this host). Shift routes need a session: the cookies, or `Authorization: Bearer <token>` with the `token` a
+sign-in response returned. Errors always use `{ "error": "<message>", "code": "<machine_code>", "details"? }`.
+Ids in paths and bodies are public ids (`shift-1`, `agency-a`, `nurse-1`); branch ids are UUIDs.
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/auth/login` | `{ email, password }` → sets cookies, returns `{ user }` |
-| `POST` | `/auth/logout` | `204`, clears cookies |
-| `GET` | `/auth/me` | `{ user: { id, email, fullName, role, agencyId } }` (role etc. from `profiles`; `null` if not provisioned) |
-| `POST` | `/auth/complete-password` | Public. `{ tokenHash, type: "invite" \| "recovery", password }` from the emailed link → sets cookies, returns `{ user }`. Failures set no cookie: `401 invalid_or_expired_link`, `422 weak_password` |
+| `POST` | `/auth/login` | `{ email, password }` → sets cookies, returns `{ token, user: { id, name, email, role, agencyId, agencyIds } }`. `id` is the public id: `nurse-1` / `admin-1`, or the agency (`agency-a`) for agency logins. `401 { "error": "Invalid email or password" }` |
+| `POST` | `/auth/logout` | `204`, clears cookies (revokes a bearer session too) |
+| `GET` | `/auth/me` | `{ user }` as above, without `token` (`role` etc. `null` if not provisioned) |
+| `POST` | `/auth/complete-password` | Public. `{ tokenHash, type: "invite" \| "recovery", password }` from the emailed link → sets cookies, returns `{ token, user }`. Failures set no cookie: `401 invalid_or_expired_link`, `422 weak_password` |
 | `POST` | `/auth/recover` | Public. `{ email }` → always `204`; sends a recovery email when the address exists |
-| `GET` | `/shifts` | Query: `status`, `branchId`, `from`, `to` (ISO with offset; filters `starts_at`), `includeAssigned=true` (nurses). → `{ shifts }` |
-| `POST` | `/shifts` | Agency/admin. `{ branchId, title, startsAt, endsAt }` (ISO with offset, ≤ 24 h). → `201 { shift }` |
-| `GET` | `/shifts/:shiftId` | → `{ shift }` or `404 shift_not_found` |
-| `POST` | `/shifts/:shiftId/claim` | Nurse only. No body. → `{ shift }` |
-| `GET` | `/shifts/:shiftId/events` | → `{ events }` (oldest first) |
+| `GET` | `/shifts` | Every shift of every agency. Query: `status` (`open`, `filled`, …), `branchId`, `agencyId`, `from`, `to` (ISO with offset; filter `starts_at`). → `{ shifts }` |
+| `POST` | `/shifts` | Agency/admin. `{ role, date, startTime, endTime, branchId? }` (facility-local `YYYY-MM-DD` / `HH:MM` in the branch zone; `endTime` ≤ `startTime` means the next day; `branchId` optional when the caller has one active branch). → `201` the shift |
+| `GET` | `/shifts/:shiftId` | → the shift, or `404 shift_not_found` |
+| `POST` | `/shifts/:shiftId/claim` | Nurse only. No body. → the filled shift. `403 { "error": "Credential expired, cannot claim shift" }` when a required credential is expired, missing or revoked |
+| `POST` | `/shifts/:shiftId/cancel` | Owning agency, admin or the assigned nurse. `{ reason: "no-show" \| "advance" }` → the reopened shift + `cancellation: { reason, previousNurseId }`. `409 shift_not_filled` |
+| `GET` | `/shifts/:shiftId/events` | → `{ events }` (oldest first); nurses only for their claims, agencies only for their shifts |
+| `GET` | `/agencies/:agencyId/shifts` | Agency (own) or admin. Same query as `/shifts`. → `{ agencyId, shifts }` |
 | `GET` | `/me/shifts` | Nurse only. → `{ upcoming, past }` (past newest first) |
 | `GET` | `/branches` | → `{ branches }` (for the create-shift form and admin filters) |
 | `GET` / `POST` | `/admin/agencies` | Admin. → `{ agencies }` (with `status`, `branchCount`); `{ name }` → `201 { agency }` |
@@ -130,17 +169,23 @@ Errors always use `{ "error": { "code", "message", "details"? } }`.
 | `PUT` / `DELETE` | `/nurses/:nurseId/eligibility/:branchId` | Agency (own branches) or admin. Activates / suspends → `{ eligibility }` |
 | `GET` | `/health` | `{ "status": "ok" }` |
 
-Shift shape (`src/domain/shift/`, validated by Zod in `src/interfaces/http/schemas/shifts/`):
+Shift shape (`src/domain/shift/`, validated by Zod in `src/interfaces/http/schemas/shifts/`). The first nine
+fields are the specification's shape; the rest is extra:
 
 ```json
 {
-  "id": "uuid", "title": "ICU RN — Night", "status": "open",
-  "startsAt": "2026-10-21T23:00:00.000Z", "endsAt": "2026-10-22T11:00:00.000Z",
-  "branch": { "id": "uuid", "name": "Riverside Hospital", "address": "…", "timezone": "America/New_York", "status": "active" },
-  "agency": { "id": "uuid", "name": "Northwind Care Staffing" },
-  "assignedNurse": null, "createdAt": "…", "updatedAt": "…"
+  "id": "shift-1", "agencyId": "agency-a", "agencyName": "Sunrise Health Staffing",
+  "role": "RN", "date": "2026-10-02", "startTime": "19:00", "endTime": "07:00",
+  "status": "open", "claimedBy": null,
+  "claimedByName": null,
+  "branch": { "id": "uuid", "name": "Main", "address": "…", "timezone": "UTC", "status": "active" },
+  "startsAt": "2026-10-02T19:00:00.000Z", "endsAt": "2026-10-03T07:00:00.000Z",
+  "createdAt": "…", "updatedAt": "…"
 }
 ```
+
+`date`, `startTime` and `endTime` are the facility-local wall clock in the branch's time zone (the trial branches
+use `UTC`, so no conversion happens). `status` is one of `open`, `filled`, `cancelled`, `completed`, `no_show`.
 
 Status codes:
 
@@ -148,10 +193,10 @@ Status codes:
 |---|---|
 | 400 | `validation_error`, `invalid_json` |
 | 401 | `unauthenticated`, `invalid_credentials`, `invalid_or_expired_link` |
-| 403 | `forbidden` (wrong role), `profile_missing`, `membership_inactive`, `invalid_origin`, `origin_required` |
+| 403 | `forbidden` (wrong role or another agency's view), `credential_expired` / `credential_missing` / `credential_revoked` (claim; message "Credential expired, cannot claim shift"), `profile_missing`, `membership_inactive`, `invalid_origin`, `origin_required` |
 | 404 | `shift_not_found`, `branch_not_found` (also for another agency's resources), `agency_not_found`, `nurse_not_found`, `user_not_found`, `not_found` |
-| 409 | `shift_not_open` (already claimed/not open), `schedule_conflict`, `name_taken`, `email_exists`, `agency_has_shifts`, `cannot_delete_self`, `user_has_history` |
-| 422 | `credential_expired`, `credential_missing`, `credential_revoked`, `eligibility_inactive`, `shift_started`, `shift_in_past`, `agency_inactive`, `branch_inactive`, `invalid_assignment`, `weak_password` |
+| 409 | `shift_not_open` (already claimed/not open), `shift_not_filled` (nothing to cancel), `schedule_conflict`, `name_taken`, `email_exists`, `agency_has_shifts`, `cannot_delete_self`, `user_has_history` |
+| 422 | `eligibility_inactive`, `agency_inactive`, `branch_inactive`, `invalid_assignment`, `weak_password` |
 | 429 | `rate_limited` (Supabase Auth rate limit on login) |
 | 503 | `auth_unavailable`, `data_unavailable` |
 
@@ -165,6 +210,11 @@ Status codes:
 All cookies are `HttpOnly`, `SameSite=Lax`, `Path=/`, with no `Domain`. `Secure` and the `__Host-` prefix apply
 when `NODE_ENV=production`. `resolveSession` validates the access token and refreshes it with the refresh token
 if needed.
+
+**Bearer mode (API clients).** `Authorization: Bearer <token>` with the `token` from `POST /auth/login` is
+accepted on every route instead of the cookies. It is validated as is: no refresh (the token lives one hour; sign
+in again), no cookies read or written, and a rejected header is a `401`, never a fall-back to cookies. Requests
+without an `Origin` header (curl, scripts) pass the CSRF check because they cannot carry a victim's cookies.
 
 Every `POST`, `PUT`, `PATCH` and `DELETE` must carry an `Origin` in `CORS_ORIGINS`. Otherwise the API returns
 `403 invalid_origin` (or `origin_required` for a browser request without `Origin`). CORS is an exact-origin
@@ -238,26 +288,32 @@ To point the API at the local stack, export the values from `supabase status` (`
 key, the secret/service-role key) as `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SERVICE_ROLE_KEY`.
 Exported variables take precedence over `.env`.
 
-The seed is idempotent. It upserts accounts and reference data, inserts each seeded shift once, and moves
-still-open seeded shifts back into the future on every run. It never rewrites claimed shifts or history.
+The seed is idempotent. It upserts accounts and reference data and inserts each seeded shift once; the trial
+shifts keep their dates. It never rewrites claimed shifts or history.
 
-### Test accounts
+### Trial accounts (`pnpm seed`)
 
-Created by `pnpm seed`. Every account uses the password in `SEED_USER_PASSWORD`, which you choose locally. No
-password is stored in this repository.
+`pnpm seed` loads exactly the sample data of the trial specification (`scripts/seed-data.ts`). Every account uses
+the password in `SEED_USER_PASSWORD`; the specification's value is `Trial2026!` (a public trial credential, not a
+secret). Public ids are what the API exposes.
 
-| Email | Role | Scenario |
-|---|---|---|
-| `admin@shiftpatch.test` | admin | Global; no agency |
-| `agency.northwind@shiftpatch.test` | agency | Northwind Care Staffing (Downtown Clinic, Riverside Hospital) |
-| `agency.harbor@shiftpatch.test` | agency | Harbor Health Partners (Bayview Medical Center, Hillcrest Rehabilitation) |
-| `nurse.ava@shiftpatch.test` | nurse | Fully eligible: active at Downtown, Riverside, Bayview. Has claimed shifts, a past completed shift, and an open Riverside shift that overlaps her claim (schedule-conflict demo). |
-| `nurse.ben@shiftpatch.test` | nurse | Active at Downtown, but TB test expired → `credential_expired` |
-| `nurse.cora@shiftpatch.test` | nurse | Valid credentials, eligibility pending (Downtown) / suspended (Bayview) → sees no open shifts, `eligibility_inactive` |
-| `nurse.dev@shiftpatch.test` | nurse | Active at Downtown, no TB test → `credential_missing` |
-| `nurse.eli@shiftpatch.test` | nurse | Second fully eligible nurse (Downtown, Hillcrest) |
+| Public id | Name | Login email | Role | Notes |
+|---|---|---|---|---|
+| `agency-a` | Sunrise Health Staffing | `admin@sunrisehealth.example` | agency | one branch, `Main` (UTC) |
+| `agency-b` | Metro Care Partners | `admin@metrocare.example` | agency | one branch, `Main` (UTC) |
+| `admin-1` | Alex Kim | `alex.kim@example.com` | admin | |
+| `nurse-1` | Maria Lopez | `maria.lopez@example.com` | nurse | licence valid until 2027-01-01; active at both branches; holds `shift-2` |
+| `nurse-2` | James Cook | `james.cook@example.com` | nurse | licence expired 2026-06-01 → every claim answers "Credential expired, cannot claim shift" |
 
-Branch requirements: every branch requires `nursing_license`. All except Hillcrest also require `tb_test`.
+| Shift | Agency | Role | Date | Start | End | Status | Claimed by |
+|---|---|---|---|---|---|---|---|
+| `shift-1` | `agency-a` | RN | 2026-10-02 | 19:00 | 07:00 | open | — |
+| `shift-2` | `agency-a` | LPN | 2026-10-03 | 07:00 | 19:00 | filled | `nurse-1` |
+| `shift-3` | `agency-b` | RN | 2026-10-04 | 19:00 | 07:00 | open | — |
+
+Both branches require `nursing_license` only. The integration suite seeds additional fixtures
+(`test/integration/fixtures.ts`: Northwind, Harbor, Lakeside and their nurses) on top of this dataset for its
+own scenarios; they are never part of `pnpm seed`.
 
 ## Scripts
 
@@ -269,7 +325,7 @@ Branch requirements: every branch requires `nursing_license`. All except Hillcre
 | `pnpm lint` | ESLint |
 | `pnpm test` | Unit + HTTP tests with fakes (no network, no database) and V8 coverage. Fails below 80% statements, branches, functions or lines. HTML report in `coverage/`. Runs in CI. |
 | `pnpm test:watch` | Vitest in watch mode |
-| `pnpm test:db` | `supabase db reset --local`, seed with a random throwaway password, then schema, RLS, claim/concurrency and full-API tests against the local stack. Refuses non-local URLs. Needs `pnpm db:start` first. |
+| `pnpm test:db` | `supabase db reset --local`, seed the trial dataset plus the test fixtures with a random throwaway password, then schema, RLS, claim/concurrency, admin, contract and full-API tests against the local stack. Refuses non-local URLs. Needs `pnpm db:start` first. |
 | `pnpm seed` | Idempotent development seed |
 | `pnpm e2e:reset` | Local only: `supabase db reset --local` + seed with `SEED_USER_PASSWORD` from the environment. Used by shiftpatch-web's Playwright suite with a per-run password |
 | `pnpm e2e:api` | Local only: starts the API against the local stack (`E2E_API_PORT`, default 3100; `E2E_WEB_ORIGIN`, default `http://localhost:5174`). Ignores `.env`; keys come from `supabase status` and are never printed |
@@ -291,7 +347,7 @@ its value.
 | `SUPABASE_PUBLISHABLE_KEY` | for auth/data | Publishable (anon) key. Used for Auth and for RLS-scoped reads with the caller's token. |
 | `SUPABASE_SERVICE_ROLE_KEY` | for commands | Server-only **service-role JWT or `sb_secret_…` key** (not the anon key). Calls the `SECURITY DEFINER` commands (`create_shift`, `claim_shift`, agency/branch/user/eligibility commands) and the Auth admin API (invitations). Without it those routes return `503`. |
 | `WEB_ORIGIN` | no | Origin of the web app that receives invitation and recovery links (`<WEB_ORIGIN>/set-password`). Defaults to the first `CORS_ORIGINS` entry. |
-| `SEED_USER_PASSWORD` | `pnpm seed` only | Password for the seeded test accounts (≥ 12 characters). |
+| `SEED_USER_PASSWORD` | `pnpm seed` only | Password for the seeded trial accounts (≥ 8 characters; the specification uses `Trial2026!`). |
 | `NODE_ENV` | no | `development` (default), `test`, `production`. Production enables `Secure` + `__Host-` cookies. |
 | `PORT` | no | Local dev server port (default `3000`). |
 
@@ -328,10 +384,18 @@ the task brief with these assumptions:
 - `GET /branches` was added (not in the brief) so the create-shift form and admin filters can list branches.
 - Nurses can also read the branch and agency names for branches where they have eligibility or an assigned
   shift. The shift list cannot be displayed without them.
-- A claim is rejected with `422 shift_started` if the shift has already begun. Shift creation is rejected with
-  `422 shift_in_past` for past start times. Shifts longer than 24 h are rejected (`400`).
+- No timing rule: dated (past) shifts can be posted and claimed, because the specification's sample data is
+  dated. A shift spans at most 24 hours (`endTime` ≤ `startTime` rolls to the next day).
+- The specification's `GET /api/shifts` lists every shift to every role; agency-only views use
+  `GET /agencies/:agencyId/shifts`. History, claims and commands stay scoped by role.
+- Cancellation (`reason` `no-show` or `advance`) is allowed to the owning agency, an admin, or the assigned nurse,
+  and always reopens the shift; the specification does not say who may cancel.
+- Agency logins report the agency's public id as `user.id` (`agency-a`), as the specification's example reads; an
+  agency user managing several agencies reports the first active one, with all of them in `agencyIds`.
 - Credential validity is compared against the shift's start **date in UTC**, as specified. A branch-local date
   would differ for shifts that start late in the evening in US time zones.
 - `POST /shifts/:id/claim` maps "not eligible" to `422 eligibility_inactive` even when the nurse could not see the
   shift. The shift ID is a random UUID, so this does not make shifts enumerable.
 - Rate limiting is only the Supabase Auth limit on login (`429 rate_limited`). There is no API-level limiter yet.
+- The error envelope carries `code` next to the specification's `error` string; clients that compare the whole
+  body must tolerate the extra key.
