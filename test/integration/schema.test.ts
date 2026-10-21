@@ -16,6 +16,7 @@ const APP_TABLES = [
   'branch_nurse_eligibility',
   'shifts',
   'shift_events',
+  'audit_events',
 ]
 
 describe('schema', () => {
@@ -44,6 +45,8 @@ describe('schema', () => {
       shift_status: ['open', 'claimed', 'cancelled', 'completed', 'no_show'],
       credential_status: ['valid', 'expired', 'revoked'],
       shift_event_type: ['created', 'claimed', 'cancelled', 'completed', 'no_show'],
+      audit_entity_type: ['agency', 'agency_branch', 'agency_membership', 'branch_nurse_eligibility', 'profile'],
+      audit_action: ['created', 'updated', 'activated', 'deactivated', 'invited', 'eligibility_activated', 'eligibility_suspended'],
     })
   })
 
@@ -148,16 +151,18 @@ describe('bridge-table uniqueness', () => {
     )
   })
 
-  it('rejects a second active membership for an agency user', async () => {
-    await expectSqlState(
-      inRollback(pool, (db) =>
-        db.query(`insert into shiftpatch.agency_memberships (profile_id, agency_id, status) values ($1, $2, 'active')`, [
-          USERS.northwindAgency.id,
-          AGENCIES.harbor.id,
-        ]),
-      ),
-      '23505',
-    )
+  it('allows an agency user to hold several active memberships', async () => {
+    await inRollback(pool, async (db) => {
+      await db.query(`insert into shiftpatch.agency_memberships (profile_id, agency_id, status) values ($1, $2, 'active')`, [
+        USERS.northwindAgency.id,
+        AGENCIES.harbor.id,
+      ])
+      const { rows } = await db.query(
+        `select agency_id from shiftpatch.agency_memberships where profile_id = $1 and status = 'active' order by agency_id`,
+        [USERS.northwindAgency.id],
+      )
+      expect(rows.map((r) => r.agency_id)).toEqual([AGENCIES.northwind.id, AGENCIES.harbor.id])
+    })
   })
 
   it('rejects a duplicate branch name within an agency', async () => {
@@ -230,7 +235,16 @@ describe('shift_events is append-only', () => {
 })
 
 describe('function privileges', () => {
-  it.each(['claim_shift(uuid, uuid)', 'create_shift(uuid, uuid, text, timestamptz, timestamptz)'])(
+  it.each([
+    'claim_shift(uuid, uuid)',
+    'create_shift(uuid, uuid, text, timestamptz, timestamptz)',
+    'create_agency(uuid, text)',
+    'update_agency(uuid, uuid, text, text)',
+    'create_branch(uuid, uuid, text, text, text)',
+    'update_branch(uuid, uuid, text, text, text, text)',
+    'provision_user(uuid, uuid, text, shiftpatch.app_role, uuid[], uuid)',
+    'set_branch_eligibility(uuid, uuid, uuid, shiftpatch.eligibility_status)',
+  ])(
     '%s is executable only by service_role',
     async (signature) => {
       const { rows } = await pool.query(
@@ -277,5 +291,101 @@ describe('profile provisioning trigger', () => {
       const { rows } = await insertAuthUser(db, {}, { role: 'admin', full_name: 'Self Promoter' })
       expect(rows).toEqual([])
     })
+  })
+})
+
+describe('agency administration schema', () => {
+  it('gives branches a status with the same contract as agencies', async () => {
+    const { rows } = await pool.query(
+      `select column_name, column_default, is_nullable from information_schema.columns
+       where table_schema = 'shiftpatch' and table_name = 'agency_branches' and column_name = 'status'`,
+    )
+    expect(rows).toEqual([{ column_name: 'status', column_default: "'active'::text", is_nullable: 'NO' }])
+    await expectSqlState(
+      inRollback(pool, (db) => db.query(`update shiftpatch.agency_branches set status = 'closed' where id = $1`, [BRANCHES.downtown.id])),
+      '23514',
+    )
+    await expectSqlState(
+      inRollback(pool, (db) => db.query(`update shiftpatch.agencies set status = 'closed' where id = $1`, [AGENCIES.northwind.id])),
+      '23514',
+    )
+  })
+
+  it('seeds an inactive agency with an inactive branch', async () => {
+    const { rows } = await pool.query(
+      `select a.status as agency_status, b.status as branch_status
+       from shiftpatch.agency_branches b join shiftpatch.agencies a on a.id = b.agency_id where b.id = $1`,
+      [BRANCHES.lakesideClinic.id],
+    )
+    expect(rows).toEqual([{ agency_status: 'inactive', branch_status: 'inactive' }])
+  })
+
+  it('declares admin_command_result as a composite type, not a table', async () => {
+    const { rows } = await pool.query(
+      `select t.typtype, c.relkind from pg_type t
+       join pg_namespace n on n.oid = t.typnamespace
+       left join pg_class c on c.oid = t.typrelid
+       where n.nspname = 'shiftpatch' and t.typname = 'admin_command_result'`,
+    )
+    expect(rows).toEqual([{ typtype: 'c', relkind: 'c' }])
+    const { rows: attrs } = await pool.query(
+      `select a.attname, format_type(a.atttypid, a.atttypmod) as type from pg_attribute a
+       join pg_type t on t.typrelid = a.attrelid join pg_namespace n on n.oid = t.typnamespace
+       where n.nspname = 'shiftpatch' and t.typname = 'admin_command_result' and a.attnum > 0 order by a.attnum`,
+    )
+    expect(attrs).toEqual([
+      { attname: 'outcome', type: 'text' },
+      { attname: 'entity_id', type: 'uuid' },
+    ])
+  })
+
+  it('exposes list_users_admin to signed-in users only (it rejects non-admins itself)', async () => {
+    const { rows } = await pool.query(
+      `select has_function_privilege('anon', 'shiftpatch.list_users_admin()', 'EXECUTE') as anon,
+              has_function_privilege('authenticated', 'shiftpatch.list_users_admin()', 'EXECUTE') as authenticated`,
+    )
+    expect(rows[0]).toEqual({ anon: false, authenticated: true })
+  })
+})
+
+describe('audit_events is write-only', () => {
+  it('grants no table privilege to any client role, including service_role', async () => {
+    const { rows } = await pool.query(
+      `select r, p from unnest(array['anon','authenticated','service_role']) r,
+              unnest(array['SELECT','INSERT','UPDATE','DELETE','TRUNCATE']) p
+       where has_table_privilege(r, 'shiftpatch.audit_events', p)`,
+    )
+    expect(rows).toEqual([])
+  })
+
+  it('has RLS enabled with no policies', async () => {
+    const { rows } = await pool.query(
+      `select c.relrowsecurity as rls, (select count(*)::int from pg_policy p where p.polrelid = c.oid) as policies
+       from pg_class c join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'shiftpatch' and c.relname = 'audit_events'`,
+    )
+    expect(rows).toEqual([{ rls: true, policies: 0 }])
+  })
+
+  it('blocks UPDATE and DELETE even for the superuser', async () => {
+    await inRollback(pool, async (db) => {
+      const { rows } = await db.query(
+        `insert into shiftpatch.audit_events (actor_id, entity_type, entity_id, action, previous_status, new_status)
+         values ($1, 'agency', $2, 'updated', 'active', 'active') returning id`,
+        [USERS.admin.id, AGENCIES.northwind.id],
+      )
+      await db.query('savepoint s')
+      await expectSqlState(db.query(`update shiftpatch.audit_events set action = 'created' where id = $1`, [rows[0].id]), '42501')
+      await db.query('rollback to savepoint s')
+      await expectSqlState(db.query(`delete from shiftpatch.audit_events where id = $1`, [rows[0].id]), '42501')
+    })
+  })
+
+  it('cannot be written through the record_audit helper by any client role', async () => {
+    const { rows } = await pool.query(
+      `select r from unnest(array['anon','authenticated','service_role']) r
+       where has_function_privilege(r, 'shiftpatch.record_audit(uuid, shiftpatch.audit_entity_type, uuid, shiftpatch.audit_action, text, text)', 'EXECUTE')`,
+    )
+    expect(rows).toEqual([])
   })
 })

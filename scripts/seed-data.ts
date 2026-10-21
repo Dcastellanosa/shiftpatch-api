@@ -15,10 +15,14 @@ export interface SeedUser {
   role: SeedRole
 }
 
+export type SeedStatus = 'active' | 'inactive'
+
 export const AGENCIES = {
-  northwind: { id: 'a1000000-0000-4000-8000-000000000001', name: 'Northwind Care Staffing' },
-  harbor: { id: 'a1000000-0000-4000-8000-000000000002', name: 'Harbor Health Partners' },
-} as const
+  northwind: { id: 'a1000000-0000-4000-8000-000000000001', name: 'Northwind Care Staffing', status: 'active' },
+  harbor: { id: 'a1000000-0000-4000-8000-000000000002', name: 'Harbor Health Partners', status: 'active' },
+  /** Deactivated agency: its branch and open shift must be invisible to nurses and unclaimable. */
+  lakeside: { id: 'a1000000-0000-4000-8000-000000000003', name: 'Lakeside Staffing', status: 'inactive' },
+} as const satisfies Record<string, { id: string; name: string; status: SeedStatus }>
 
 export const BRANCHES = {
   downtown: {
@@ -28,6 +32,7 @@ export const BRANCHES = {
     address: '120 Main Street, Boston, MA 02108',
     timezone: 'America/New_York',
     requires: ['nursing_license', 'tb_test'],
+    status: 'active',
   },
   riverside: {
     id: 'b1000000-0000-4000-8000-000000000002',
@@ -36,6 +41,7 @@ export const BRANCHES = {
     address: '45 River Road, Cambridge, MA 02139',
     timezone: 'America/New_York',
     requires: ['nursing_license', 'tb_test'],
+    status: 'active',
   },
   bayview: {
     id: 'b1000000-0000-4000-8000-000000000003',
@@ -44,6 +50,7 @@ export const BRANCHES = {
     address: '900 Bay Street, San Francisco, CA 94133',
     timezone: 'America/Los_Angeles',
     requires: ['nursing_license', 'tb_test'],
+    status: 'active',
   },
   hillcrest: {
     id: 'b1000000-0000-4000-8000-000000000004',
@@ -52,6 +59,17 @@ export const BRANCHES = {
     address: '310 Hill Avenue, Oakland, CA 94610',
     timezone: 'America/Los_Angeles',
     requires: ['nursing_license'],
+    status: 'active',
+  },
+  /** Branch of the inactive Lakeside agency, itself inactive. Ava is active here, but sees nothing. */
+  lakesideClinic: {
+    id: 'b1000000-0000-4000-8000-000000000005',
+    agencyId: AGENCIES.lakeside.id,
+    name: 'Lakeside Clinic',
+    address: '18 Shore Drive, Chicago, IL 60611',
+    timezone: 'America/Chicago',
+    requires: ['nursing_license'],
+    status: 'inactive',
   },
 } as const
 
@@ -141,6 +159,7 @@ export const ELIGIBILITY = [
   { nurseId: USERS.dev.id, branchId: BRANCHES.downtown.id, status: 'active' },
   { nurseId: USERS.eli.id, branchId: BRANCHES.downtown.id, status: 'active' },
   { nurseId: USERS.eli.id, branchId: BRANCHES.hillcrest.id, status: 'active' },
+  { nurseId: USERS.ava.id, branchId: BRANCHES.lakesideClinic.id, status: 'active' },
 ] as const
 
 export type SeedShiftStatus = 'open' | 'claimed' | 'completed'
@@ -168,4 +187,6 @@ export const SHIFTS: readonly SeedShift[] = [
   { id: 'e1000000-0000-4000-8000-000000000006', branchId: BRANCHES.riverside.id, title: 'Telemetry RN — Mid', dayOffset: 2, startHourUtc: 16, hours: 6, status: 'open', createdById: USERS.northwindAgency.id },
   { id: 'e1000000-0000-4000-8000-000000000007', branchId: BRANCHES.bayview.id, title: 'Oncology RN — Day', dayOffset: 8, startHourUtc: 16, hours: 8, status: 'claimed', assignedNurseId: USERS.ava.id, createdById: USERS.harborAgency.id },
   { id: 'e1000000-0000-4000-8000-000000000008', branchId: BRANCHES.downtown.id, title: 'Med-Surg RN — Day', dayOffset: -5, startHourUtc: 12, hours: 8, status: 'completed', assignedNurseId: USERS.ava.id, createdById: USERS.northwindAgency.id },
+  // Open shift at an inactive branch of an inactive agency: hidden from nurses, unclaimable.
+  { id: 'e1000000-0000-4000-8000-000000000009', branchId: BRANCHES.lakesideClinic.id, title: 'Clinic RN — Day', dayOffset: 7, startHourUtc: 14, hours: 8, status: 'open', createdById: USERS.admin.id },
 ]

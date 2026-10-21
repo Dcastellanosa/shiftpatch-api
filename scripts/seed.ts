@@ -82,7 +82,7 @@ export async function seedDatabase(options: SeedOptions) {
   )
 
   check(
-    await db('agencies').upsert(Object.values(AGENCIES).map((a) => ({ id: a.id, name: a.name, status: 'active' }))),
+    await db('agencies').upsert(Object.values(AGENCIES).map((a) => ({ id: a.id, name: a.name, status: a.status }))),
     'agencies',
   )
   check(
@@ -93,6 +93,7 @@ export async function seedDatabase(options: SeedOptions) {
         name: b.name,
         address: b.address,
         timezone: b.timezone,
+        status: b.status,
       })),
     ),
     'agency_branches',

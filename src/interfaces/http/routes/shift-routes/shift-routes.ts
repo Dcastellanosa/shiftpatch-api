@@ -14,6 +14,8 @@ import { parseInput, validateBody } from '../../middleware/validate/validate.js'
 import { loadViewer, requireRole } from '../../middleware/viewer/viewer.js'
 
 const shiftNotFound = () => new AppError(404, 'shift_not_found', 'Shift not found')
+const agencyInactive = () => new AppError(422, 'agency_inactive', 'This agency is inactive, so its branches cannot take shifts')
+const branchInactive = () => new AppError(422, 'branch_inactive', 'This branch is inactive, so it cannot take shifts')
 
 /** Maps each non-success claim outcome to a safe HTTP error. */
 const CLAIM_ERRORS: Record<ClaimShiftFailure, () => AppError> = {
@@ -23,6 +25,8 @@ const CLAIM_ERRORS: Record<ClaimShiftFailure, () => AppError> = {
   schedule_conflict: () =>
     new AppError(409, 'schedule_conflict', 'You already have a claimed shift that overlaps this one'),
   shift_started: () => new AppError(422, 'shift_started', 'This shift has already started'),
+  agency_inactive: agencyInactive,
+  branch_inactive: branchInactive,
   eligibility_inactive: () =>
     new AppError(422, 'eligibility_inactive', 'You are not active at this branch, so you cannot claim its shifts'),
   credential_missing: () =>
@@ -37,6 +41,8 @@ const CREATE_ERRORS: Record<CreateShiftFailure, () => AppError> = {
   shift_not_found: shiftNotFound,
   actor_not_allowed: () => new AppError(403, 'forbidden', 'You do not have permission to create shifts'),
   branch_not_found: () => new AppError(404, 'branch_not_found', 'Branch not found'),
+  agency_inactive: agencyInactive,
+  branch_inactive: branchInactive,
   invalid_time_range: () => new AppError(400, 'validation_error', 'The shift must end after it starts'),
   shift_in_past: () => new AppError(422, 'shift_in_past', 'The shift must start in the future'),
 }

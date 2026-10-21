@@ -23,6 +23,7 @@ const seeded = (id: string) => SHIFTS.find((s) => s.id === id)!
 const OPEN_DOWNTOWN = seeded('e1000000-0000-4000-8000-000000000001')
 const OPEN_HILLCREST = seeded('e1000000-0000-4000-8000-000000000004')
 const AVA_CLAIMED_BAYVIEW = seeded('e1000000-0000-4000-8000-000000000007')
+const OPEN_LAKESIDE = seeded('e1000000-0000-4000-8000-000000000009')
 
 const visibleShifts = (userId: string | null) =>
   asUser(pool, userId, async (db) => {
@@ -41,6 +42,7 @@ beforeAll(async () => {
 describe('admin', () => {
   it('reads every shift, agency and event', async () => {
     const shifts = await visibleShifts(USERS.admin.id)
+    expect(shifts.map((s) => s.id)).toContain(OPEN_LAKESIDE.id)
     const branchIds = new Set(shifts.map((s) => s.branch_id))
     expect([...NORTHWIND_BRANCHES, ...HARBOR_BRANCHES].every((id) => branchIds.has(id))).toBe(true)
 
@@ -124,6 +126,7 @@ describe('nurse visibility', () => {
     expect(ids).toContain(AVA_CLAIMED_BAYVIEW.id)
     expect(ids).not.toContain(OPEN_HILLCREST.id) // not eligible at Hillcrest
     expect(ids).not.toContain(elisShift.id) // another nurse's claim
+    expect(ids).not.toContain(OPEN_LAKESIDE.id) // active eligibility, but the branch and agency are inactive
     for (const shift of shifts) {
       const own = shift.assigned_nurse_id === USERS.ava.id
       const openEligible = shift.status === 'open' && avaBranches.includes(shift.branch_id)
@@ -243,5 +246,98 @@ describe('anonymous and unprovisioned callers', () => {
   it('an authenticated user without a profile sees nothing', async () => {
     const shifts = await visibleShifts('99999999-0000-4000-8000-000000000000')
     expect(shifts).toEqual([])
+  })
+})
+
+describe('inactive branches and agencies', () => {
+  it('hides open shifts at a deactivated branch from an eligible nurse, and shows them again on reactivation', async () => {
+    await asUser(pool, USERS.ava.id, async (db) => {
+      // Deactivate as the superuser inside the same rolled-back transaction, then read as Ava.
+      await db.query('reset role')
+      await db.query(`update shiftpatch.agency_branches set status = 'inactive' where id = $1`, [BRANCHES.downtown.id])
+      await db.query(`set local role authenticated`)
+      const { rows: hidden } = await db.query('select id from shiftpatch.shifts where id = $1', [OPEN_DOWNTOWN.id])
+      expect(hidden).toEqual([])
+
+      await db.query('reset role')
+      await db.query(`update shiftpatch.agency_branches set status = 'active' where id = $1`, [BRANCHES.downtown.id])
+      await db.query(`set local role authenticated`)
+      const { rows: shown } = await db.query('select id from shiftpatch.shifts where id = $1', [OPEN_DOWNTOWN.id])
+      expect(shown.map((r) => r.id)).toEqual([OPEN_DOWNTOWN.id])
+    })
+  })
+
+  it('hides open shifts of a deactivated agency from an eligible nurse', async () => {
+    await asUser(pool, USERS.ava.id, async (db) => {
+      await db.query('reset role')
+      await db.query(`update shiftpatch.agencies set status = 'inactive' where id = $1`, [AGENCIES.northwind.id])
+      await db.query(`set local role authenticated`)
+      const { rows } = await db.query('select id from shiftpatch.shifts where id = $1', [OPEN_DOWNTOWN.id])
+      expect(rows).toEqual([])
+    })
+  })
+
+  it('keeps inactive branches visible to their agency and to admins', async () => {
+    await asUser(pool, USERS.admin.id, async (db) => {
+      const { rows } = await db.query('select status from shiftpatch.agency_branches where id = $1', [BRANCHES.lakesideClinic.id])
+      expect(rows).toEqual([{ status: 'inactive' }])
+    })
+  })
+})
+
+describe('audit events are write-only', () => {
+  it.each([
+    ['admin', USERS.admin.id],
+    ['agency', USERS.northwindAgency.id],
+    ['nurse', USERS.ava.id],
+    ['anon', null],
+  ])('%s cannot read audit_events', async (_role, userId) => {
+    await expectSqlState(asUser(pool, userId, (db) => db.query('select id from shiftpatch.audit_events')), '42501')
+  })
+
+  it('nobody can insert audit_events directly', async () => {
+    await expectSqlState(
+      asUser(pool, USERS.admin.id, (db) =>
+        db.query(
+          `insert into shiftpatch.audit_events (actor_id, entity_type, entity_id, action) values ($1, 'agency', $2, 'created')`,
+          [USERS.admin.id, AGENCIES.northwind.id],
+        ),
+      ),
+      '42501',
+    )
+  })
+})
+
+describe('admin user listing', () => {
+  it('returns every provisioned user to an admin, with email and role', async () => {
+    await asUser(pool, USERS.admin.id, async (db) => {
+      const { rows } = await db.query('select id, email, full_name, role from shiftpatch.list_users_admin()')
+      const seeded = Object.values(USERS)
+      expect(rows.length).toBeGreaterThanOrEqual(seeded.length)
+      for (const user of seeded) {
+        expect(rows).toContainEqual(expect.objectContaining({ id: user.id, email: user.email, full_name: user.fullName, role: user.role }))
+      }
+      const { rows: profiles } = await db.query('select id from shiftpatch.profiles')
+      const profileIds = new Set(profiles.map((p) => p.id))
+      for (const row of rows) expect(profileIds.has(row.id)).toBe(true)
+    })
+  })
+
+  it('never lists an Auth user without a profile', async () => {
+    await asUser(pool, USERS.admin.id, async (db) => {
+      await db.query('reset role')
+      const orphan = '99999999-0000-4000-8000-000000000001'
+      await db.query(`insert into auth.users (id, email) values ($1, $2)`, [orphan, 'orphan@shiftpatch.test'])
+      await db.query(`set local role authenticated`)
+      const { rows } = await db.query('select id from shiftpatch.list_users_admin() where id = $1', [orphan])
+      expect(rows).toEqual([])
+    })
+  })
+
+  it.each([
+    ['agency', USERS.northwindAgency.id],
+    ['nurse', USERS.ava.id],
+  ])('rejects a %s caller', async (_role, userId) => {
+    await expectSqlState(asUser(pool, userId, (db) => db.query('select * from shiftpatch.list_users_admin()')), '42501')
   })
 })

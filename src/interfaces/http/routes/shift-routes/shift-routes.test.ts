@@ -197,6 +197,8 @@ describe('POST /shifts', () => {
 
   it.each([
     ['branch_not_found', 404],
+    ['agency_inactive', 422],
+    ['branch_inactive', 422],
     ['shift_in_past', 422],
     ['actor_not_allowed', 403],
   ] as const)('maps %s to %i', async (outcome, status) => {
@@ -287,6 +289,8 @@ describe('POST /shifts/:shiftId/claim', () => {
     ['credential_expired', 422],
     ['credential_revoked', 422],
     ['shift_started', 422],
+    ['agency_inactive', 422],
+    ['branch_inactive', 422],
     ['not_a_nurse', 403],
   ])('maps %s to %i with a safe error envelope', async (outcome, status) => {
     const store = fakeDataStore({

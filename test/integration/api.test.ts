@@ -213,9 +213,9 @@ describe('agency isolation over HTTP', () => {
     expect(res.body.shifts).toEqual([])
   })
 
-  it('admin lists shifts from both agencies and can filter', async () => {
+  it('admin lists shifts from every agency, inactive ones included, and can filter', async () => {
     const all = shiftListResponse.parse((await agents.admin.get('/shifts')).body).shifts
-    expect(new Set(all.map((s) => s.agency.id))).toEqual(new Set([AGENCIES.northwind.id, AGENCIES.harbor.id]))
+    expect(new Set(all.map((s) => s.agency.id))).toEqual(new Set(Object.values(AGENCIES).map((a) => a.id)))
 
     const claimed = shiftListResponse.parse((await agents.admin.get('/shifts?status=claimed')).body).shifts
     expect(claimed.length).toBeGreaterThan(0)

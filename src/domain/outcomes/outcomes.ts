@@ -10,6 +10,8 @@ export type ClaimOutcome =
   | 'not_a_nurse'
   | 'shift_not_open'
   | 'shift_started'
+  | 'agency_inactive'
+  | 'branch_inactive'
   | 'eligibility_inactive'
   | 'credential_missing'
   | 'credential_revoked'
@@ -17,7 +19,14 @@ export type ClaimOutcome =
   | 'schedule_conflict'
 
 /** Outcomes of the atomic `create_shift` workflow. */
-export type CreateOutcome = 'created' | 'actor_not_allowed' | 'branch_not_found' | 'invalid_time_range' | 'shift_in_past'
+export type CreateOutcome =
+  | 'created'
+  | 'actor_not_allowed'
+  | 'branch_not_found'
+  | 'agency_inactive'
+  | 'branch_inactive'
+  | 'invalid_time_range'
+  | 'shift_in_past'
 
 /** What a shift command returns: its outcome plus the ids it touched. */
 export interface CommandResult<Outcome extends string> {

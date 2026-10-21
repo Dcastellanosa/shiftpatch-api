@@ -46,11 +46,23 @@ function localStack(): LocalStack {
   }
 }
 
+/** PostgREST reloads its schema cache shortly after `db reset`; seeding before that fails transiently. */
+async function seedWhenReady(options: Parameters<typeof seedDatabase>[0]) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await seedDatabase(options)
+    } catch (error) {
+      if (attempt >= 15 || !/schema cache/i.test(String((error as Error).message))) throw error
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+  }
+}
+
 export default async function setup(project: TestProject) {
   const stack = localStack()
   // A throwaway password for this run's seeded accounts.
   const seedPassword = randomBytes(18).toString('base64url')
-  await seedDatabase({ url: stack.apiUrl, serviceRoleKey: stack.serviceRoleKey, password: seedPassword })
+  await seedWhenReady({ url: stack.apiUrl, serviceRoleKey: stack.serviceRoleKey, password: seedPassword })
   project.provide('stack', stack)
   project.provide('seedPassword', seedPassword)
 }
