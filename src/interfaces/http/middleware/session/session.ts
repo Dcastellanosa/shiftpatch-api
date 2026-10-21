@@ -1,13 +1,13 @@
 import type { RequestHandler } from 'express'
-import { authenticate } from '../../../../application/authenticate/authenticate.js'
-import type { AuthProvider } from '../../../../domain/ports/auth-provider/auth-provider.js'
-import { AppError, unauthenticated } from '../../errors/errors.js'
+import { authenticate } from '../../../../application/authenticate/index.js'
+import type { AuthProvider } from '../../../../domain/ports/auth-provider/index.js'
+import { AppError, unauthenticated } from '../../errors/index.js'
 import {
   clearSessionCookies,
   readSessionCookies,
   setSessionCookies,
   type SessionCookieConfig,
-} from '../../session-cookies/session-cookies.js'
+} from '../../session-cookies/index.js'
 
 export const authUnavailable = () =>
   new AppError(503, 'auth_unavailable', 'Authentication is not available')

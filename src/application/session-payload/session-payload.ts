@@ -1,6 +1,6 @@
-import type { AuthUser, Profile } from '../../domain/identity/identity.js'
-import type { AppRole } from '../../domain/shift/shift.js'
-import type { DataStore } from '../../domain/ports/data-store/data-store.js'
+import type { AuthUser, Profile } from '../../domain/identity/index.js'
+import type { AppRole } from '../../domain/shift/index.js'
+import type { DataStore } from '../../domain/ports/data-store/index.js'
 
 /** The only user shape this API returns to clients. Never contains tokens. */
 export interface SessionUser {

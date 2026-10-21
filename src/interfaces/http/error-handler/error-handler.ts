@@ -1,7 +1,7 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express'
-import { AuthRateLimitedError, AuthUnavailableError } from '../../../domain/ports/auth-provider/auth-provider.js'
-import { DataStoreError, DataUnavailableError } from '../../../domain/ports/data-store/data-store.js'
-import { AppError } from '../errors/errors.js'
+import { AuthRateLimitedError, AuthUnavailableError } from '../../../domain/ports/auth-provider/index.js'
+import { DataStoreError, DataUnavailableError } from '../../../domain/ports/data-store/index.js'
+import { AppError } from '../errors/index.js'
 
 export const notFoundHandler: RequestHandler = (_req, res) => {
   res.status(404).json({ error: { code: 'not_found', message: 'Route not found' } })

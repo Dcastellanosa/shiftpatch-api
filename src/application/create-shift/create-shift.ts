@@ -1,6 +1,6 @@
-import type { Viewer } from '../../domain/identity/identity.js'
-import type { CreateOutcome, CreateShiftInput, Shift } from '../../domain/shift/shift.js'
-import type { DataStore } from '../../domain/ports/data-store/data-store.js'
+import type { Viewer } from '../../domain/identity/index.js'
+import type { CreateOutcome, CreateShiftInput, Shift } from '../../domain/shift/index.js'
+import type { DataStore } from '../../domain/ports/data-store/index.js'
 
 /** `shift_not_found` covers a created shift that is not visible on re-read. */
 export type CreateShiftFailure = Exclude<CreateOutcome, 'created'> | 'shift_not_found'

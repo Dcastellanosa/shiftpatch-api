@@ -10,8 +10,8 @@ import {
   AuthUnavailableError,
   type AuthProvider,
   type AuthSession,
-} from '../../../domain/ports/auth-provider/auth-provider.js'
-import type { AuthUser } from '../../../domain/identity/identity.js'
+} from '../../../domain/ports/auth-provider/index.js'
+import type { AuthUser } from '../../../domain/identity/index.js'
 
 interface SupabaseAuthConfig {
   url: string

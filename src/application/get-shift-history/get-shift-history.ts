@@ -1,6 +1,6 @@
-import type { Viewer } from '../../domain/identity/identity.js'
-import type { ShiftEvent } from '../../domain/shift/shift.js'
-import type { DataStore } from '../../domain/ports/data-store/data-store.js'
+import type { Viewer } from '../../domain/identity/index.js'
+import type { ShiftEvent } from '../../domain/shift/index.js'
+import type { DataStore } from '../../domain/ports/data-store/index.js'
 
 export type GetShiftHistoryFailure = 'shift_not_found'
 

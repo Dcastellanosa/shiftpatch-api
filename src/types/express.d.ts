@@ -1,4 +1,4 @@
-import type { AuthUser, Viewer } from '../domain/identity/identity.js'
+import type { AuthUser, Viewer } from '../domain/identity/index.js'
 
 declare global {
   namespace Express {

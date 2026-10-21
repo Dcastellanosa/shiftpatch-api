@@ -1,19 +1,19 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import type { AuthProvider } from '../../../../domain/ports/auth-provider/auth-provider.js'
-import type { DataStore } from '../../../../domain/ports/data-store/data-store.js'
-import { loadSessionPayload } from '../../../../application/session-payload/session-payload.js'
-import { signIn } from '../../../../application/sign-in/sign-in.js'
-import { signOut } from '../../../../application/sign-out/sign-out.js'
-import { AppError } from '../../errors/errors.js'
+import type { AuthProvider } from '../../../../domain/ports/auth-provider/index.js'
+import type { DataStore } from '../../../../domain/ports/data-store/index.js'
+import { loadSessionPayload } from '../../../../application/session-payload/index.js'
+import { signIn } from '../../../../application/sign-in/index.js'
+import { signOut } from '../../../../application/sign-out/index.js'
+import { AppError } from '../../errors/index.js'
 import {
   clearSessionCookies,
   readSessionCookies,
   setSessionCookies,
   type SessionCookieConfig,
-} from '../../session-cookies/session-cookies.js'
-import { authUnavailable, requireSession, resolveSession } from '../../middleware/session/session.js'
-import { validateBody } from '../../middleware/validate/validate.js'
+} from '../../session-cookies/index.js'
+import { authUnavailable, requireSession, resolveSession } from '../../middleware/session/index.js'
+import { validateBody } from '../../middleware/validate/index.js'
 
 const loginBody = z.object({
   email: z.email().max(320),

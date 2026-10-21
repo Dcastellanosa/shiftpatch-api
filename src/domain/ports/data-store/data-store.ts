@@ -1,4 +1,4 @@
-import type { Profile, Viewer } from '../../identity/identity.js'
+import type { Profile, Viewer } from '../../identity/index.js'
 import type {
   Branch,
   ClaimOutcome,
@@ -7,7 +7,7 @@ import type {
   Shift,
   ShiftEvent,
   ShiftFilters,
-} from '../../shift/shift.js'
+} from '../../shift/index.js'
 
 export interface CommandResult<Outcome extends string> {
   outcome: Outcome

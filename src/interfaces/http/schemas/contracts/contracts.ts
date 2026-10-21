@@ -8,7 +8,7 @@ import {
   type Shift,
   type ShiftEvent,
   type ShiftFilters,
-} from '../../../../domain/shift/shift.js'
+} from '../../../../domain/shift/index.js'
 
 /**
  * HTTP request and response contracts for the shift API. Response schemas are

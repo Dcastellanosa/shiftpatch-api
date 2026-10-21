@@ -1,5 +1,5 @@
 import type { CookieOptions, Request, Response } from 'express'
-import type { AuthSession } from '../../../domain/ports/auth-provider/auth-provider.js'
+import type { AuthSession } from '../../../domain/ports/auth-provider/index.js'
 
 /** Sliding window: each successful refresh re-issues the refresh cookie. */
 export const REFRESH_COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60

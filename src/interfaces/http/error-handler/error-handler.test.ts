@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from 'express'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AuthRateLimitedError, AuthUnavailableError } from '../../../domain/ports/auth-provider/auth-provider.js'
-import { DataStoreError, DataUnavailableError } from '../../../domain/ports/data-store/data-store.js'
+import { AuthRateLimitedError, AuthUnavailableError } from '../../../domain/ports/auth-provider/index.js'
+import { DataStoreError, DataUnavailableError } from '../../../domain/ports/data-store/index.js'
 import { errorHandler } from './error-handler.js'
-import { AppError } from '../errors/errors.js'
+import { AppError } from '../errors/index.js'
 
 function handle(err: unknown) {
   const res = { status: vi.fn(), json: vi.fn() }

@@ -2,8 +2,8 @@ import pg from 'pg'
 import request from 'supertest'
 import { afterAll, inject } from 'vitest'
 import { BRANCHES, USERS, type SeedUser } from '../../scripts/seed-data.js'
-import { parseEnv } from '../../src/infrastructure/config/env/env.js'
-import { createApp } from '../../src/composition/create-app/create-app.js'
+import { parseEnv } from '../../src/infrastructure/config/env/index.js'
+import { createApp } from '../../src/composition/create-app/index.js'
 
 export { AGENCIES, BRANCHES, SHIFTS, USERS } from '../../scripts/seed-data.js'
 

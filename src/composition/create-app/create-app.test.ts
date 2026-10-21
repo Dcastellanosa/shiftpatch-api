@@ -1,6 +1,6 @@
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
-import { parseEnv } from '../../infrastructure/config/env/env.js'
+import { parseEnv } from '../../infrastructure/config/env/index.js'
 import { createApp } from './create-app.js'
 import { ALLOWED_ORIGIN, buildApp, fakeAuthProvider } from '../../test-support/fakes.js'
 

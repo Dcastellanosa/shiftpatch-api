@@ -1,5 +1,5 @@
-import type { AuthUser } from '../../domain/identity/identity.js'
-import type { AuthProvider, AuthSession } from '../../domain/ports/auth-provider/auth-provider.js'
+import type { AuthUser } from '../../domain/identity/index.js'
+import type { AuthProvider, AuthSession } from '../../domain/ports/auth-provider/index.js'
 
 export interface SessionTokens {
   accessToken?: string | undefined

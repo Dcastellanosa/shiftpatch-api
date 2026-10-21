@@ -1,7 +1,7 @@
 // Local development only. On Vercel, api/index.ts is the entrypoint.
 import { existsSync } from 'node:fs'
-import { parseEnv } from './infrastructure/config/env/env.js'
-import { createApp } from './composition/create-app/create-app.js'
+import { parseEnv } from './infrastructure/config/env/index.js'
+import { createApp } from './composition/create-app/index.js'
 
 if (existsSync('.env')) {
   process.loadEnvFile('.env')
