@@ -46,7 +46,7 @@ describe('schema', () => {
       credential_status: ['valid', 'expired', 'revoked'],
       shift_event_type: ['created', 'claimed', 'cancelled', 'completed', 'no_show'],
       audit_entity_type: ['agency', 'agency_branch', 'agency_membership', 'branch_nurse_eligibility', 'profile'],
-      audit_action: ['created', 'updated', 'activated', 'deactivated', 'invited', 'eligibility_activated', 'eligibility_suspended'],
+      audit_action: ['created', 'updated', 'activated', 'deactivated', 'invited', 'eligibility_activated', 'eligibility_suspended', 'deleted'],
     })
   })
 

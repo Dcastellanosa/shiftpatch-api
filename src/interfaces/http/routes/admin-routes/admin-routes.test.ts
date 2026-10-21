@@ -34,6 +34,7 @@ const post = (app: App, path: string, body?: object) =>
   request(app).post(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send(body)
 const patch = (app: App, path: string, body?: object) =>
   request(app).patch(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send(body)
+const del = (app: App, path: string) => request(app).delete(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE)
 
 const AGENCY_PATH = `/admin/agencies/${AGENCY_ID}`
 const BRANCH_PATH = `${AGENCY_PATH}/branches/${BRANCH_ID}`
@@ -51,9 +52,11 @@ describe('access control', () => {
     ['PATCH', AGENCY_PATH],
     ['POST', `${AGENCY_PATH}/branches`],
     ['PATCH', BRANCH_PATH],
+    ['DELETE', AGENCY_PATH],
+    ['DELETE', `/admin/users/${INVITED_USER_ID}`],
   ] as const)('%s %s needs a session', async (method, path) => {
     const store = fakeDataStore()
-    const res = await request(buildSignedInApp(store))[method.toLowerCase() as 'get' | 'post' | 'patch'](path).set('Origin', ALLOWED_ORIGIN)
+    const res = await request(buildSignedInApp(store))[method.toLowerCase() as 'get' | 'post' | 'patch' | 'delete'](path).set('Origin', ALLOWED_ORIGIN)
     expect(res.status).toBe(401)
     expect(store.getProfile).not.toHaveBeenCalled()
   })
@@ -68,12 +71,14 @@ describe('access control', () => {
       patch(app, AGENCY_PATH, { status: 'inactive' }),
       post(app, `${AGENCY_PATH}/branches`, BRANCH_BODY),
       patch(app, BRANCH_PATH, { status: 'inactive' }),
+      del(app, AGENCY_PATH),
+      del(app, `/admin/users/${INVITED_USER_ID}`),
     ])
     for (const res of responses) {
       expect(res.status).toBe(403)
       expect(res.body.error.code).toBe('forbidden')
     }
-    for (const method of ['listAgencies', 'getAgency', 'createAgency', 'updateAgency', 'createBranch', 'updateBranch'] as const) {
+    for (const method of ['listAgencies', 'getAgency', 'createAgency', 'updateAgency', 'createBranch', 'updateBranch', 'deleteAgency', 'deleteUser'] as const) {
       expect(store[method]).not.toHaveBeenCalled()
     }
   })
@@ -333,5 +338,59 @@ describe('users', () => {
     expect((await post(app, '/admin/users', NURSE_INVITE)).status).toBe(403)
     expect(auth.inviteUser).not.toHaveBeenCalled()
     expect(store.listUsers).not.toHaveBeenCalled()
+  })
+})
+
+describe('deletion', () => {
+  it('deletes an agency with the viewer id and answers 204', async () => {
+    const store = adminStore({ deleteAgency: async () => ({ outcome: 'deleted', entityId: AGENCY_ID }) })
+    const res = await del(buildSignedInApp(store), AGENCY_PATH)
+    expect(res.status).toBe(204)
+    expect(store.deleteAgency).toHaveBeenCalledWith(ADMIN_PROFILE.id, AGENCY_ID)
+  })
+
+  it.each([
+    ['agency_has_shifts', 409, 'agency_has_shifts'],
+    ['agency_not_found', 404, 'agency_not_found'],
+    ['actor_not_allowed', 403, 'forbidden'],
+  ] as const)('maps %s on agency deletion to %s %s', async (outcome, status, code) => {
+    const store = adminStore({ deleteAgency: async () => ({ outcome, entityId: null }) })
+    const res = await del(buildSignedInApp(store), AGENCY_PATH)
+    expect(res.status).toBe(status)
+    expect(res.body.error.code).toBe(code)
+  })
+
+  it('deletes a user: profile command first, Auth account second, 204', async () => {
+    const store = adminStore({ deleteUser: async () => ({ outcome: 'deleted', entityId: INVITED_USER_ID }) })
+    const authAdmin = fakeAuthAdmin()
+    const res = await del(buildSignedInApp(store, authAdmin), `/admin/users/${INVITED_USER_ID}`)
+    expect(res.status).toBe(204)
+    expect(store.deleteUser).toHaveBeenCalledWith(ADMIN_PROFILE.id, INVITED_USER_ID)
+    expect(authAdmin.deleteUser).toHaveBeenCalledWith(INVITED_USER_ID)
+  })
+
+  it.each([
+    ['self_delete', 409, 'cannot_delete_self'],
+    ['user_has_history', 409, 'user_has_history'],
+    ['user_not_found', 404, 'user_not_found'],
+  ] as const)('maps %s on user deletion to %s %s without touching Auth', async (outcome, status, code) => {
+    const store = adminStore({ deleteUser: async () => ({ outcome, entityId: null }) })
+    const authAdmin = fakeAuthAdmin()
+    const res = await del(buildSignedInApp(store, authAdmin), `/admin/users/${INVITED_USER_ID}`)
+    expect(res.status).toBe(status)
+    expect(res.body.error.code).toBe(code)
+    expect(authAdmin.deleteUser).not.toHaveBeenCalled()
+  })
+
+  it('answers 503 for user deletion when Auth administration is not configured, before any command', async () => {
+    const store = adminStore()
+    const res = await del(buildSignedInApp(store, null), `/admin/users/${INVITED_USER_ID}`)
+    expect(res.status).toBe(503)
+    expect(store.deleteUser).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed user id with 400', async () => {
+    const res = await del(buildSignedInApp(adminStore(), fakeAuthAdmin()), '/admin/users/not-a-uuid')
+    expect(res.status).toBe(400)
   })
 })

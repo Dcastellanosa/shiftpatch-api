@@ -1,6 +1,8 @@
 import { Router, type RequestHandler } from 'express'
 import { createAgency, type CreateAgencyFailure } from '../../../../application/create-agency/create-agency.js'
 import { createBranch, type CreateBranchFailure } from '../../../../application/create-branch/create-branch.js'
+import { deleteAgency, type DeleteAgencyFailure } from '../../../../application/delete-agency/delete-agency.js'
+import { deleteUser, type DeleteUserFailure } from '../../../../application/delete-user/delete-user.js'
 import { getAgency } from '../../../../application/get-agency/get-agency.js'
 import { inviteUser, type InviteUserFailure } from '../../../../application/invite-user/invite-user.js'
 import { listAgencies } from '../../../../application/list-agencies/list-agencies.js'
@@ -28,6 +30,7 @@ import {
   inviteUserBody,
   updateAgencyBody,
   updateBranchBody,
+  userIdParams,
 } from '../../schemas/admin/admin.js'
 
 const forbidden = () => new AppError(403, 'forbidden', 'You do not have permission to manage agencies')
@@ -61,6 +64,19 @@ const UPDATE_BRANCH_ERRORS: Record<UpdateBranchFailure, () => AppError> = {
   actor_not_allowed: forbidden,
   branch_not_found: branchNotFound,
   name_taken: nameTaken('A branch of this agency'),
+}
+
+const DELETE_AGENCY_ERRORS: Record<DeleteAgencyFailure, () => AppError> = {
+  actor_not_allowed: forbidden,
+  agency_not_found: agencyNotFound,
+  agency_has_shifts: () => new AppError(409, 'agency_has_shifts', 'This agency has shifts and cannot be deleted; deactivate it instead'),
+}
+
+const DELETE_USER_ERRORS: Record<DeleteUserFailure, () => AppError> = {
+  actor_not_allowed: forbidden,
+  user_not_found: () => new AppError(404, 'user_not_found', 'User not found'),
+  self_delete: () => new AppError(409, 'cannot_delete_self', 'You cannot delete your own account'),
+  user_has_history: () => new AppError(409, 'user_has_history', 'This user has shifts or recorded actions and cannot be deleted'),
 }
 
 const INVITE_ERRORS: Record<InviteUserFailure, () => AppError> = {
@@ -118,6 +134,13 @@ export function createAdminRouter(
     res.json({ agency: result.agency })
   })
 
+  router.delete('/agencies/:agencyId', ...asAdmin, async (req, res) => {
+    const { agencyId } = parseInput(agencyIdParams, req.params, 'params')
+    const result = await deleteAgency({ store: store! }, req.viewer!, agencyId)
+    if (!result.ok) throw DELETE_AGENCY_ERRORS[result.outcome]()
+    res.status(204).end()
+  })
+
   router.post('/agencies/:agencyId/branches', ...asAdmin, validateBody(createBranchBody), async (req, res) => {
     const { agencyId } = parseInput(agencyIdParams, req.params, 'params')
     const result = await createBranch({ store: store! }, req.viewer!, agencyId, req.body as CreateBranchInput)
@@ -146,6 +169,14 @@ export function createAdminRouter(
     const result = await inviteUser({ store: store!, auth: authAdmin }, req.viewer!, req.body as InviteUserCommand, setPasswordUrl)
     if (!result.ok) throw INVITE_ERRORS[result.outcome]()
     res.status(201).json({ user: result.user })
+  })
+
+  router.delete('/users/:userId', ...asAdmin, async (req, res) => {
+    if (!authAdmin) throw authUnavailable()
+    const { userId } = parseInput(userIdParams, req.params, 'params')
+    const result = await deleteUser({ store: store!, auth: authAdmin }, req.viewer!, userId)
+    if (!result.ok) throw DELETE_USER_ERRORS[result.outcome]()
+    res.status(204).end()
   })
 
   return router

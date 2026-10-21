@@ -14,6 +14,8 @@ import type {
   ClaimOutcome,
   CommandResult,
   CreateAgencyOutcome,
+  DeleteAgencyOutcome,
+  DeleteUserOutcome,
   CreateBranchOutcome,
   CreateOutcome,
   ProvisionOutcome,
@@ -51,6 +53,8 @@ export interface DataStore {
   getAgencyBranch(viewer: Viewer, agencyId: string, branchId: string): Promise<AgencyBranch | null>
   createAgency(actorId: string, input: CreateAgencyInput): Promise<AdminCommandResult<CreateAgencyOutcome>>
   updateAgency(actorId: string, agencyId: string, input: UpdateAgencyInput): Promise<AdminCommandResult<UpdateAgencyOutcome>>
+  /** Removes an agency with its branches, memberships and eligibility records; refused once any shift exists. */
+  deleteAgency(actorId: string, agencyId: string): Promise<AdminCommandResult<DeleteAgencyOutcome>>
   createBranch(actorId: string, agencyId: string, input: CreateBranchInput): Promise<AdminCommandResult<CreateBranchOutcome>>
   updateBranch(actorId: string, branchId: string, input: UpdateBranchInput): Promise<AdminCommandResult<UpdateBranchOutcome>>
 
@@ -59,6 +63,8 @@ export interface DataStore {
   listUsers(viewer: Viewer): Promise<AdminUser[]>
   getUser(viewer: Viewer, userId: string): Promise<AdminUser | null>
   provisionUser(actorId: string, userId: string, command: InviteUserCommand): Promise<AdminCommandResult<ProvisionOutcome>>
+  /** Removes the profile and its access records (not the Auth account); refused when the user has shifts or recorded actions. */
+  deleteUser(actorId: string, userId: string): Promise<AdminCommandResult<DeleteUserOutcome>>
 
   // Nurse eligibility. Reads run as the viewer (RLS limits agency users to
   // their branches); the command re-checks the actor's scope.

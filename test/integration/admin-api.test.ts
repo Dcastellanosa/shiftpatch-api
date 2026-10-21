@@ -210,7 +210,7 @@ describe('invitations, password completion and recovery over HTTP', () => {
     expect(rows).toEqual([{ full_name: 'Invited Nurse', role: 'nurse' }])
 
     const mail = await latestMailTo(email)
-    expect(mail.subject).toContain('invited')
+    expect(mail.subject).toBe('Your ShiftPatch account is ready — set your password')
     const link = linkFrom(mail.html)
     expect(link.url.origin + link.url.pathname).toBe('http://localhost:5173/set-password')
     expect(link.url.search).toBe('')
@@ -272,6 +272,16 @@ describe('invitations, password completion and recovery over HTTP', () => {
     expect(res.headers['set-cookie']).toBeUndefined()
   })
 
+  it('deletes the invited nurse: profile and Auth account gone, 404 afterwards, sign-in refused', async () => {
+    const res = await agents.admin.delete(`/admin/users/${invitedId}`).set('Origin', ALLOWED_ORIGIN)
+    expect(res.status).toBe(204)
+    const listed = userListResponse.parse((await agents.admin.get('/admin/users')).body).users
+    expect(listed.find((u) => u.id === invitedId)).toBeUndefined()
+    expect((await agents.admin.delete(`/admin/users/${invitedId}`).set('Origin', ALLOWED_ORIGIN)).status).toBe(404)
+    const login = await post(request.agent(app), '/auth/login', { email, password: 'brand-new-password-1' })
+    expect(login.status).toBe(401)
+  })
+
   it('sends a recovery email with a fragment-only link, and answers 204 for unknown addresses too', async () => {
     const res = await post(agents.ava, '/auth/recover', { email: USERS.ava.email })
     expect(res.status).toBe(204)
@@ -291,5 +301,34 @@ describe('invitations, password completion and recovery over HTTP', () => {
       expect(res.status).toBe(403)
       expect((await agent.get('/admin/users')).status).toBe(403)
     }
+  })
+})
+
+describe('deletion over HTTP', () => {
+  it('deletes an agency without shifts and refuses one with shifts', async () => {
+    const created = agencyResponse.parse((await post(agents.admin, '/admin/agencies', { name: `Deletable ${Date.now()}` })).body).agency
+    const branch = branchResponse.parse((await post(agents.admin, `/admin/agencies/${created.id}/branches`, { name: 'Gone Soon', address: '1 Street', timezone: 'UTC' })).body).branch
+    expect(branch.agencyId).toBe(created.id)
+
+    const res = await agents.admin.delete(`/admin/agencies/${created.id}`).set('Origin', ALLOWED_ORIGIN)
+    expect(res.status).toBe(204)
+    expect((await agents.admin.get(`/admin/agencies/${created.id}`)).status).toBe(404)
+
+    const refused = await agents.admin.delete(`/admin/agencies/${AGENCIES.northwind.id}`).set('Origin', ALLOWED_ORIGIN)
+    expect(refused.status).toBe(409)
+    expect(refused.body.error.code).toBe('agency_has_shifts')
+  })
+
+  it('refuses deleting oneself, users with history, and anything from a non-admin', async () => {
+    const self = await agents.admin.delete(`/admin/users/${USERS.admin.id}`).set('Origin', ALLOWED_ORIGIN)
+    expect(self.status).toBe(409)
+    expect(self.body.error.code).toBe('cannot_delete_self')
+
+    const history = await agents.admin.delete(`/admin/users/${USERS.ava.id}`).set('Origin', ALLOWED_ORIGIN)
+    expect(history.status).toBe(409)
+    expect(history.body.error.code).toBe('user_has_history')
+
+    expect((await agents.northwindAgency.delete(`/admin/users/${USERS.eli.id}`).set('Origin', ALLOWED_ORIGIN)).status).toBe(403)
+    expect((await agents.northwindAgency.delete(`/admin/agencies/${AGENCIES.northwind.id}`).set('Origin', ALLOWED_ORIGIN)).status).toBe(403)
   })
 })

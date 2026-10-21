@@ -25,30 +25,60 @@ for arg in "$@"; do
   esac
 done
 
-query_json() {
-  supabase db query --linked -o json "$@" 2>/dev/null
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# Runs a query and prints one column of its first row. The CLI may print
+# progress lines (for example "Initialising login role...") before the JSON,
+# so the object is located rather than parsed from the start. On any failure
+# the CLI's output is shown (minus anything that looks like a credential) and
+# the script stops: the history must never be mistaken for "nothing applied".
+read_value() {
+  local column=$1 sql=$2
+  if ! supabase db query --linked -o json "$sql" >"$tmp/query.out" 2>"$tmp/query.err"; then
+    echo "supabase db query --linked failed:" >&2
+    grep -v -i -E 'key|secret|password|token' "$tmp/query.err" | tail -5 >&2
+    return 1
+  fi
+  node -e '
+    const fs = require("fs")
+    const s = fs.readFileSync(process.argv[2], "utf8")
+    const start = s.indexOf("{")
+    try {
+      const value = JSON.parse(s.slice(start)).rows[0][process.argv[1]]
+      process.stdout.write(value === null || value === undefined ? "" : String(value))
+    } catch {
+      process.exit(3)
+    }' "$column" "$tmp/query.out" || {
+    echo "Could not parse the query result. The CLI printed:" >&2
+    grep -v -i -E 'key|secret|password|token' "$tmp/query.out" | head -8 >&2
+    return 1
+  }
 }
 
-applied=$(query_json "select coalesce(string_agg(version, ' '), '') as versions from (
-    select version from shiftpatch_meta.schema_migrations
-    where to_regclass('shiftpatch_meta.schema_migrations') is not null
-  ) v" 2>/dev/null |
-  node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).rows[0].versions)}catch{console.log("")}})' ||
-  true)
+present=$(read_value present "select (to_regclass('shiftpatch_meta.schema_migrations') is not null) as present") || {
+  echo "Could not read the linked project's migration history. Nothing was applied." >&2
+  exit 1
+}
+applied=""
+if [[ "$present" == "true" ]]; then
+  applied=$(read_value versions "select coalesce(string_agg(version, ' '), '') as versions from shiftpatch_meta.schema_migrations") || {
+    echo "Could not read shiftpatch_meta.schema_migrations. Nothing was applied." >&2
+    exit 1
+  }
+fi
 
 if [[ "$dry_run" == false ]]; then
-  query_json "create schema if not exists shiftpatch_meta;
+  supabase db query --linked -o json "create schema if not exists shiftpatch_meta;
     revoke all on schema shiftpatch_meta from public;
     create table if not exists shiftpatch_meta.schema_migrations (
       version text primary key,
       name text not null,
       applied_at timestamptz not null default now()
     );
-    revoke all on table shiftpatch_meta.schema_migrations from public;" >/dev/null
+    revoke all on table shiftpatch_meta.schema_migrations from public;" >/dev/null 2>&1
 fi
 
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
 pending=0
 
 for file in supabase/migrations/*.sql; do
@@ -80,6 +110,6 @@ for file in supabase/migrations/*.sql; do
 done
 
 if [[ "$dry_run" == false && "$pending" -gt 0 ]]; then
-  query_json "notify pgrst, 'reload schema'" >/dev/null
+  supabase db query --linked -o json "notify pgrst, 'reload schema'" >/dev/null 2>&1
 fi
 echo "$pending migration(s) pending before this run."

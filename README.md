@@ -96,8 +96,8 @@ Integrity rules enforced in the database, not only in Express:
 | Shift history | any | own agency | shifts assigned to them |
 | `GET /me/shifts` | — | — | own |
 | `GET /branches` | all | own agency | branches with an eligibility record or an assigned shift |
-| Agencies and branches (`/admin/agencies*`) | create, rename, activate / deactivate | — | — |
-| Users (`/admin/users`) | list; invite admins, agency users (agencies) and nurses (one branch) | — | — |
+| Agencies and branches (`/admin/agencies*`) | create, rename, activate / deactivate, delete (only without shift history) | — | — |
+| Users (`/admin/users*`) | list; invite admins, agency users (agencies) and nurses (one branch); delete (only without history, never oneself) | — | — |
 | Nurse eligibility (`/agency/nurses`, `/nurses/:nurseId/eligibility/:branchId`) | activate / suspend at any branch | own agencies' nurses and branches | — |
 | Roles, memberships, credentials | not through the API (seed tooling only) | no | no |
 
@@ -121,10 +121,11 @@ Errors always use `{ "error": { "code", "message", "details"? } }`.
 | `GET` | `/me/shifts` | Nurse only. → `{ upcoming, past }` (past newest first) |
 | `GET` | `/branches` | → `{ branches }` (for the create-shift form and admin filters) |
 | `GET` / `POST` | `/admin/agencies` | Admin. → `{ agencies }` (with `status`, `branchCount`); `{ name }` → `201 { agency }` |
-| `GET` / `PATCH` | `/admin/agencies/:agencyId` | Admin. → `{ agency, branches }`; `{ name?, status? }` → `{ agency }` |
+| `GET` / `PATCH` / `DELETE` | `/admin/agencies/:agencyId` | Admin. → `{ agency, branches }`; `{ name?, status? }` → `{ agency }`; `DELETE` → `204` only for agencies whose branches never had a shift (removes branches, memberships, eligibility), else `409 agency_has_shifts` |
 | `POST` | `/admin/agencies/:agencyId/branches` | Admin. `{ name, address, timezone }` → `201 { branch }` |
 | `PATCH` | `/admin/agencies/:agencyId/branches/:branchId` | Admin. `{ name?, address?, timezone?, status? }` → `{ branch }` |
 | `GET` / `POST` | `/admin/users` | Admin. → `{ users }`; `{ email, fullName, role, agencyIds? \| branchId? }` → `201 { user }` and an invitation email. The link never appears in a response or log |
+| `DELETE` | `/admin/users/:userId` | Admin. `204`: removes the profile, its access records and the Auth account. `409 cannot_delete_self`, `409 user_has_history` (shifts or recorded actions) |
 | `GET` | `/agency/nurses` | Agency. → `{ nurses }`: each nurse with their status at the caller's branches |
 | `PUT` / `DELETE` | `/nurses/:nurseId/eligibility/:branchId` | Agency (own branches) or admin. Activates / suspends → `{ eligibility }` |
 | `GET` | `/health` | `{ "status": "ok" }` |
@@ -149,7 +150,7 @@ Status codes:
 | 401 | `unauthenticated`, `invalid_credentials`, `invalid_or_expired_link` |
 | 403 | `forbidden` (wrong role), `profile_missing`, `membership_inactive`, `invalid_origin`, `origin_required` |
 | 404 | `shift_not_found`, `branch_not_found` (also for another agency's resources), `agency_not_found`, `nurse_not_found`, `user_not_found`, `not_found` |
-| 409 | `shift_not_open` (already claimed/not open), `schedule_conflict`, `name_taken`, `email_exists` |
+| 409 | `shift_not_open` (already claimed/not open), `schedule_conflict`, `name_taken`, `email_exists`, `agency_has_shifts`, `cannot_delete_self`, `user_has_history` |
 | 422 | `credential_expired`, `credential_missing`, `credential_revoked`, `eligibility_inactive`, `shift_started`, `shift_in_past`, `agency_inactive`, `branch_inactive`, `invalid_assignment`, `weak_password` |
 | 429 | `rate_limited` (Supabase Auth rate limit on login) |
 | 503 | `auth_unavailable`, `data_unavailable` |
@@ -310,7 +311,8 @@ Separate Vercel project for this repository (`vercel.json`: framework `null`, al
    example `https://shiftpatch-web.vercel.app/set-password`). Under *Email templates* replace **Invite user** and
    **Reset password** with `supabase/templates/invite.html` and `supabase/templates/recovery.html`: their links are
    `{{ .RedirectTo }}#token_hash={{ .TokenHash }}&type=…`, so the token travels only in the URL fragment and is
-   exchanged by this API (`POST /auth/complete-password`), never by the browser against Supabase. Keep the default
+   exchanged by this API (`POST /auth/complete-password`), never by the browser against Supabase. Set the subjects
+   from `supabase/config.toml` (`[auth.email.template.invite]` / `[auth.email.template.recovery]`). Keep the default
    OTP expiry (1 h) or shorter.
 3. **Environment variables** per Vercel environment: `CORS_ORIGINS` (including the frontend's production origin),
    `WEB_ORIGIN` (the frontend origin the emails should link to), `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and

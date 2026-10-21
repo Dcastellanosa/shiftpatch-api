@@ -64,6 +64,7 @@ export const branchResponse = z.object({ branch: agencyBranchSchema })
 
 export const agencyIdParams = z.object({ agencyId: z.uuid() })
 export const agencyBranchParams = z.object({ agencyId: z.uuid(), branchId: z.uuid() })
+export const userIdParams = z.object({ userId: z.uuid() })
 
 export const createAgencyBody = z.object({ name }).strict() satisfies z.ZodType<CreateAgencyInput, unknown>
 

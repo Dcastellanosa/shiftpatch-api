@@ -66,3 +66,9 @@ export type SetEligibilityOutcome =
   | 'nurse_not_found'
   | 'agency_inactive'
   | 'branch_inactive'
+
+/** `delete_agency`: only agencies whose branches never had a shift can be removed. */
+export type DeleteAgencyOutcome = 'deleted' | 'actor_not_allowed' | 'agency_not_found' | 'agency_has_shifts'
+
+/** `delete_user`: only accounts without shifts or recorded actions can be removed, and never one's own. */
+export type DeleteUserOutcome = 'deleted' | 'actor_not_allowed' | 'user_not_found' | 'self_delete' | 'user_has_history'

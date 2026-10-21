@@ -250,7 +250,7 @@ otp_expiry = 3600
 # Invitation and recovery links carry the one-time hash in the URL fragment only
 # (never a query string), so it never reaches a server log. The API exchanges it.
 [auth.email.template.invite]
-subject = "You have been invited to ShiftPatch"
+subject = "Your ShiftPatch account is ready — set your password"
 content_path = "./supabase/templates/invite.html"
 
 [auth.email.template.recovery]

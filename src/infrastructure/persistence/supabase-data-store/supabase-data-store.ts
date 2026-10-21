@@ -17,6 +17,8 @@ import type {
   ClaimOutcome,
   CommandResult,
   CreateAgencyOutcome,
+  DeleteAgencyOutcome,
+  DeleteUserOutcome,
   CreateBranchOutcome,
   CreateOutcome,
   ProvisionOutcome,
@@ -507,6 +509,10 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
       })
     },
 
+    deleteUser(actorId, userId) {
+      return runAdminCommand<DeleteUserOutcome>('delete_user', { p_actor_id: actorId, p_user_id: userId })
+    },
+
     async listAgencies(viewer) {
       const rows = unwrap(
         await asUser(viewer.accessToken).from('agencies').select(AGENCY_COLUMNS).order('name').limit(LIST_LIMIT),
@@ -553,6 +559,10 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
         p_name: input.name ?? null,
         p_status: input.status ?? null,
       })
+    },
+
+    deleteAgency(actorId, agencyId) {
+      return runAdminCommand<DeleteAgencyOutcome>('delete_agency', { p_actor_id: actorId, p_agency_id: agencyId })
     },
 
     createBranch(actorId, agencyId, input) {

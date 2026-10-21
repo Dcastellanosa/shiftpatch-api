@@ -385,3 +385,72 @@ describe('set_branch_eligibility', () => {
     )
   })
 })
+
+describe('delete_agency', () => {
+  const call = 'delete_agency($1, $2)'
+
+  it('removes an agency without shifts together with its branches, memberships and eligibility, and audits it', async () => {
+    await inRollback(pool, async (db) => {
+      const created = await run(db, 'create_agency($1, $2)', [ADMIN, 'Deletable Agency'])
+      const branch = await run(db, 'create_branch($1, $2, $3, $4, $5)', [ADMIN, created.entity_id, 'Only Branch', '1 Street', 'UTC'])
+      expect(await run(db, 'set_branch_eligibility($1, $2, $3, $4)', [ADMIN, USERS.ava.id, branch.entity_id, 'active'])).toMatchObject({ outcome: 'updated' })
+
+      const result = await run(db, call, [ADMIN, created.entity_id])
+      expect(result).toEqual({ outcome: 'deleted', entity_id: created.entity_id })
+      await db.query('reset role')
+      const { rows } = await db.query(
+        `select (select count(*) from shiftpatch.agencies where id = $1)::int as agencies,
+                (select count(*) from shiftpatch.agency_branches where agency_id = $1)::int as branches,
+                (select count(*) from shiftpatch.branch_nurse_eligibility where branch_id = $2)::int as eligibility`,
+        [created.entity_id, branch.entity_id],
+      )
+      expect(rows).toEqual([{ agencies: 0, branches: 0, eligibility: 0 }])
+      expect((await audits(db, created.entity_id!)).map((a) => [a.action, a.previous_status, a.new_status, a.actor_id])).toEqual([
+        ['created', null, 'active', ADMIN],
+        ['deleted', 'active', null, ADMIN],
+      ])
+    })
+  })
+
+  it('refuses agencies with shifts, unknown agencies and non-admin actors', async () => {
+    await inRollback(pool, async (db) => {
+      expect(await run(db, call, [ADMIN, AGENCIES.northwind.id])).toEqual({ outcome: 'agency_has_shifts', entity_id: null })
+      expect(await run(db, call, [ADMIN, randomUUID()])).toEqual({ outcome: 'agency_not_found', entity_id: null })
+      expect(await run(db, call, [NORTHWIND, AGENCIES.northwind.id])).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
+      await db.query('reset role')
+      const { rows } = await db.query('select count(*)::int as n from shiftpatch.agencies where id = $1', [AGENCIES.northwind.id])
+      expect(rows).toEqual([{ n: 1 }])
+    })
+  })
+})
+
+describe('delete_user', () => {
+  const call = 'delete_user($1, $2)'
+
+  it('removes a nurse without history with their eligibility and credentials, and audits it', async () => {
+    await inRollback(pool, async (db) => {
+      const nurse = await newNurse(db)
+      expect(await run(db, 'set_branch_eligibility($1, $2, $3, $4)', [ADMIN, nurse, BRANCHES.downtown.id, 'active'])).toMatchObject({ outcome: 'updated' })
+
+      expect(await run(db, call, [ADMIN, nurse])).toEqual({ outcome: 'deleted', entity_id: nurse })
+      await db.query('reset role')
+      const { rows } = await db.query(
+        `select (select count(*) from shiftpatch.profiles where id = $1)::int as profiles,
+                (select count(*) from shiftpatch.branch_nurse_eligibility where nurse_id = $1)::int as eligibility`,
+        [nurse],
+      )
+      expect(rows).toEqual([{ profiles: 0, eligibility: 0 }])
+      expect((await audits(db, nurse)).map((a) => [a.action, a.previous_status, a.new_status])).toContainEqual(['deleted', 'nurse', null])
+    })
+  })
+
+  it('refuses self-deletion, users with history, unknown users and non-admin actors', async () => {
+    await inRollback(pool, async (db) => {
+      expect(await run(db, call, [ADMIN, ADMIN])).toEqual({ outcome: 'self_delete', entity_id: null })
+      expect(await run(db, call, [ADMIN, USERS.ava.id])).toEqual({ outcome: 'user_has_history', entity_id: null })
+      expect(await run(db, call, [ADMIN, USERS.northwindAgency.id])).toEqual({ outcome: 'user_has_history', entity_id: null })
+      expect(await run(db, call, [ADMIN, randomUUID()])).toEqual({ outcome: 'user_not_found', entity_id: null })
+      expect(await run(db, call, [NORTHWIND, USERS.eli.id])).toEqual({ outcome: 'actor_not_allowed', entity_id: null })
+    })
+  })
+})
