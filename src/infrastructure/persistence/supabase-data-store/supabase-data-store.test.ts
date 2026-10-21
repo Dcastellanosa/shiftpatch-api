@@ -469,3 +469,73 @@ describe('agency administration', () => {
     await expect(withService().createAgency(NURSE_ID, { name: 'x' })).rejects.toBeInstanceOf(DataStoreError)
   })
 })
+
+describe('user administration', () => {
+  const USER_ROW = {
+    id: NURSE_ID,
+    email: 'ava@example.test',
+    full_name: 'Ava Thompson',
+    role: 'nurse',
+    invited_at: '2030-01-01 00:00:00+00',
+    confirmed_at: null,
+    last_sign_in_at: null,
+  }
+
+  it('assembles users from the admin listing, active memberships and eligibility', async () => {
+    rpc.mockResolvedValue({ data: [USER_ROW, { ...USER_ROW, id: AGENCY_ID, role: 'agency', confirmed_at: '2030-01-02 00:00:00+00', last_sign_in_at: '2030-01-03 00:00:00+00' }], error: null })
+    respond(
+      ok([{ profile_id: AGENCY_ID, agency: { id: AGENCY_ID, name: 'Northwind' } }]),
+      ok([{ nurse_id: NURSE_ID, status: 'active', branch: { id: BRANCH_ID, name: 'Downtown', agency: { id: AGENCY_ID, name: 'Northwind' } } }]),
+    )
+
+    const users = await createSupabaseDataStore(CONFIG).listUsers(admin)
+
+    expect(rpc).toHaveBeenCalledWith('list_users_admin')
+    expect(tables).toEqual(['agency_memberships', 'branch_nurse_eligibility'])
+    expect(call('eq')).toEqual([['status', 'active']])
+    expect(users).toEqual([
+      {
+        id: NURSE_ID,
+        email: 'ava@example.test',
+        fullName: 'Ava Thompson',
+        role: 'nurse',
+        status: 'invited',
+        invitedAt: '2030-01-01T00:00:00.000Z',
+        lastSignInAt: null,
+        agencies: [],
+        eligibleBranches: [{ id: BRANCH_ID, name: 'Downtown', agency: { id: AGENCY_ID, name: 'Northwind' }, status: 'active' }],
+      },
+      {
+        id: AGENCY_ID,
+        email: 'ava@example.test',
+        fullName: 'Ava Thompson',
+        role: 'agency',
+        status: 'active',
+        invitedAt: '2030-01-01T00:00:00.000Z',
+        lastSignInAt: '2030-01-03T00:00:00.000Z',
+        agencies: [{ id: AGENCY_ID, name: 'Northwind' }],
+        eligibleBranches: [],
+      },
+    ])
+  })
+
+  it('finds one user by id through the listing, or null', async () => {
+    rpc.mockResolvedValue({ data: [USER_ROW], error: null })
+    respond(ok([]), ok([]))
+    await expect(createSupabaseDataStore(CONFIG).getUser(admin, NURSE_ID)).resolves.toMatchObject({ id: NURSE_ID })
+    rpc.mockResolvedValue({ data: [USER_ROW], error: null })
+    respond(ok([]), ok([]))
+    await expect(createSupabaseDataStore(CONFIG).getUser(admin, AGENCY_ID)).resolves.toBeNull()
+  })
+
+  it('provisions through the service role with the role-specific assignment', async () => {
+    rpc.mockResolvedValue({ data: { outcome: 'provisioned', entity_id: NURSE_ID }, error: null })
+    const store = createSupabaseDataStore({ ...CONFIG, serviceRoleKey: 'service-key' })
+    await expect(store.provisionUser(AGENCY_ID, NURSE_ID, { email: 'x@example.test', fullName: 'Nina', role: 'nurse', branchId: BRANCH_ID })).resolves.toEqual({ outcome: 'provisioned', entityId: NURSE_ID })
+    expect(rpc).toHaveBeenLastCalledWith('provision_user', { p_actor_id: AGENCY_ID, p_user_id: NURSE_ID, p_full_name: 'Nina', p_role: 'nurse', p_agency_ids: null, p_branch_id: BRANCH_ID })
+    await store.provisionUser(AGENCY_ID, NURSE_ID, { email: 'x@example.test', fullName: 'Pat', role: 'agency', agencyIds: [AGENCY_ID] })
+    expect(rpc).toHaveBeenLastCalledWith('provision_user', { p_actor_id: AGENCY_ID, p_user_id: NURSE_ID, p_full_name: 'Pat', p_role: 'agency', p_agency_ids: [AGENCY_ID], p_branch_id: null })
+    await store.provisionUser(AGENCY_ID, NURSE_ID, { email: 'x@example.test', fullName: 'Sam', role: 'admin' })
+    expect(rpc).toHaveBeenLastCalledWith('provision_user', { p_actor_id: AGENCY_ID, p_user_id: NURSE_ID, p_full_name: 'Sam', p_role: 'admin', p_agency_ids: null, p_branch_id: null })
+  })
+})

@@ -8,6 +8,7 @@ import {
   USER,
   buildApp,
   cookieFor,
+  fakeAuthAdmin,
   fakeAuthProvider,
   setCookies,
 } from '../../../../test-support/fakes.js'
@@ -272,5 +273,108 @@ describe('POST /auth/logout', () => {
     expect(res.status).toBe(204)
     expect(provider.signOut).not.toHaveBeenCalled()
     expect(cookieFor(setCookies(res.headers), 'sp_access')).toMatch(CLEARED)
+  })
+})
+
+describe('POST /auth/complete-password', () => {
+  const complete = (app: ReturnType<typeof buildApp>, body: unknown) =>
+    request(app).post('/auth/complete-password').set('Origin', ALLOWED_ORIGIN).send(body as object)
+  const VALID = { tokenHash: 'a'.repeat(56), type: 'invite', password: 'correct horse battery' }
+  const appWith = (auth: ReturnType<typeof fakeAuthAdmin> | null) => buildApp(fakeAuthProvider(), 'test', null, auth)
+
+  it('sets the password, then issues the same cookies as login and the safe payload', async () => {
+    const auth = fakeAuthAdmin({ completePassword: async () => SESSION })
+    const res = await complete(appWith(auth), VALID)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual(EXPECTED_PAYLOAD)
+    expectNoTokens(res.body)
+    expect(auth.completePassword).toHaveBeenCalledWith(VALID.tokenHash, 'invite', VALID.password)
+    const cookies = setCookies(res.headers)
+    expect(cookieFor(cookies, 'sp_access')).toContain(`sp_access=${SESSION.accessToken}`)
+    expect(cookieFor(cookies, 'sp_refresh')).toContain(`sp_refresh=${SESSION.refreshToken}`)
+    for (const cookie of cookies) {
+      expect(cookie).toContain('HttpOnly')
+      expect(cookie).toContain('SameSite=Lax')
+      expect(cookie).toContain('Path=/')
+    }
+  })
+
+  it.each([
+    ['invalid_link', 401, 'invalid_or_expired_link'],
+    ['weak_password', 422, 'weak_password'],
+  ] as const)('maps %s to %i with no Set-Cookie at all', async (outcome, status, code) => {
+    const auth = fakeAuthAdmin({ completePassword: async () => outcome })
+    const res = await complete(appWith(auth), { ...VALID, type: 'recovery' })
+    expect(res.status).toBe(status)
+    expect(res.body).toEqual({ error: { code, message: expect.any(String) } })
+    expect(res.headers['set-cookie']).toBeUndefined()
+    expect(JSON.stringify(res.body)).not.toContain(VALID.tokenHash)
+  })
+
+  it('sets no cookie when the provider is unavailable or rate limited', async () => {
+    for (const error of [new AuthUnavailableError(), new AuthRateLimitedError()]) {
+      const auth = fakeAuthAdmin({
+        completePassword: async () => {
+          throw error
+        },
+      })
+      const res = await complete(appWith(auth), VALID)
+      expect([429, 503]).toContain(res.status)
+      expect(res.headers['set-cookie']).toBeUndefined()
+    }
+  })
+
+  it.each([
+    ['a short password', { ...VALID, password: 'short' }],
+    ['an unknown link type', { ...VALID, type: 'magiclink' }],
+    ['a malformed hash', { ...VALID, tokenHash: 'not a hash!' }],
+    ['an unexpected key', { ...VALID, email: 'x@example.test' }],
+    ['an empty body', {}],
+  ])('rejects %s with 400, no provider call and no echo', async (_label, body) => {
+    const auth = fakeAuthAdmin()
+    const res = await complete(appWith(auth), body)
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('validation_error')
+    expect(auth.completePassword).not.toHaveBeenCalled()
+    expect(JSON.stringify(res.body)).not.toMatch(/short|magiclink|not a hash|correct horse/)
+    expect(res.headers['set-cookie']).toBeUndefined()
+  })
+
+  it('answers 503 when link exchanges are not configured', async () => {
+    const res = await complete(appWith(null), VALID)
+    expect(res.status).toBe(503)
+    expect(res.headers['set-cookie']).toBeUndefined()
+  })
+
+  it('rejects a cross-site request before contacting the provider', async () => {
+    const auth = fakeAuthAdmin()
+    const res = await request(appWith(auth)).post('/auth/complete-password').set('Origin', 'https://evil.example').send(VALID)
+    expect(res.status).toBe(403)
+    expect(auth.completePassword).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /auth/recover', () => {
+  const recover = (app: ReturnType<typeof buildApp>, body: unknown) =>
+    request(app).post('/auth/recover').set('Origin', ALLOWED_ORIGIN).send(body as object)
+
+  it('answers 204 and asks the provider for an email pointing at the web set-password page', async () => {
+    const auth = fakeAuthAdmin()
+    const res = await recover(buildApp(fakeAuthProvider(), 'test', null, auth), { email: 'nurse@example.test' })
+    expect(res.status).toBe(204)
+    expect(auth.sendRecovery).toHaveBeenCalledWith('nurse@example.test', `${ALLOWED_ORIGIN}/set-password`)
+  })
+
+  it('answers 204 even when email is not configured', async () => {
+    const res = await recover(buildApp(fakeAuthProvider(), 'test', null, null), { email: 'nurse@example.test' })
+    expect(res.status).toBe(204)
+  })
+
+  it('rejects a malformed body without contacting the provider', async () => {
+    const auth = fakeAuthAdmin()
+    const res = await recover(buildApp(fakeAuthProvider(), 'test', null, auth), { email: 'nope', extra: 1 })
+    expect(res.status).toBe(400)
+    expect(auth.sendRecovery).not.toHaveBeenCalled()
   })
 })

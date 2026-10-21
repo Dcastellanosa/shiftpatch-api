@@ -2,7 +2,9 @@ import { Router, type RequestHandler } from 'express'
 import { createAgency, type CreateAgencyFailure } from '../../../../application/create-agency/create-agency.js'
 import { createBranch, type CreateBranchFailure } from '../../../../application/create-branch/create-branch.js'
 import { getAgency } from '../../../../application/get-agency/get-agency.js'
+import { inviteUser, type InviteUserFailure } from '../../../../application/invite-user/invite-user.js'
 import { listAgencies } from '../../../../application/list-agencies/list-agencies.js'
+import { listUsers } from '../../../../application/list-users/list-users.js'
 import { updateAgency, type UpdateAgencyFailure } from '../../../../application/update-agency/update-agency.js'
 import { updateBranch, type UpdateBranchFailure } from '../../../../application/update-branch/update-branch.js'
 import type {
@@ -11,8 +13,11 @@ import type {
   UpdateAgencyInput,
   UpdateBranchInput,
 } from '../../../../domain/agency/agency.js'
+import type { InviteUserCommand } from '../../../../domain/admin/admin.js'
+import type { AuthAdmin } from '../../../../domain/ports/auth-admin/auth-admin.js'
 import type { DataStore } from '../../../../domain/ports/data-store/data-store.js'
 import { AppError } from '../../errors/errors.js'
+import { authUnavailable } from '../../middleware/session/session.js'
 import { parseInput, validateBody } from '../../middleware/validate/validate.js'
 import { loadViewer, requireRole } from '../../middleware/viewer/viewer.js'
 import {
@@ -20,6 +25,7 @@ import {
   agencyIdParams,
   createAgencyBody,
   createBranchBody,
+  inviteUserBody,
   updateAgencyBody,
   updateBranchBody,
 } from '../../schemas/admin/admin.js'
@@ -57,12 +63,34 @@ const UPDATE_BRANCH_ERRORS: Record<UpdateBranchFailure, () => AppError> = {
   name_taken: nameTaken('A branch of this agency'),
 }
 
+const INVITE_ERRORS: Record<InviteUserFailure, () => AppError> = {
+  email_exists: () => new AppError(409, 'email_exists', 'An account with this email already exists'),
+  actor_not_allowed: forbidden,
+  auth_user_not_found: authUnavailable,
+  profile_exists: () => new AppError(409, 'email_exists', 'An account with this email already exists'),
+  invalid_assignment: () => new AppError(422, 'invalid_assignment', 'The access assignment does not match the role'),
+  agency_not_found: agencyNotFound,
+  agency_inactive: () => new AppError(422, 'agency_inactive', 'This agency is inactive; activate it before assigning users'),
+  branch_not_found: branchNotFound,
+  branch_inactive: () => new AppError(422, 'branch_inactive', 'This branch is inactive; activate it before assigning nurses'),
+  user_not_found: () => new AppError(404, 'user_not_found', 'User not found'),
+}
+
 /**
  * Global-admin routes for agencies and their branches, mounted under
  * `/admin`. Every route needs a cookie session and an admin profile; the
  * database commands re-check the actor's role.
  */
-export function createAdminRouter(store: DataStore | null, authenticate: RequestHandler[]) {
+export interface AdminRouterDependencies {
+  store: DataStore | null
+  authAdmin: AuthAdmin | null
+  setPasswordUrl: string
+}
+
+export function createAdminRouter(
+  { store, authAdmin, setPasswordUrl }: AdminRouterDependencies,
+  authenticate: RequestHandler[],
+) {
   const router = Router()
   const asAdmin = [...authenticate, loadViewer(store), requireRole('admin')]
 
@@ -108,6 +136,17 @@ export function createAdminRouter(store: DataStore | null, authenticate: Request
       res.json({ branch: result.branch })
     },
   )
+
+  router.get('/users', ...asAdmin, async (req, res) => {
+    res.json({ users: await listUsers({ store: store! }, req.viewer!) })
+  })
+
+  router.post('/users', ...asAdmin, validateBody(inviteUserBody), async (req, res) => {
+    if (!authAdmin) throw authUnavailable()
+    const result = await inviteUser({ store: store!, auth: authAdmin }, req.viewer!, req.body as InviteUserCommand, setPasswordUrl)
+    if (!result.ok) throw INVITE_ERRORS[result.outcome]()
+    res.status(201).json({ user: result.user })
+  })
 
   return router
 }

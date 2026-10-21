@@ -7,8 +7,10 @@ import { requireTrustedOrigin } from '../../interfaces/http/middleware/origin-ch
 import { requireSession, resolveSession } from '../../interfaces/http/middleware/session/session.js'
 import { createAdminRouter } from '../../interfaces/http/routes/admin-routes/admin-routes.js'
 import { createShiftRouter } from '../../interfaces/http/routes/shift-routes/shift-routes.js'
+import { createSupabaseAuthAdmin } from '../../infrastructure/auth/supabase-auth-admin/supabase-auth-admin.js'
 import { createSupabaseAuthProvider } from '../../infrastructure/auth/supabase-auth-provider/supabase-auth-provider.js'
 import { createSupabaseDataStore } from '../../infrastructure/persistence/supabase-data-store/supabase-data-store.js'
+import type { AuthAdmin } from '../../domain/ports/auth-admin/auth-admin.js'
 import type { AuthProvider } from '../../domain/ports/auth-provider/auth-provider.js'
 import type { DataStore } from '../../domain/ports/data-store/data-store.js'
 import type { Env } from '../../infrastructure/config/env/env.js'
@@ -18,6 +20,8 @@ export interface AppDependencies {
   authProvider?: AuthProvider | null
   /** Override for tests. `null` means the data layer is not configured. */
   dataStore?: DataStore | null
+  /** Override for tests. `null` means invitations and link exchanges are not configured. */
+  authAdmin?: AuthAdmin | null
 }
 
 /**
@@ -48,6 +52,19 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
           })
         : null
 
+  const authAdmin =
+    deps.authAdmin !== undefined
+      ? deps.authAdmin
+      : env.SUPABASE_URL && env.SUPABASE_PUBLISHABLE_KEY && env.SUPABASE_SERVICE_ROLE_KEY
+        ? createSupabaseAuthAdmin({
+            url: env.SUPABASE_URL,
+            publishableKey: env.SUPABASE_PUBLISHABLE_KEY,
+            serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
+          })
+        : null
+  // Invitation and recovery links point at the web app, never at this API.
+  const setPasswordUrl = `${env.WEB_ORIGIN ?? env.CORS_ORIGINS[0]!}/set-password`
+
   app.disable('x-powered-by')
 
   // The frontend calls this API same-origin through its /api proxy, so CORS
@@ -73,10 +90,10 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
     res.json({ status: 'ok' })
   })
 
-  app.use('/auth', createAuthRouter(authProvider, dataStore, cookieConfig))
+  app.use('/auth', createAuthRouter({ provider: authProvider, store: dataStore, cookieConfig, authAdmin, setPasswordUrl }))
   const authenticate = [resolveSession(authProvider, cookieConfig), requireSession]
   app.use(createShiftRouter(dataStore, authenticate))
-  app.use('/admin', createAdminRouter(dataStore, authenticate))
+  app.use('/admin', createAdminRouter({ store: dataStore, authAdmin, setPasswordUrl }, authenticate))
 
   app.use(notFoundHandler)
   app.use(errorHandler)

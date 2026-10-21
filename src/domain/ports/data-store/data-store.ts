@@ -1,4 +1,5 @@
 import type { Profile, Viewer } from '../../viewer/viewer.js'
+import type { AdminUser, InviteUserCommand } from '../../admin/admin.js'
 import type {
   Agency,
   AgencyBranch,
@@ -15,6 +16,7 @@ import type {
   CreateAgencyOutcome,
   CreateBranchOutcome,
   CreateOutcome,
+  ProvisionOutcome,
   UpdateAgencyOutcome,
   UpdateBranchOutcome,
 } from '../../outcomes/outcomes.js'
@@ -50,6 +52,12 @@ export interface DataStore {
   updateAgency(actorId: string, agencyId: string, input: UpdateAgencyInput): Promise<AdminCommandResult<UpdateAgencyOutcome>>
   createBranch(actorId: string, agencyId: string, input: CreateBranchInput): Promise<AdminCommandResult<CreateBranchOutcome>>
   updateBranch(actorId: string, branchId: string, input: UpdateBranchInput): Promise<AdminCommandResult<UpdateBranchOutcome>>
+
+  // User administration. Listing runs as the viewer (the database rejects
+  // non-admins); provisioning calls the service-role-only command.
+  listUsers(viewer: Viewer): Promise<AdminUser[]>
+  getUser(viewer: Viewer, userId: string): Promise<AdminUser | null>
+  provisionUser(actorId: string, userId: string, command: InviteUserCommand): Promise<AdminCommandResult<ProvisionOutcome>>
 }
 
 /** A data-layer failure. The message is safe to log; it never contains row data or tokens. */

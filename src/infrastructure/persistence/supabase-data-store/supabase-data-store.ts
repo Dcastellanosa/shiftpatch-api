@@ -5,6 +5,7 @@ import {
   DataUnavailableError,
   type DataStore,
 } from '../../../domain/ports/data-store/data-store.js'
+import { ELIGIBILITY_STATUSES, type AdminUser } from '../../../domain/admin/admin.js'
 import {
   ENTITY_STATUSES,
   type Agency,
@@ -18,6 +19,7 @@ import type {
   CreateAgencyOutcome,
   CreateBranchOutcome,
   CreateOutcome,
+  ProvisionOutcome,
   UpdateAgencyOutcome,
   UpdateBranchOutcome,
 } from '../../../domain/outcomes/outcomes.js'
@@ -119,6 +121,27 @@ const agencyBranchRow = z.object({
   status: entityStatusSchema,
   created_at: z.string(),
   updated_at: z.string(),
+})
+
+const adminUserRow = z.object({
+  id: z.uuid(),
+  email: z.string().nullable(),
+  full_name: z.string(),
+  role: appRoleSchema,
+  invited_at: z.string().nullable(),
+  confirmed_at: z.string().nullable(),
+  last_sign_in_at: z.string().nullable(),
+})
+
+const membershipRow = z.object({
+  profile_id: z.uuid(),
+  agency: z.object({ id: z.uuid(), name: z.string() }),
+})
+
+const eligibilityRow = z.object({
+  nurse_id: z.uuid(),
+  status: z.enum(ELIGIBILITY_STATUSES),
+  branch: z.object({ id: z.uuid(), name: z.string(), agency: z.object({ id: z.uuid(), name: z.string() }) }),
 })
 
 const AGENCY_COLUMNS = 'id, name, status, created_at, updated_at, agency_branches (count)'
@@ -357,6 +380,61 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
 
     claimShift(nurseId, shiftId) {
       return runCommand<ClaimOutcome>('claim_shift', { p_shift_id: shiftId, p_nurse_id: nurseId })
+    },
+
+    async listUsers(viewer) {
+      const client = asUser(viewer.accessToken)
+      const users = parseRows(adminUserRow, unwrap(await client.rpc('list_users_admin'), 'list users'), 'list users')
+      const memberships = parseRows(
+        membershipRow,
+        unwrap(
+          await client.from('agency_memberships').select('profile_id, agency:agencies!inner (id, name)').eq('status', 'active').limit(LIST_LIMIT),
+          'list memberships',
+        ),
+        'list memberships',
+      )
+      const eligibility = parseRows(
+        eligibilityRow,
+        unwrap(
+          await client
+            .from('branch_nurse_eligibility')
+            .select('nurse_id, status, branch:agency_branches!inner (id, name, agency:agencies!inner (id, name))')
+            .limit(LIST_LIMIT),
+          'list eligibility',
+        ),
+        'list eligibility',
+      )
+      return users.map(
+        (row): AdminUser => ({
+          id: row.id,
+          email: row.email,
+          fullName: row.full_name,
+          role: row.role,
+          status: row.confirmed_at ? 'active' : 'invited',
+          invitedAt: row.invited_at ? iso(row.invited_at) : null,
+          lastSignInAt: row.last_sign_in_at ? iso(row.last_sign_in_at) : null,
+          agencies: memberships.filter((m) => m.profile_id === row.id).map((m) => m.agency),
+          eligibleBranches: eligibility
+            .filter((e) => e.nurse_id === row.id)
+            .map((e) => ({ id: e.branch.id, name: e.branch.name, agency: e.branch.agency, status: e.status })),
+        }),
+      )
+    },
+
+    async getUser(viewer, userId) {
+      const users = await this.listUsers(viewer)
+      return users.find((user) => user.id === userId) ?? null
+    },
+
+    provisionUser(actorId, userId, command) {
+      return runAdminCommand<ProvisionOutcome>('provision_user', {
+        p_actor_id: actorId,
+        p_user_id: userId,
+        p_full_name: command.fullName,
+        p_role: command.role,
+        p_agency_ids: command.role === 'agency' ? command.agencyIds : null,
+        p_branch_id: command.role === 'nurse' ? command.branchId : null,
+      })
     },
 
     async listAgencies(viewer) {

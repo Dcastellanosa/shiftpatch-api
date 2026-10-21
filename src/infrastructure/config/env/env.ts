@@ -33,6 +33,9 @@ const envSchema = z
     // Server-only. Used exclusively to call the shift workflow functions
     // (create_shift, claim_shift), which client roles cannot execute.
     SUPABASE_SERVICE_ROLE_KEY: z.preprocess(blankAsUndefined, z.string().optional()),
+    // Origin of the web app that receives invitation and recovery links
+    // (<origin>/set-password). Defaults to the first CORS origin.
+    WEB_ORIGIN: z.preprocess(blankAsUndefined, origin.optional()),
   })
   .refine((env) => Boolean(env.SUPABASE_URL) === Boolean(env.SUPABASE_PUBLISHABLE_KEY), {
     message: 'SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY must be set together',

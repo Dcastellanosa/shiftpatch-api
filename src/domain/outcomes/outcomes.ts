@@ -45,3 +45,15 @@ export type CreateAgencyOutcome = 'created' | 'actor_not_allowed' | 'name_taken'
 export type UpdateAgencyOutcome = 'updated' | 'actor_not_allowed' | 'agency_not_found' | 'name_taken'
 export type CreateBranchOutcome = 'created' | 'actor_not_allowed' | 'agency_not_found' | 'agency_inactive' | 'name_taken'
 export type UpdateBranchOutcome = 'updated' | 'actor_not_allowed' | 'branch_not_found' | 'name_taken'
+
+/** Outcomes of `provision_user` (run after the Auth user exists). */
+export type ProvisionOutcome =
+  | 'provisioned'
+  | 'actor_not_allowed'
+  | 'auth_user_not_found'
+  | 'profile_exists'
+  | 'invalid_assignment'
+  | 'agency_not_found'
+  | 'agency_inactive'
+  | 'branch_not_found'
+  | 'branch_inactive'

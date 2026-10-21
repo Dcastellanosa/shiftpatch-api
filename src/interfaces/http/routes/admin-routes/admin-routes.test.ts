@@ -9,13 +9,23 @@ import {
   BRANCH_ID,
   NURSE_PROFILE,
   SESSION_COOKIE,
+  INVITED_USER_ID,
+  adminUserFixture,
   agencyBranchFixture,
   agencyFixture,
   buildApp,
   buildSignedInApp,
+  fakeAuthAdmin,
   fakeDataStore,
 } from '../../../../test-support/fakes.js'
-import { agencyDetailResponse, agencyListResponse, agencyResponse, branchResponse } from '../../schemas/admin/admin.js'
+import {
+  agencyDetailResponse,
+  agencyListResponse,
+  agencyResponse,
+  branchResponse,
+  userListResponse,
+  userResponse,
+} from '../../schemas/admin/admin.js'
 
 const asProfile = (profile: Profile | null) => async () => profile
 type App = ReturnType<typeof buildApp>
@@ -226,5 +236,102 @@ describe('branches', () => {
     const store = adminStore({ listAgencies: async () => [agencyFixture()] })
     const res = await get(buildSignedInApp(store), '/admin/agencies')
     expect(JSON.stringify(res.body)).not.toMatch(/token|secret|supabase/i)
+  })
+})
+
+describe('users', () => {
+  const NURSE_INVITE = { email: 'new.nurse@example.test', fullName: 'Nina Nurse', role: 'nurse', branchId: BRANCH_ID }
+
+  it('lists users with their access', async () => {
+    const users = [adminUserFixture(), adminUserFixture({ id: 'a1000000-0000-4000-8000-0000000000aa', role: 'agency', status: 'active', agencies: [{ id: AGENCY_ID, name: 'Northwind' }], eligibleBranches: [] })]
+    const res = await get(buildSignedInApp(adminStore({ listUsers: async () => users })), '/admin/users')
+    expect(res.status).toBe(200)
+    expect(userListResponse.parse(res.body).users).toEqual(users)
+  })
+
+  it('invites a nurse: provider, provisioning with the viewer id, 201 with the listed user', async () => {
+    const user = adminUserFixture()
+    const auth = fakeAuthAdmin({ inviteUser: async () => ({ id: INVITED_USER_ID }) })
+    const store = adminStore({
+      provisionUser: async () => ({ outcome: 'provisioned', entityId: INVITED_USER_ID }),
+      getUser: async () => user,
+    })
+    const res = await post(buildSignedInApp(store, auth), '/admin/users', NURSE_INVITE)
+    expect(res.status).toBe(201)
+    expect(userResponse.parse(res.body).user).toEqual(user)
+    expect(auth.inviteUser).toHaveBeenCalledWith(NURSE_INVITE.email, { fullName: 'Nina Nurse', redirectTo: `${ALLOWED_ORIGIN}/set-password` })
+    expect(store.provisionUser).toHaveBeenCalledWith(ADMIN_PROFILE.id, INVITED_USER_ID, NURSE_INVITE)
+  })
+
+  it.each([
+    ['an admin with an agency', { email: 'a@example.test', fullName: 'A', role: 'admin', agencyIds: [AGENCY_ID] }],
+    ['an agency user without agencies', { email: 'a@example.test', fullName: 'A', role: 'agency' }],
+    ['an agency user with an empty list', { email: 'a@example.test', fullName: 'A', role: 'agency', agencyIds: [] }],
+    ['a nurse with agencies', { email: 'a@example.test', fullName: 'A', role: 'nurse', branchId: BRANCH_ID, agencyIds: [AGENCY_ID] }],
+    ['an unknown role', { email: 'a@example.test', fullName: 'A', role: 'owner' }],
+    ['a password', { ...NURSE_INVITE, password: 'hunter2-secret' }],
+    ['an id', { ...NURSE_INVITE, id: INVITED_USER_ID }],
+    ['an invalid email', { ...NURSE_INVITE, email: 'not-an-email' }],
+  ])('rejects %s with 400 before contacting the provider', async (_label, body) => {
+    const auth = fakeAuthAdmin()
+    const store = adminStore()
+    const res = await post(buildSignedInApp(store, auth), '/admin/users', body)
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('validation_error')
+    expect(JSON.stringify(res.body)).not.toMatch(/hunter2|owner|example\.test/)
+    expect(auth.inviteUser).not.toHaveBeenCalled()
+    expect(store.provisionUser).not.toHaveBeenCalled()
+  })
+
+  it('answers 409 and provisions nothing when the address exists', async () => {
+    const auth = fakeAuthAdmin({ inviteUser: async () => 'email_exists' })
+    const store = adminStore()
+    const res = await post(buildSignedInApp(store, auth), '/admin/users', NURSE_INVITE)
+    expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('email_exists')
+    expect(store.provisionUser).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['agency_not_found', 404],
+    ['branch_not_found', 404],
+    ['agency_inactive', 422],
+    ['branch_inactive', 422],
+    ['invalid_assignment', 422],
+    ['actor_not_allowed', 403],
+    ['auth_user_not_found', 503],
+  ] as const)('maps provisioning outcome %s to %i and removes the Auth user again', async (outcome, status) => {
+    const auth = fakeAuthAdmin({ inviteUser: async () => ({ id: INVITED_USER_ID }) })
+    const store = adminStore({ provisionUser: async () => ({ outcome, entityId: null }) })
+    const res = await post(buildSignedInApp(store, auth), '/admin/users', NURSE_INVITE)
+    expect(res.status).toBe(status)
+    expect(auth.deleteUser).toHaveBeenCalledWith(INVITED_USER_ID)
+    expect(JSON.stringify(res.body)).not.toContain(INVITED_USER_ID)
+  })
+
+  it('answers 409 email_exists for an already provisioned account and keeps it', async () => {
+    const auth = fakeAuthAdmin({ inviteUser: async () => ({ id: INVITED_USER_ID }) })
+    const store = adminStore({ provisionUser: async () => ({ outcome: 'profile_exists', entityId: null }) })
+    const res = await post(buildSignedInApp(store, auth), '/admin/users', NURSE_INVITE)
+    expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('email_exists')
+    expect(auth.deleteUser).not.toHaveBeenCalled()
+  })
+
+  it('answers 503 when invitations are not configured, without contacting anything', async () => {
+    const store = adminStore()
+    const res = await post(buildSignedInApp(store, null), '/admin/users', NURSE_INVITE)
+    expect(res.status).toBe(503)
+    expect(store.provisionUser).not.toHaveBeenCalled()
+  })
+
+  it.each([NURSE_PROFILE, AGENCY_PROFILE])('refuses a $role on the user routes', async (profile) => {
+    const auth = fakeAuthAdmin()
+    const store = fakeDataStore({ getProfile: asProfile(profile) })
+    const app = buildSignedInApp(store, auth)
+    expect((await get(app, '/admin/users')).status).toBe(403)
+    expect((await post(app, '/admin/users', NURSE_INVITE)).status).toBe(403)
+    expect(auth.inviteUser).not.toHaveBeenCalled()
+    expect(store.listUsers).not.toHaveBeenCalled()
   })
 })

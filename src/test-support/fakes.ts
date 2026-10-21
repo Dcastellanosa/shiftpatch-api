@@ -1,9 +1,11 @@
 import { vi } from 'vitest'
+import type { AuthAdmin } from '../domain/ports/auth-admin/auth-admin.js'
 import type { AuthProvider, AuthSession } from '../domain/ports/auth-provider/auth-provider.js'
 import type { DataStore } from '../domain/ports/data-store/data-store.js'
 import { parseEnv } from '../infrastructure/config/env/env.js'
 import { createApp } from '../composition/create-app/create-app.js'
 import type { AuthUser, Profile, Viewer } from '../domain/viewer/viewer.js'
+import type { AdminUser } from '../domain/admin/admin.js'
 import type { Agency, AgencyBranch } from '../domain/agency/agency.js'
 import type { Shift } from '../domain/shift/shift.js'
 
@@ -60,6 +62,9 @@ export function fakeDataStore(overrides: Partial<DataStore> = {}) {
     updateAgency: vi.fn<DataStore['updateAgency']>(overrides.updateAgency ?? unexpected('updateAgency')),
     createBranch: vi.fn<DataStore['createBranch']>(overrides.createBranch ?? unexpected('createBranch')),
     updateBranch: vi.fn<DataStore['updateBranch']>(overrides.updateBranch ?? unexpected('updateBranch')),
+    listUsers: vi.fn<DataStore['listUsers']>(overrides.listUsers ?? unexpected('listUsers')),
+    getUser: vi.fn<DataStore['getUser']>(overrides.getUser ?? unexpected('getUser')),
+    provisionUser: vi.fn<DataStore['provisionUser']>(overrides.provisionUser ?? unexpected('provisionUser')),
   }
 }
 
@@ -100,14 +105,45 @@ export function buildApp(
   authProvider: AuthProvider | null = fakeAuthProvider(),
   nodeEnv: 'test' | 'production' = 'test',
   dataStore: DataStore | null = null,
+  authAdmin: AuthAdmin | null = null,
 ) {
   const env = parseEnv({ NODE_ENV: nodeEnv, CORS_ORIGINS: ALLOWED_ORIGIN })
-  return createApp(env, { authProvider, dataStore })
+  return createApp(env, { authProvider, dataStore, authAdmin })
 }
 
-/** An app whose cookie session resolves to USER, with the given data store. */
-export function buildSignedInApp(dataStore: DataStore | null) {
-  return buildApp(fakeAuthProvider({ getUser: async () => USER }), 'test', dataStore)
+/** An app whose cookie session resolves to USER, with the given data store (and auth admin). */
+export function buildSignedInApp(dataStore: DataStore | null, authAdmin: AuthAdmin | null = null) {
+  return buildApp(fakeAuthProvider({ getUser: async () => USER }), 'test', dataStore, authAdmin)
+}
+
+/** Every method is a spy; unconfigured methods fail loudly so unexpected calls surface. */
+export function fakeAuthAdmin(overrides: Partial<AuthAdmin> = {}) {
+  const unexpected = (name: string) => async () => {
+    throw new Error(`unexpected AuthAdmin.${name} call`)
+  }
+  return {
+    inviteUser: vi.fn<AuthAdmin['inviteUser']>(overrides.inviteUser ?? unexpected('inviteUser')),
+    deleteUser: vi.fn<AuthAdmin['deleteUser']>(overrides.deleteUser ?? (async () => undefined)),
+    completePassword: vi.fn<AuthAdmin['completePassword']>(overrides.completePassword ?? unexpected('completePassword')),
+    sendRecovery: vi.fn<AuthAdmin['sendRecovery']>(overrides.sendRecovery ?? (async () => undefined)),
+  }
+}
+
+export const INVITED_USER_ID = '7c1e0d52-0000-4000-8000-000000000099'
+
+export function adminUserFixture(overrides: Partial<AdminUser> = {}): AdminUser {
+  return {
+    id: INVITED_USER_ID,
+    email: 'new.nurse@example.test',
+    fullName: 'Nina Nurse',
+    role: 'nurse',
+    status: 'invited',
+    invitedAt: '2030-01-01T00:00:00.000Z',
+    lastSignInAt: null,
+    agencies: [],
+    eligibleBranches: [{ id: BRANCH_ID, name: 'Downtown Clinic', agency: { id: AGENCY_ID, name: 'Northwind Care Staffing' }, status: 'active' }],
+    ...overrides,
+  }
 }
 
 export const SESSION_COOKIE = `sp_access=${SESSION.accessToken}`

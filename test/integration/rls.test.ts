@@ -120,7 +120,16 @@ describe('nurse visibility', () => {
   it('sees open shifts only in actively eligible branches, plus own assigned shifts', async () => {
     const shifts = await visibleShifts(USERS.ava.id)
     const ids = shifts.map((s) => s.id)
-    const avaBranches: string[] = [BRANCHES.downtown.id, BRANCHES.riverside.id, BRANCHES.bayview.id]
+    const { rows: effective } = await pool.query(
+      `select e.branch_id from shiftpatch.branch_nurse_eligibility e
+       join shiftpatch.agency_branches b on b.id = e.branch_id and b.status = 'active'
+       join shiftpatch.agencies a on a.id = b.agency_id and a.status = 'active'
+       where e.nurse_id = $1 and e.status = 'active'`,
+      [USERS.ava.id],
+    )
+    const avaBranches = effective.map((r) => r.branch_id as string)
+    expect(avaBranches).toEqual(expect.arrayContaining([BRANCHES.downtown.id, BRANCHES.riverside.id, BRANCHES.bayview.id]))
+    expect(avaBranches).not.toContain(BRANCHES.lakesideClinic.id)
 
     expect(ids).toContain(OPEN_DOWNTOWN.id)
     expect(ids).toContain(AVA_CLAIMED_BAYVIEW.id)

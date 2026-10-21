@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { ELIGIBILITY_STATUSES, USER_STATUSES, type AdminUser, type InviteUserCommand } from '../../../../domain/admin/admin.js'
+import { APP_ROLES } from '../../../../domain/shift/shift.js'
 import {
   ENTITY_STATUSES,
   type Agency,
@@ -87,3 +89,39 @@ export const updateBranchBody = z
   .refine((body) => Object.values(body).some((value) => value !== undefined), {
     message: 'at least one field is required',
   }) satisfies z.ZodType<UpdateBranchInput, unknown>
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+export const userStatusSchema = z.enum(USER_STATUSES)
+export const eligibilityStatusSchema = z.enum(ELIGIBILITY_STATUSES)
+
+const agencyRef = z.object({ id: z.uuid(), name: z.string() })
+
+export const adminUserSchema = z.object({
+  id: z.uuid(),
+  email: z.string().nullable(),
+  fullName: z.string(),
+  role: z.enum(APP_ROLES),
+  status: userStatusSchema,
+  invitedAt: isoTimestamp.nullable(),
+  lastSignInAt: isoTimestamp.nullable(),
+  agencies: z.array(agencyRef),
+  eligibleBranches: z.array(z.object({ id: z.uuid(), name: z.string(), agency: agencyRef, status: eligibilityStatusSchema })),
+}) satisfies z.ZodType<AdminUser>
+
+export const userListResponse = z.object({ users: z.array(adminUserSchema) })
+export const userResponse = z.object({ user: adminUserSchema })
+
+const invitee = { email: z.email().max(320), fullName: name }
+
+/**
+ * Strict discriminated union: the assignment must match the role, and keys
+ * such as `password` or `id` are rejected rather than ignored.
+ */
+export const inviteUserBody = z.discriminatedUnion('role', [
+  z.object({ ...invitee, role: z.literal('admin') }).strict(),
+  z.object({ ...invitee, role: z.literal('agency'), agencyIds: z.array(z.uuid()).min(1).max(50) }).strict(),
+  z.object({ ...invitee, role: z.literal('nurse'), branchId: z.uuid() }).strict(),
+]) satisfies z.ZodType<InviteUserCommand, unknown>
