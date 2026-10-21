@@ -13,7 +13,7 @@ describe('signIn', () => {
       ok: true,
       session: SESSION,
       payload: {
-        user: { id: USER.id, email: USER.email, fullName: NURSE_PROFILE.fullName, role: 'nurse', agencyId: null, agencyIds: [] },
+        user: { id: NURSE_PROFILE.slug, name: NURSE_PROFILE.fullName, email: USER.email, role: 'nurse', agencyId: null, agencyIds: [] },
       },
     })
     expect(auth.signInWithPassword).toHaveBeenCalledWith('nurse@example.com', 'pw')
@@ -33,8 +33,8 @@ describe('signIn', () => {
     const result = await signIn({ auth, store: null }, 'nurse@example.com', 'pw')
     expect(result.ok && result.payload.user).toEqual({
       id: USER.id,
+      name: null,
       email: USER.email,
-      fullName: null,
       role: null,
       agencyId: null,
       agencyIds: [],

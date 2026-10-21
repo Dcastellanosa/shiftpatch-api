@@ -5,7 +5,7 @@ import { requireSession, resolveSession } from './session.js'
 
 describe('resolveSession', () => {
   it('reports auth as unavailable when cookies are present but no provider is configured', async () => {
-    const req = { cookies: { sp_access: SESSION.accessToken } } as unknown as Request
+    const req = { cookies: { sp_access: SESSION.accessToken }, get: () => undefined } as unknown as Request
     await expect(resolveSession(null, { secure: false })(req, {} as Response, vi.fn())).rejects.toMatchObject({
       status: 503,
       code: 'auth_unavailable',
@@ -14,7 +14,7 @@ describe('resolveSession', () => {
 
   it('passes through anonymous requests without a provider', async () => {
     const next = vi.fn()
-    await resolveSession(null, { secure: false })({ cookies: {} } as Request, {} as Response, next)
+    await resolveSession(null, { secure: false })({ cookies: {}, get: () => undefined } as unknown as Request, {} as Response, next)
     expect(next).toHaveBeenCalledOnce()
   })
 })

@@ -2,15 +2,19 @@ import type { AuthUser, Profile } from '../../domain/viewer/viewer.js'
 import type { AppRole } from '../../domain/shift/shift.js'
 import type { DataStore } from '../../domain/ports/data-store/data-store.js'
 
-/** The only user shape this API returns to clients. Never contains tokens. */
+/**
+ * The only user shape this API returns to clients. Ids are public ids: a
+ * nurse or admin is identified by their profile slug (`nurse-1`), an agency
+ * user by the agency they manage (`agency-a`), as the contract reads.
+ */
 export interface SessionUser {
   id: string
+  name: string | null
   email: string | null
-  fullName: string | null
   role: AppRole | null
-  /** First active agency (agency users). Prefer `agencyIds`. */
+  /** Public id of the first active agency (agency users). Prefer `agencyIds`. */
   agencyId: string | null
-  /** Every agency the user manages through an active membership. */
+  /** Public ids of every agency the user manages through an active membership. */
   agencyIds: string[]
 }
 
@@ -24,14 +28,15 @@ export interface SessionPayload {
  * no access to business routes.
  */
 export function toSessionPayload(user: AuthUser, profile: Profile | null): SessionPayload {
+  const id = profile ? (profile.role === 'agency' ? (profile.agencySlug ?? profile.slug) : profile.slug) : user.id
   return {
     user: {
-      id: user.id,
+      id,
+      name: profile?.fullName ?? null,
       email: user.email,
-      fullName: profile?.fullName ?? null,
       role: profile?.role ?? null,
-      agencyId: profile?.agencyId ?? null,
-      agencyIds: profile?.agencyIds ?? [],
+      agencyId: profile?.agencySlug ?? null,
+      agencyIds: profile?.agencySlugs ?? [],
     },
   }
 }

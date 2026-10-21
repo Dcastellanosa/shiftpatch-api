@@ -36,18 +36,18 @@ describe('GET /agency/nurses', () => {
     expect(res.status).toBe(200)
     const nurses = nurseListResponse.parse(res.body).nurses
     const byId = new Map(nurses.map((n) => [n.nurse.id, n]))
-    expect([...byId.keys()]).toEqual(expect.arrayContaining([USERS.ava.id, USERS.ben.id, USERS.cora.id, USERS.dev.id, USERS.eli.id]))
+    expect([...byId.keys()]).toEqual(expect.arrayContaining([USERS.ava.slug, USERS.ben.slug, USERS.cora.slug, USERS.dev.slug, USERS.eli.slug]))
 
-    const ava = byId.get(USERS.ava.id)!
+    const ava = byId.get(USERS.ava.slug)!
     expect(ava.nurse.fullName).toBe(USERS.ava.fullName)
     expect(ava.branches.map((b) => [b.branch.id, b.status]).sort()).toEqual(
       [[BRANCHES.downtown.id, 'active'], [BRANCHES.riverside.id, 'active']].sort(),
     )
     for (const nurse of nurses) {
-      for (const row of nurse.branches) expect(row.branch.agency.id).toBe(AGENCIES.northwind.id)
+      for (const row of nurse.branches) expect(row.branch.agency.id).toBe(AGENCIES.northwind.slug)
     }
-    expect(byId.get(USERS.cora.id)!.branches).toEqual([
-      { branch: { id: BRANCHES.downtown.id, name: BRANCHES.downtown.name, agency: { id: AGENCIES.northwind.id, name: AGENCIES.northwind.name } }, status: 'pending', activatedAt: null },
+    expect(byId.get(USERS.cora.slug)!.branches).toEqual([
+      { branch: { id: BRANCHES.downtown.id, name: BRANCHES.downtown.name, agency: { id: AGENCIES.northwind.slug, name: AGENCIES.northwind.name } }, status: 'pending', activatedAt: null },
     ])
   })
 
@@ -59,61 +59,64 @@ describe('GET /agency/nurses', () => {
 
 describe('eligibility changes and their effect on claims', () => {
   it('Harbor cannot touch Ava at Downtown (404), and sees no Downtown data', async () => {
-    const res = await del(agents.harborAgency, USERS.ava.id, BRANCHES.downtown.id)
+    const res = await del(agents.harborAgency, USERS.ava.slug, BRANCHES.downtown.id)
     expect(res.status).toBe(404)
-    expect(res.body.error.code).toBe('branch_not_found')
+    expect(res.body.code).toBe('branch_not_found')
     const { rows } = await pool.query('select status from shiftpatch.branch_nurse_eligibility where nurse_id = $1 and branch_id = $2', [USERS.ava.id, BRANCHES.downtown.id])
     expect(rows).toEqual([{ status: 'active' }])
   })
 
   it('Northwind cannot reach a nurse who is not connected to it, and an unknown nurse answers the same', async () => {
-    const { rows } = await pool.query(`select id from shiftpatch.profiles where role = 'nurse' and id not in (select nurse_id from shiftpatch.branch_nurse_eligibility) limit 1`)
-    const stranger = rows[0]?.id as string | undefined
-    if (stranger) {
-      const res = await put(agents.northwindAgency, stranger, BRANCHES.downtown.id)
-      expect(res.status).toBe(404)
-      expect(res.body.error.code).toBe('nurse_not_found')
-    }
-    const unknown = await put(agents.northwindAgency, '99999999-0000-4000-8000-000000000000', BRANCHES.downtown.id)
+    // The trial nurses are connected to Sunrise and Metro only, never to Northwind.
+    const stranger = await put(agents.northwindAgency, 'nurse-1', BRANCHES.downtown.id)
+    expect(stranger.status).toBe(404)
+    expect(stranger.body.code).toBe('nurse_not_found')
+    const unknown = await put(agents.northwindAgency, 'nurse-404', BRANCHES.downtown.id)
     expect(unknown.status).toBe(404)
-    expect(unknown.body.error.code).toBe('nurse_not_found')
+    expect(unknown.body.code).toBe('nurse_not_found')
   })
 
   it('suspending Ava at Downtown hides and blocks its shifts; re-activating restores them', async () => {
-    const created = await agents.northwindAgency.post('/shifts').set('Origin', ALLOWED_ORIGIN).send({ branchId: BRANCHES.downtown.id, title: 'Eligibility shift', ...nextWindow() })
+    const window = nextWindow()
+    const created = await agents.northwindAgency.post('/shifts').set('Origin', ALLOWED_ORIGIN).send({
+      role: 'Eligibility RN',
+      date: window.startsAt.slice(0, 10),
+      startTime: '08:00',
+      endTime: '16:00',
+      branchId: BRANCHES.downtown.id,
+    })
     expect(created.status).toBe(201)
-    const shiftId = created.body.shift.id as string
+    const shiftId = created.body.id as string
 
-    const suspended = await del(agents.northwindAgency, USERS.ava.id, BRANCHES.downtown.id)
+    const suspended = await del(agents.northwindAgency, USERS.ava.slug, BRANCHES.downtown.id)
     expect(suspended.status).toBe(200)
-    expect(eligibilityResponse.parse(suspended.body).eligibility).toMatchObject({ nurseId: USERS.ava.id, branchId: BRANCHES.downtown.id, status: 'suspended' })
+    expect(eligibilityResponse.parse(suspended.body).eligibility).toMatchObject({ nurseId: USERS.ava.slug, branchId: BRANCHES.downtown.id, status: 'suspended' })
 
-    const hidden = shiftListResponse.parse((await agents.ava.get('/shifts')).body).shifts
-    expect(hidden.map((s) => s.id)).not.toContain(shiftId)
+    // The marketplace still lists the shift; the claim is what eligibility gates.
+    const listed = shiftListResponse.parse((await agents.ava.get('/shifts')).body).shifts
+    expect(listed.map((s) => s.id)).toContain(shiftId)
     const blocked = await claim(agents.ava, shiftId)
     expect(blocked.status).toBe(422)
-    expect(blocked.body.error.code).toBe('eligibility_inactive')
+    expect(blocked.body.code).toBe('eligibility_inactive')
 
-    const activated = await put(agents.northwindAgency, USERS.ava.id, BRANCHES.downtown.id)
+    const activated = await put(agents.northwindAgency, USERS.ava.slug, BRANCHES.downtown.id)
     expect(activated.status).toBe(200)
     expect(eligibilityResponse.parse(activated.body).eligibility.status).toBe('active')
-    const visible = shiftListResponse.parse((await agents.ava.get('/shifts')).body).shifts
-    expect(visible.map((s) => s.id)).toContain(shiftId)
     expect((await claim(agents.ava, shiftId)).status).toBe(200)
   })
 
   it('an admin can activate a nurse at any branch, and inactive branches refuse changes', async () => {
-    const res = await put(agents.admin, USERS.eli.id, BRANCHES.bayview.id)
+    const res = await put(agents.admin, USERS.eli.slug, BRANCHES.bayview.id)
     expect(res.status).toBe(200)
     await pool.query('delete from shiftpatch.branch_nurse_eligibility where nurse_id = $1 and branch_id = $2', [USERS.eli.id, BRANCHES.bayview.id])
 
-    const inactive = await put(agents.admin, USERS.ava.id, BRANCHES.lakesideClinic.id)
+    const inactive = await put(agents.admin, USERS.ava.slug, BRANCHES.lakesideClinic.id)
     expect(inactive.status).toBe(422)
-    expect(inactive.body.error.code).toBe('agency_inactive')
+    expect(inactive.body.code).toBe('agency_inactive')
   })
 
   it('nurses cannot manage eligibility', async () => {
-    expect((await put(agents.ava, USERS.ava.id, BRANCHES.hillcrest.id)).status).toBe(403)
+    expect((await put(agents.ava, USERS.ava.slug, BRANCHES.hillcrest.id)).status).toBe(403)
   })
 })
 
@@ -123,17 +126,18 @@ describe('an agency user with several active memberships', () => {
     const both = await signIn(app, USERS.northwindAgency)
 
     const me = await both.get('/auth/me')
-    expect(me.body.user.agencyIds.sort()).toEqual([AGENCIES.northwind.id, AGENCIES.harbor.id].sort())
-    expect([AGENCIES.northwind.id, AGENCIES.harbor.id]).toContain(me.body.user.agencyId)
+    expect(me.body.user.agencyIds.sort()).toEqual([AGENCIES.northwind.slug, AGENCIES.harbor.slug].sort())
+    expect([AGENCIES.northwind.slug, AGENCIES.harbor.slug]).toContain(me.body.user.agencyId)
+    expect(me.body.user.id).toBe(me.body.user.agencyId)
 
     const branches = (await both.get('/branches')).body.branches as { agency: { id: string } }[]
-    expect(new Set(branches.map((b) => b.agency.id))).toEqual(new Set([AGENCIES.northwind.id, AGENCIES.harbor.id]))
+    expect(new Set(branches.map((b) => b.agency.id))).toEqual(new Set([AGENCIES.northwind.slug, AGENCIES.harbor.slug]))
 
     const nurses = nurseListResponse.parse((await both.get('/agency/nurses')).body).nurses
     const agencies = new Set(nurses.flatMap((n) => n.branches.map((b) => b.branch.agency.id)))
-    expect(agencies).toEqual(new Set([AGENCIES.northwind.id, AGENCIES.harbor.id]))
+    expect(agencies).toEqual(new Set([AGENCIES.northwind.slug, AGENCIES.harbor.slug]))
 
-    const harborChange = await put(both, USERS.ava.id, BRANCHES.bayview.id)
+    const harborChange = await put(both, USERS.ava.slug, BRANCHES.bayview.id)
     expect(harborChange.status).toBe(200)
   })
 })

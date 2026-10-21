@@ -20,7 +20,7 @@ describe('errorHandler', () => {
   it('renders AppError with its status, code and details', () => {
     expect(handle(new AppError(409, 'conflict', 'Taken', [{ path: 'x' }]))).toEqual({
       status: 409,
-      body: { error: { code: 'conflict', message: 'Taken', details: [{ path: 'x' }] } },
+      body: { error: 'Taken', code: 'conflict', details: [{ path: 'x' }] },
     })
   })
 
@@ -31,14 +31,14 @@ describe('errorHandler', () => {
   ])('maps %s to %i', (err, status, code) => {
     const result = handle(err)
     expect(result.status).toBe(status)
-    expect(result.body.error.code).toBe(code)
+    expect(result.body.code).toBe(code)
   })
 
   it('logs only the safe message of a DataStoreError and returns a generic 500', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     expect(handle(new DataStoreError('list shifts failed (42501)'))).toEqual({
       status: 500,
-      body: { error: { code: 'internal_error', message: 'Internal server error' } },
+      body: { error: 'Internal server error', code: 'internal_error' },
     })
     expect(log).toHaveBeenCalledWith('Data store error: list shifts failed (42501)')
   })
@@ -49,13 +49,13 @@ describe('errorHandler', () => {
   ])('maps body-parser %s to %i', (type, status, code) => {
     const result = handle(Object.assign(new Error('parser'), { type }))
     expect(result.status).toBe(status)
-    expect(result.body.error.code).toBe(code)
+    expect(result.body.code).toBe(code)
   })
 
   it('hides unknown errors behind a generic 500 and logs only name and message', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const result = handle(new TypeError('boom'))
-    expect(result).toEqual({ status: 500, body: { error: { code: 'internal_error', message: 'Internal server error' } } })
+    expect(result).toEqual({ status: 500, body: { error: 'Internal server error', code: 'internal_error' } })
     expect(JSON.stringify(result.body)).not.toContain('boom')
     expect(log).toHaveBeenCalledWith('Unhandled error: TypeError: boom')
   })

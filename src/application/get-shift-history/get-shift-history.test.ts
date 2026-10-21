@@ -7,6 +7,7 @@ import {
   NURSE_PROFILE,
   SHIFT_ID,
   USER,
+  claimedShiftFixture,
   fakeDataStore,
   shiftFixture,
   viewerFor,
@@ -22,13 +23,13 @@ const EVENT: ShiftEvent = {
   actor: { id: USER.id, fullName: null },
 }
 
-const OTHER_NURSE_ID = '7c1e0d52-0000-4000-8000-000000000099'
+const OTHER_NURSE_ID = 'nurse-99'
 
 describe('getShiftHistory', () => {
   it('returns history to the assigned nurse', async () => {
     const nurse = viewerFor(NURSE_PROFILE)
     const store = fakeDataStore({
-      getShift: async () => shiftFixture({ status: 'claimed', assignedNurse: { id: USER.id, fullName: 'Ava' } }),
+      getShift: async () => claimedShiftFixture(),
       listShiftEvents: async () => [EVENT],
     })
 
@@ -41,7 +42,7 @@ describe('getShiftHistory', () => {
 
   it.each([
     ['an open shift', shiftFixture()],
-    ['a shift assigned to another nurse', shiftFixture({ status: 'claimed', assignedNurse: { id: OTHER_NURSE_ID, fullName: 'Sam' } })],
+    ['a shift assigned to another nurse', claimedShiftFixture({ claimedBy: OTHER_NURSE_ID, claimedByName: 'Sam' })],
   ])('hides %s from a nurse without listing events', async (_label, shift) => {
     const store = fakeDataStore({ getShift: async () => shift })
 
@@ -51,7 +52,16 @@ describe('getShiftHistory', () => {
     expect(store.listShiftEvents).not.toHaveBeenCalled()
   })
 
-  it.each([AGENCY_PROFILE, ADMIN_PROFILE])('returns history to $role for a visible shift', async (profile) => {
+  it('hides another agency’s shift from an agency user without listing events', async () => {
+    const store = fakeDataStore({ getShift: async () => shiftFixture({ agencyId: 'agency-b' }) })
+
+    const result = await getShiftHistory({ store }, viewerFor(AGENCY_PROFILE), SHIFT_ID)
+
+    expect(result).toEqual({ ok: false, outcome: 'shift_not_found' })
+    expect(store.listShiftEvents).not.toHaveBeenCalled()
+  })
+
+  it.each([AGENCY_PROFILE, ADMIN_PROFILE])('returns history to $role for a shift in their scope', async (profile) => {
     const store = fakeDataStore({ getShift: async () => shiftFixture(), listShiftEvents: async () => [EVENT] })
 
     const result = await getShiftHistory({ store }, viewerFor(profile), SHIFT_ID)

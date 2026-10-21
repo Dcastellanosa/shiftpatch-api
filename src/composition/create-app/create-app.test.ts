@@ -21,9 +21,7 @@ describe('origin check (CSRF)', () => {
       const res = await agent[verb]('/auth/logout').set('Origin', 'https://evil.example')
 
       expect(res.status).toBe(403)
-      expect(res.body).toEqual({
-        error: { code: 'invalid_origin', message: 'Request origin is not allowed' },
-      })
+      expect(res.body).toEqual({ error: 'Request origin is not allowed', code: 'invalid_origin' })
     },
   )
 
@@ -50,7 +48,7 @@ describe('origin check (CSRF)', () => {
       .set('Sec-Fetch-Mode', 'cors')
 
     expect(res.status).toBe(403)
-    expect(res.body).toEqual({ error: { code: 'origin_required', message: 'Origin header is required' } })
+    expect(res.body).toEqual({ error: 'Origin header is required', code: 'origin_required' })
   })
 
   it('allows unsafe requests from an approved origin', async () => {
@@ -64,7 +62,31 @@ describe('origin check (CSRF)', () => {
   })
 })
 
+describe('the /api prefix', () => {
+  it('serves every route under /api as well, for clients that reach the API host directly', async () => {
+    const app = buildApp()
+    expect((await request(app).get('/api/health')).body).toEqual({ status: 'ok' })
+    const me = await request(app).get('/api/auth/me')
+    expect(me.status).toBe(401)
+    expect(me.body).toEqual({ error: 'Authentication required', code: 'unauthenticated' })
+    const missing = await request(app).get('/api/nope')
+    expect(missing.status).toBe(404)
+    expect(missing.body).toEqual({ error: 'Route not found', code: 'not_found' })
+  })
+})
+
 describe('CORS', () => {
+  it('lets browser API clients from an approved origin send Authorization and use PUT', async () => {
+    const res = await request(buildApp())
+      .options('/nurses/x/eligibility/y')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Access-Control-Request-Method', 'PUT')
+      .set('Access-Control-Request-Headers', 'authorization,content-type')
+    expect(res.status).toBe(204)
+    expect(res.headers['access-control-allow-methods']).toContain('PUT')
+    expect(res.headers['access-control-allow-headers']).toMatch(/authorization/i)
+  })
+
   it('allows credentials only for an exact approved origin', async () => {
     const res = await request(buildApp()).get('/health').set('Origin', ALLOWED_ORIGIN)
     expect(res.headers['access-control-allow-origin']).toBe(ALLOWED_ORIGIN)
@@ -97,13 +119,13 @@ describe('createApp wiring', () => {
       .set('Origin', ALLOWED_ORIGIN)
       .send({ email: 'nurse@example.com', password: 'pw' })
     expect(res.status).toBe(503)
-    expect(res.body.error.code).toBe('auth_unavailable')
+    expect(res.body.code).toBe('auth_unavailable')
   })
 
   it('returns a JSON 404 for unknown routes', async () => {
     const res = await request(buildApp()).get('/nope')
     expect(res.status).toBe(404)
-    expect(res.body).toEqual({ error: { code: 'not_found', message: 'Route not found' } })
+    expect(res.body).toEqual({ error: 'Route not found', code: 'not_found' })
   })
 
   it('does not advertise Express', async () => {

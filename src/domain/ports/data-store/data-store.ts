@@ -11,6 +11,7 @@ import type {
 } from '../../agency/agency.js'
 import type {
   AdminCommandResult,
+  CancelCommandResult,
   ClaimOutcome,
   CommandResult,
   CreateAgencyOutcome,
@@ -25,26 +26,30 @@ import type {
 } from '../../outcomes/outcomes.js'
 import type {
   Branch,
-  CreateShiftInput,
+  CancelReason,
+  CreateShiftCommand,
   Shift,
   ShiftEvent,
   ShiftFilters,
 } from '../../shift/shift.js'
 
 /**
- * Driven port: all business-data access. Reads run as the caller (RLS
- * applies); the two commands call service-role-only database functions that
+ * Driven port: all business-data access. Every id crossing this port is a
+ * public id (slug) except branch ids, which are UUIDs. Reads run as the caller
+ * (RLS applies); commands call service-role-only database functions that
  * enforce the workflow rules atomically.
  */
 export interface DataStore {
   getProfile(accessToken: string, userId: string): Promise<Profile | null>
+  /** Every shift the marketplace shows (all agencies), narrowed by the filters. */
   listShifts(viewer: Viewer, filters: ShiftFilters): Promise<Shift[]>
   getShift(viewer: Viewer, shiftId: string): Promise<Shift | null>
   listAssignedShifts(viewer: Viewer): Promise<Shift[]>
   listShiftEvents(viewer: Viewer, shiftId: string): Promise<ShiftEvent[]>
   listBranches(viewer: Viewer): Promise<Branch[]>
-  createShift(actorId: string, input: CreateShiftInput): Promise<CommandResult<CreateOutcome>>
+  createShift(actorId: string, command: CreateShiftCommand): Promise<CommandResult<CreateOutcome>>
   claimShift(nurseId: string, shiftId: string): Promise<CommandResult<ClaimOutcome>>
+  cancelClaim(actorId: string, shiftId: string, reason: CancelReason): Promise<CancelCommandResult>
 
   // Agency administration. Reads run as the viewer (RLS applies); commands
   // call the service-role-only admin functions.
@@ -62,8 +67,9 @@ export interface DataStore {
   // non-admins); provisioning calls the service-role-only command.
   listUsers(viewer: Viewer): Promise<AdminUser[]>
   getUser(viewer: Viewer, userId: string): Promise<AdminUser | null>
-  provisionUser(actorId: string, userId: string, command: InviteUserCommand): Promise<AdminCommandResult<ProvisionOutcome>>
-  /** Removes the profile and its access records (not the Auth account); refused when the user has shifts or recorded actions. */
+  /** `authUserId` is the Auth user's UUID (the account was just created); the result's entityId is the same UUID. */
+  provisionUser(actorId: string, authUserId: string, command: InviteUserCommand): Promise<AdminCommandResult<ProvisionOutcome>>
+  /** Removes the profile and its access records (not the Auth account); the result's entityId is the Auth user's UUID. */
   deleteUser(actorId: string, userId: string): Promise<AdminCommandResult<DeleteUserOutcome>>
 
   // Nurse eligibility. Reads run as the viewer (RLS limits agency users to

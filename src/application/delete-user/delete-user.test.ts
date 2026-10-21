@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { DeleteUserOutcome } from '../../domain/outcomes/outcomes.js'
-import { ADMIN_PROFILE, INVITED_USER_ID, USER, fakeAuthAdmin, fakeDataStore, viewerFor } from '../../test-support/fakes.js'
+import { ADMIN_PROFILE, INVITED_USER_ID, INVITED_USER_SLUG, USER, fakeAuthAdmin, fakeDataStore, viewerFor } from '../../test-support/fakes.js'
 import { deleteUser } from './delete-user.js'
 
 describe('deleteUser', () => {
-  it('removes the profile first, then the Auth account', async () => {
+  it('removes the profile by public id first, then the Auth account by the UUID the command reports', async () => {
     const calls: string[] = []
     const store = fakeDataStore({
       deleteUser: async () => {
@@ -17,8 +17,8 @@ describe('deleteUser', () => {
         calls.push('auth')
       },
     })
-    await expect(deleteUser({ store, auth }, viewerFor(ADMIN_PROFILE), INVITED_USER_ID)).resolves.toEqual({ ok: true })
-    expect(store.deleteUser).toHaveBeenCalledWith(USER.id, INVITED_USER_ID)
+    await expect(deleteUser({ store, auth }, viewerFor(ADMIN_PROFILE), INVITED_USER_SLUG)).resolves.toEqual({ ok: true })
+    expect(store.deleteUser).toHaveBeenCalledWith(USER.id, INVITED_USER_SLUG)
     expect(auth.deleteUser).toHaveBeenCalledWith(INVITED_USER_ID)
     expect(calls).toEqual(['store', 'auth'])
   })
@@ -28,7 +28,7 @@ describe('deleteUser', () => {
     async (outcome) => {
       const store = fakeDataStore({ deleteUser: async () => ({ outcome, entityId: null }) })
       const auth = fakeAuthAdmin()
-      await expect(deleteUser({ store, auth }, viewerFor(ADMIN_PROFILE), INVITED_USER_ID)).resolves.toEqual({ ok: false, outcome })
+      await expect(deleteUser({ store, auth }, viewerFor(ADMIN_PROFILE), INVITED_USER_SLUG)).resolves.toEqual({ ok: false, outcome })
       expect(auth.deleteUser).not.toHaveBeenCalled()
     },
   )

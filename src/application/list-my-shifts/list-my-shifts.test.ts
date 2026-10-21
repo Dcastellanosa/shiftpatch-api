@@ -5,28 +5,28 @@ import { NURSE_PROFILE, fakeDataStore, shiftFixture, viewerFor } from '../../tes
 const NOW = Date.parse('2025-06-15T12:00:00.000Z')
 
 const past1 = shiftFixture({
-  id: 'e1000000-0000-4000-8000-000000000001',
+  id: 'shift-101',
   startsAt: '2020-01-01T08:00:00.000Z',
   endsAt: '2020-01-01T16:00:00.000Z',
   status: 'completed',
 })
 const past2 = shiftFixture({
-  id: 'e1000000-0000-4000-8000-000000000002',
+  id: 'shift-102',
   startsAt: '2021-01-01T08:00:00.000Z',
   endsAt: '2021-01-01T16:00:00.000Z',
   status: 'completed',
 })
 const next1 = shiftFixture({
-  id: 'e1000000-0000-4000-8000-000000000003',
+  id: 'shift-103',
   startsAt: '2030-01-10T12:00:00.000Z',
   endsAt: '2030-01-10T20:00:00.000Z',
-  status: 'claimed',
+  status: 'filled',
 })
 const next2 = shiftFixture({
-  id: 'e1000000-0000-4000-8000-000000000004',
+  id: 'shift-104',
   startsAt: '2031-01-10T12:00:00.000Z',
   endsAt: '2031-01-10T20:00:00.000Z',
-  status: 'claimed',
+  status: 'filled',
 })
 
 describe('listMyShifts', () => {
@@ -41,7 +41,7 @@ describe('listMyShifts', () => {
   })
 
   it('treats a shift that ends exactly at `now` as past', async () => {
-    const endingNow = shiftFixture({ endsAt: '2025-06-15T12:00:00.000Z', status: 'claimed' })
+    const endingNow = shiftFixture({ endsAt: '2025-06-15T12:00:00.000Z', status: 'filled' })
     const store = fakeDataStore({ listAssignedShifts: async () => [endingNow] })
 
     const result = await listMyShifts({ store }, viewerFor(NURSE_PROFILE), NOW)
@@ -53,7 +53,7 @@ describe('listMyShifts', () => {
     const inProgress = shiftFixture({
       startsAt: '2025-06-15T08:00:00.000Z',
       endsAt: '2025-06-15T16:00:00.000Z',
-      status: 'claimed',
+      status: 'filled',
     })
     const store = fakeDataStore({ listAssignedShifts: async () => [inProgress] })
 

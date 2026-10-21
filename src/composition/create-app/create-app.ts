@@ -78,8 +78,9 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
         callback(null, !requestOrigin || allowedOrigins.has(requestOrigin))
       },
       credentials: true,
-      methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      // Authorization: API clients may call cross-origin with a bearer token.
+      allowedHeaders: ['Content-Type', 'Authorization'],
       maxAge: 600,
     }),
   )
@@ -87,15 +88,20 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
   app.use(cookieParser())
   app.use(express.json({ limit: '100kb' }))
 
-  app.get('/health', (_req, res) => {
+  // One router, mounted twice: the web app reaches it with the `/api` prefix
+  // already stripped by its proxy; API clients hitting this host directly
+  // keep the prefix (`/api/auth/login`, as the trial contract reads).
+  const routes = express.Router()
+  routes.get('/health', (_req, res) => {
     res.json({ status: 'ok' })
   })
-
-  app.use('/auth', createAuthRouter({ provider: authProvider, store: dataStore, cookieConfig, authAdmin, setPasswordUrl }))
+  routes.use('/auth', createAuthRouter({ provider: authProvider, store: dataStore, cookieConfig, authAdmin, setPasswordUrl }))
   const authenticate = [resolveSession(authProvider, cookieConfig), requireSession]
-  app.use(createShiftRouter(dataStore, authenticate))
-  app.use(createEligibilityRouter(dataStore, authenticate))
-  app.use('/admin', createAdminRouter({ store: dataStore, authAdmin, setPasswordUrl }, authenticate))
+  routes.use(createShiftRouter(dataStore, authenticate))
+  routes.use(createEligibilityRouter(dataStore, authenticate))
+  routes.use('/admin', createAdminRouter({ store: dataStore, authAdmin, setPasswordUrl }, authenticate))
+  app.use(routes)
+  app.use('/api', routes)
 
   app.use(notFoundHandler)
   app.use(errorHandler)

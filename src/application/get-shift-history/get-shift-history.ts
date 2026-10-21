@@ -9,8 +9,10 @@ export type GetShiftHistoryResult =
   | { ok: false; outcome: GetShiftHistoryFailure }
 
 /**
- * Returns a shift's event history. Nurses see history only for shifts
- * assigned to them; anyone else sees it for every shift visible to them.
+ * Returns a shift's event history. The marketplace shows every shift to
+ * everyone, but history stays scoped: nurses see it only for shifts assigned
+ * to them, agency users only for their own agencies' shifts, admins for all.
+ * Out-of-scope shifts answer `shift_not_found`, never 403.
  */
 export async function getShiftHistory(
   { store }: { store: DataStore },
@@ -18,8 +20,11 @@ export async function getShiftHistory(
   shiftId: string,
 ): Promise<GetShiftHistoryResult> {
   const shift = await store.getShift(viewer, shiftId)
-  if (!shift || (viewer.role === 'nurse' && shift.assignedNurse?.id !== viewer.id)) {
-    return { ok: false, outcome: 'shift_not_found' }
-  }
+  const inScope =
+    shift !== null &&
+    (viewer.role === 'admin' ||
+      (viewer.role === 'nurse' && shift.claimedBy === viewer.slug) ||
+      (viewer.role === 'agency' && viewer.agencySlugs.includes(shift.agencyId)))
+  if (!inScope) return { ok: false, outcome: 'shift_not_found' }
   return { ok: true, events: await store.listShiftEvents(viewer, shiftId) }
 }

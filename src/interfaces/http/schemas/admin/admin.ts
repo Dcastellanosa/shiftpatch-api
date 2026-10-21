@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ELIGIBILITY_STATUSES, USER_STATUSES, type AdminUser, type InviteUserCommand } from '../../../../domain/admin/admin.js'
 import { APP_ROLES } from '../../../../domain/shift/shift.js'
+import { publicIdSchema } from '../ids/ids.js'
 import {
   ENTITY_STATUSES,
   type Agency,
@@ -34,7 +35,7 @@ export const timezoneSchema = z
 // ---------------------------------------------------------------------------
 
 export const agencySchema = z.object({
-  id: z.uuid(),
+  id: publicIdSchema,
   name: z.string(),
   status: entityStatusSchema,
   branchCount: z.number().int().nonnegative(),
@@ -44,7 +45,7 @@ export const agencySchema = z.object({
 
 export const agencyBranchSchema = z.object({
   id: z.uuid(),
-  agencyId: z.uuid(),
+  agencyId: publicIdSchema,
   name: z.string(),
   address: z.string(),
   timezone: z.string(),
@@ -62,9 +63,9 @@ export const branchResponse = z.object({ branch: agencyBranchSchema })
 // Requests
 // ---------------------------------------------------------------------------
 
-export const agencyIdParams = z.object({ agencyId: z.uuid() })
-export const agencyBranchParams = z.object({ agencyId: z.uuid(), branchId: z.uuid() })
-export const userIdParams = z.object({ userId: z.uuid() })
+export const agencyIdParams = z.object({ agencyId: publicIdSchema })
+export const agencyBranchParams = z.object({ agencyId: publicIdSchema, branchId: z.uuid() })
+export const userIdParams = z.object({ userId: publicIdSchema })
 
 export const createAgencyBody = z.object({ name }).strict() satisfies z.ZodType<CreateAgencyInput, unknown>
 
@@ -98,10 +99,10 @@ export const updateBranchBody = z
 export const userStatusSchema = z.enum(USER_STATUSES)
 export const eligibilityStatusSchema = z.enum(ELIGIBILITY_STATUSES)
 
-const agencyRef = z.object({ id: z.uuid(), name: z.string() })
+const agencyRef = z.object({ id: publicIdSchema, name: z.string() })
 
 export const adminUserSchema = z.object({
-  id: z.uuid(),
+  id: publicIdSchema,
   email: z.string().nullable(),
   fullName: z.string(),
   role: z.enum(APP_ROLES),
@@ -123,6 +124,6 @@ const invitee = { email: z.email().max(320), fullName: name }
  */
 export const inviteUserBody = z.discriminatedUnion('role', [
   z.object({ ...invitee, role: z.literal('admin') }).strict(),
-  z.object({ ...invitee, role: z.literal('agency'), agencyIds: z.array(z.uuid()).min(1).max(50) }).strict(),
+  z.object({ ...invitee, role: z.literal('agency'), agencyIds: z.array(publicIdSchema).min(1).max(50) }).strict(),
   z.object({ ...invitee, role: z.literal('nurse'), branchId: z.uuid() }).strict(),
 ]) satisfies z.ZodType<InviteUserCommand, unknown>

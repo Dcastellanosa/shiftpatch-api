@@ -76,7 +76,7 @@ describe('access control', () => {
     ])
     for (const res of responses) {
       expect(res.status).toBe(403)
-      expect(res.body.error.code).toBe('forbidden')
+      expect(res.body.code).toBe('forbidden')
     }
     for (const method of ['listAgencies', 'getAgency', 'createAgency', 'updateAgency', 'createBranch', 'updateBranch', 'deleteAgency', 'deleteUser'] as const) {
       expect(store[method]).not.toHaveBeenCalled()
@@ -121,9 +121,9 @@ describe('agencies', () => {
   it('answers 404 for an unknown agency and 400 for a malformed id', async () => {
     const store = adminStore({ getAgency: async () => null })
     expect((await get(buildSignedInApp(store), AGENCY_PATH)).status).toBe(404)
-    const bad = await get(buildSignedInApp(store), '/admin/agencies/not-a-uuid')
+    const bad = await get(buildSignedInApp(store), '/admin/agencies/Not_An_Id')
     expect(bad.status).toBe(400)
-    expect(bad.body.error.code).toBe('validation_error')
+    expect(bad.body.code).toBe('validation_error')
   })
 
   it('updates name and status', async () => {
@@ -148,7 +148,7 @@ describe('agencies', () => {
     const store = adminStore()
     const res = await patch(buildSignedInApp(store), AGENCY_PATH, body)
     expect(res.status).toBe(400)
-    expect(res.body.error.code).toBe('validation_error')
+    expect(res.body.code).toBe('validation_error')
     expect(JSON.stringify(res.body)).not.toContain('closed')
     expect(store.updateAgency).not.toHaveBeenCalled()
   })
@@ -161,14 +161,14 @@ describe('agencies', () => {
     const store = adminStore({ updateAgency: async () => ({ outcome, entityId: null }) })
     const res = await patch(buildSignedInApp(store), AGENCY_PATH, { name: 'x' })
     expect(res.status).toBe(status)
-    expect(res.body).toEqual({ error: { code: expect.any(String), message: expect.any(String) } })
+    expect(res.body).toEqual({ error: expect.any(String), code: expect.any(String) })
   })
 
   it('maps a taken name on creation to 409', async () => {
     const store = adminStore({ createAgency: async () => ({ outcome: 'name_taken', entityId: null }) })
     const res = await post(buildSignedInApp(store), '/admin/agencies', { name: 'Northwind Care Staffing' })
     expect(res.status).toBe(409)
-    expect(res.body.error.code).toBe('name_taken')
+    expect(res.body.code).toBe('name_taken')
   })
 })
 
@@ -207,7 +207,7 @@ describe('branches', () => {
     const store = adminStore({ createBranch: async () => ({ outcome, entityId: null }) })
     const res = await post(buildSignedInApp(store), `${AGENCY_PATH}/branches`, BRANCH_BODY)
     expect(res.status).toBe(status)
-    expect(res.body.error.code).toBe(outcome === 'actor_not_allowed' ? 'forbidden' : outcome)
+    expect(res.body.code).toBe(outcome === 'actor_not_allowed' ? 'forbidden' : outcome)
   })
 
   it('deactivates a branch through its agency', async () => {
@@ -226,7 +226,7 @@ describe('branches', () => {
     const store = adminStore({ getAgencyBranch: async () => null })
     const res = await patch(buildSignedInApp(store), BRANCH_PATH, { status: 'inactive' })
     expect(res.status).toBe(404)
-    expect(res.body.error.code).toBe('branch_not_found')
+    expect(res.body.code).toBe('branch_not_found')
     expect(store.updateBranch).not.toHaveBeenCalled()
   })
 
@@ -282,7 +282,7 @@ describe('users', () => {
     const store = adminStore()
     const res = await post(buildSignedInApp(store, auth), '/admin/users', body)
     expect(res.status).toBe(400)
-    expect(res.body.error.code).toBe('validation_error')
+    expect(res.body.code).toBe('validation_error')
     expect(JSON.stringify(res.body)).not.toMatch(/hunter2|owner|example\.test/)
     expect(auth.inviteUser).not.toHaveBeenCalled()
     expect(store.provisionUser).not.toHaveBeenCalled()
@@ -293,7 +293,7 @@ describe('users', () => {
     const store = adminStore()
     const res = await post(buildSignedInApp(store, auth), '/admin/users', NURSE_INVITE)
     expect(res.status).toBe(409)
-    expect(res.body.error.code).toBe('email_exists')
+    expect(res.body.code).toBe('email_exists')
     expect(store.provisionUser).not.toHaveBeenCalled()
   })
 
@@ -319,7 +319,7 @@ describe('users', () => {
     const store = adminStore({ provisionUser: async () => ({ outcome: 'profile_exists', entityId: null }) })
     const res = await post(buildSignedInApp(store, auth), '/admin/users', NURSE_INVITE)
     expect(res.status).toBe(409)
-    expect(res.body.error.code).toBe('email_exists')
+    expect(res.body.code).toBe('email_exists')
     expect(auth.deleteUser).not.toHaveBeenCalled()
   })
 
@@ -357,7 +357,7 @@ describe('deletion', () => {
     const store = adminStore({ deleteAgency: async () => ({ outcome, entityId: null }) })
     const res = await del(buildSignedInApp(store), AGENCY_PATH)
     expect(res.status).toBe(status)
-    expect(res.body.error.code).toBe(code)
+    expect(res.body.code).toBe(code)
   })
 
   it('deletes a user: profile command first, Auth account second, 204', async () => {
@@ -378,7 +378,7 @@ describe('deletion', () => {
     const authAdmin = fakeAuthAdmin()
     const res = await del(buildSignedInApp(store, authAdmin), `/admin/users/${INVITED_USER_ID}`)
     expect(res.status).toBe(status)
-    expect(res.body.error.code).toBe(code)
+    expect(res.body.code).toBe(code)
     expect(authAdmin.deleteUser).not.toHaveBeenCalled()
   })
 
@@ -390,7 +390,7 @@ describe('deletion', () => {
   })
 
   it('rejects a malformed user id with 400', async () => {
-    const res = await del(buildSignedInApp(adminStore(), fakeAuthAdmin()), '/admin/users/not-a-uuid')
+    const res = await del(buildSignedInApp(adminStore(), fakeAuthAdmin()), '/admin/users/Not_An_Id')
     expect(res.status).toBe(400)
   })
 })

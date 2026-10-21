@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { claimShift } from './claim-shift.js'
 import type { ClaimOutcome } from '../../domain/outcomes/outcomes.js'
-import { NURSE_PROFILE, SHIFT_ID, USER, fakeDataStore, shiftFixture, viewerFor } from '../../test-support/fakes.js'
+import { NURSE_PROFILE, SHIFT_ID, USER, claimedShiftFixture, fakeDataStore, viewerFor } from '../../test-support/fakes.js'
 
 const nurse = viewerFor(NURSE_PROFILE)
 
 describe('claimShift', () => {
   it('claims with the viewer id and returns the re-read shift', async () => {
-    const claimed = shiftFixture({ status: 'claimed', assignedNurse: { id: USER.id, fullName: 'Ava Thompson' } })
+    const claimed = claimedShiftFixture()
     const store = fakeDataStore({
       claimShift: async () => ({ outcome: 'claimed', shiftId: SHIFT_ID, eventId: SHIFT_ID }),
       getShift: async () => claimed,
@@ -25,7 +25,8 @@ describe('claimShift', () => {
     'not_a_nurse',
     'shift_not_open',
     'schedule_conflict',
-    'shift_started',
+    'agency_inactive',
+    'branch_inactive',
     'eligibility_inactive',
     'credential_missing',
     'credential_expired',

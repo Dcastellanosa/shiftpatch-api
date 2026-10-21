@@ -82,14 +82,14 @@ describe('PUT and DELETE /nurses/:nurseId/eligibility/:branchId', () => {
     const store = fakeDataStore({ getProfile: asProfile(AGENCY_PROFILE), setBranchEligibility: async () => ({ outcome, entityId: null }) })
     const res = await put(buildSignedInApp(store), PATH)
     expect(res.status).toBe(status)
-    expect(res.body).toEqual({ error: { code, message: expect.any(String) } })
+    expect(res.body).toEqual({ error: expect.any(String), code })
   })
 
   it('refuses nurses and rejects malformed ids before touching the store', async () => {
     const store = fakeDataStore({ getProfile: asProfile(NURSE_PROFILE) })
     expect((await put(buildSignedInApp(store), PATH)).status).toBe(403)
     const agencyStore = fakeDataStore({ getProfile: asProfile(AGENCY_PROFILE) })
-    const bad = await put(buildSignedInApp(agencyStore), `/nurses/ava/eligibility/${BRANCH_ID}`)
+    const bad = await put(buildSignedInApp(agencyStore), `/nurses/Nurse_Ava/eligibility/${BRANCH_ID}`)
     expect(bad.status).toBe(400)
     expect(store.setBranchEligibility).not.toHaveBeenCalled()
     expect(agencyStore.setBranchEligibility).not.toHaveBeenCalled()

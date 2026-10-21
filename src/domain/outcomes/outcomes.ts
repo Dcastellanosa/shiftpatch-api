@@ -9,7 +9,6 @@ export type ClaimOutcome =
   | 'shift_not_found'
   | 'not_a_nurse'
   | 'shift_not_open'
-  | 'shift_started'
   | 'agency_inactive'
   | 'branch_inactive'
   | 'eligibility_inactive'
@@ -26,13 +25,30 @@ export type CreateOutcome =
   | 'agency_inactive'
   | 'branch_inactive'
   | 'invalid_time_range'
-  | 'shift_in_past'
+
+/** Outcomes of `cancel_shift_claim` (no-show or advance cancellation; reopens the shift). */
+export type CancelOutcome =
+  | 'cancelled'
+  | 'actor_not_allowed'
+  | 'invalid_reason'
+  | 'shift_not_found'
+  | 'shift_not_claimed'
 
 /** What a shift command returns: its outcome plus the ids it touched. */
 export interface CommandResult<Outcome extends string> {
   outcome: Outcome
   shiftId: string | null
   eventId: string | null
+}
+
+/** What `cancel_shift_claim` returns: the outcome plus who held the shift. */
+export interface CancelCommandResult {
+  outcome: CancelOutcome
+  shiftId: string | null
+  eventId: string | null
+  previousNurseId: string | null
+  /** Public id of the previous nurse (the agency may no longer see that profile). */
+  previousNurseSlug: string | null
 }
 
 /** What an admin command returns: its outcome plus the id of the entity it touched. */

@@ -1,9 +1,12 @@
+/**
+ * The error envelope of every response: `error` is the safe user-facing
+ * message (the shape the trial contract requires), `code` the machine-readable
+ * reason, `details` optional field-level validation issues.
+ */
 export interface ErrorBody {
-  error: {
-    code: string
-    message: string
-    details?: unknown
-  }
+  error: string
+  code: string
+  details?: unknown
 }
 
 /** An error that maps directly to a safe HTTP response. */
@@ -22,11 +25,9 @@ export class AppError extends Error {
 
   toBody(): ErrorBody {
     return {
-      error: {
-        code: this.code,
-        message: this.message,
-        ...(this.details === undefined ? {} : { details: this.details }),
-      },
+      error: this.message,
+      code: this.code,
+      ...(this.details === undefined ? {} : { details: this.details }),
     }
   }
 }

@@ -21,6 +21,7 @@ export async function deleteUser(
 ): Promise<DeleteUserResult> {
   const result = await store.deleteUser(viewer.id, userId)
   if (result.outcome !== 'deleted') return { ok: false, outcome: result.outcome }
-  await auth.deleteUser(userId)
+  // The command reports the Auth user's UUID; the public id is not an Auth id.
+  await auth.deleteUser(result.entityId ?? userId)
   return { ok: true }
 }

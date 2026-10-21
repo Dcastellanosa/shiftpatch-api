@@ -55,6 +55,7 @@ export function fakeDataStore(overrides: Partial<DataStore> = {}) {
     listBranches: vi.fn<DataStore['listBranches']>(overrides.listBranches ?? unexpected('listBranches')),
     createShift: vi.fn<DataStore['createShift']>(overrides.createShift ?? unexpected('createShift')),
     claimShift: vi.fn<DataStore['claimShift']>(overrides.claimShift ?? unexpected('claimShift')),
+    cancelClaim: vi.fn<DataStore['cancelClaim']>(overrides.cancelClaim ?? unexpected('cancelClaim')),
     listAgencies: vi.fn<DataStore['listAgencies']>(overrides.listAgencies ?? unexpected('listAgencies')),
     getAgency: vi.fn<DataStore['getAgency']>(overrides.getAgency ?? unexpected('getAgency')),
     getAgencyBranch: vi.fn<DataStore['getAgencyBranch']>(overrides.getAgencyBranch ?? unexpected('getAgencyBranch')),
@@ -73,39 +74,74 @@ export function fakeDataStore(overrides: Partial<DataStore> = {}) {
   }
 }
 
-export const NURSE_PROFILE: Profile = { id: USER.id, fullName: 'Ava Thompson', role: 'nurse', agencyIds: [], agencyId: null }
+/** Public ids used across the fakes. */
+export const AGENCY_ID = 'agency-a'
+export const AGENCY_UUID = 'a1000000-0000-4000-8000-000000000001'
+export const NURSE_SLUG = 'nurse-1'
+export const NURSE_ID = NURSE_SLUG
+export const SHIFT_ID = 'shift-1'
+export const BRANCH_ID = 'b1000000-0000-4000-8000-000000000001'
+
+export const NURSE_PROFILE: Profile = {
+  id: USER.id,
+  slug: NURSE_SLUG,
+  fullName: 'Ava Thompson',
+  role: 'nurse',
+  agencyIds: [],
+  agencySlugs: [],
+  agencyId: null,
+  agencySlug: null,
+}
 export const AGENCY_PROFILE: Profile = {
   id: USER.id,
+  slug: 'agency-a-user',
   fullName: 'Riley Northwind',
   role: 'agency',
-  agencyIds: ['a1000000-0000-4000-8000-000000000001'],
-  agencyId: 'a1000000-0000-4000-8000-000000000001',
+  agencyIds: [AGENCY_UUID],
+  agencySlugs: [AGENCY_ID],
+  agencyId: AGENCY_UUID,
+  agencySlug: AGENCY_ID,
 }
-export const ADMIN_PROFILE: Profile = { id: USER.id, fullName: 'Morgan Admin', role: 'admin', agencyIds: [], agencyId: null }
+export const ADMIN_PROFILE: Profile = {
+  id: USER.id,
+  slug: 'admin-1',
+  fullName: 'Morgan Admin',
+  role: 'admin',
+  agencyIds: [],
+  agencySlugs: [],
+  agencyId: null,
+  agencySlug: null,
+}
 
 /** The viewer `loadViewer` would build for the given profile in a session. */
 export function viewerFor(profile: Profile): Viewer {
   return { ...profile, accessToken: SESSION.accessToken }
 }
 
-export const SHIFT_ID = 'e1000000-0000-4000-8000-0000000000aa'
-export const BRANCH_ID = 'b1000000-0000-4000-8000-000000000001'
-
 export function shiftFixture(overrides: Partial<Shift> = {}): Shift {
   return {
     id: SHIFT_ID,
-    title: 'Med-Surg RN — Day',
+    agencyId: AGENCY_ID,
+    agencyName: 'Northwind Care Staffing',
+    role: 'RN',
+    date: '2030-01-10',
+    startTime: '07:00',
+    endTime: '15:00',
+    status: 'open',
+    claimedBy: null,
+    claimedByName: null,
+    branch: { id: BRANCH_ID, name: 'Downtown Clinic', address: '120 Main Street', timezone: 'America/New_York', status: 'active' },
     startsAt: '2030-01-10T12:00:00.000Z',
     endsAt: '2030-01-10T20:00:00.000Z',
-    status: 'open',
-    branch: { id: BRANCH_ID, name: 'Downtown Clinic', address: '120 Main Street', timezone: 'America/New_York', status: 'active' },
-    agency: { id: 'a1000000-0000-4000-8000-000000000001', name: 'Northwind Care Staffing' },
-    assignedNurse: null,
     createdAt: '2029-12-01T00:00:00.000Z',
     updatedAt: '2029-12-01T00:00:00.000Z',
     ...overrides,
   }
 }
+
+/** The fixture shift as the nurse of `NURSE_PROFILE` holds it. */
+export const claimedShiftFixture = (overrides: Partial<Shift> = {}) =>
+  shiftFixture({ status: 'filled', claimedBy: NURSE_SLUG, claimedByName: NURSE_PROFILE.fullName, ...overrides })
 
 export function buildApp(
   authProvider: AuthProvider | null = fakeAuthProvider(),
@@ -135,11 +171,13 @@ export function fakeAuthAdmin(overrides: Partial<AuthAdmin> = {}) {
   }
 }
 
+/** Auth UUID of a freshly invited user (before it has a public id). */
 export const INVITED_USER_ID = '7c1e0d52-0000-4000-8000-000000000099'
+export const INVITED_USER_SLUG = 'nurse-7'
 
 export function adminUserFixture(overrides: Partial<AdminUser> = {}): AdminUser {
   return {
-    id: INVITED_USER_ID,
+    id: INVITED_USER_SLUG,
     email: 'new.nurse@example.test',
     fullName: 'Nina Nurse',
     role: 'nurse',
@@ -164,8 +202,6 @@ export function setCookies(headers: Record<string, unknown>): string[] {
 export function cookieFor(cookies: string[], name: string): string | undefined {
   return cookies.find((line) => line.startsWith(`${name}=`))
 }
-
-export const AGENCY_ID = 'a1000000-0000-4000-8000-000000000001'
 
 export function agencyFixture(overrides: Partial<Agency> = {}): Agency {
   return {
@@ -193,15 +229,13 @@ export function agencyBranchFixture(overrides: Partial<AgencyBranch> = {}): Agen
   }
 }
 
-export const NURSE_ID = 'c1000000-0000-4000-8000-000000000011'
-
 export function eligibilityFixture(overrides: Partial<EligibilityRecord> = {}): EligibilityRecord {
-  return { nurseId: NURSE_ID, branchId: BRANCH_ID, status: 'active', activatedAt: '2030-01-01T00:00:00.000Z', ...overrides }
+  return { nurseId: NURSE_SLUG, branchId: BRANCH_ID, status: 'active', activatedAt: '2030-01-01T00:00:00.000Z', ...overrides }
 }
 
 export function nurseEligibilityFixture(overrides: Partial<NurseEligibility> = {}): NurseEligibility {
   return {
-    nurse: { id: NURSE_ID, fullName: 'Ava Thompson' },
+    nurse: { id: NURSE_SLUG, fullName: 'Ava Thompson' },
     branches: [
       {
         branch: { id: BRANCH_ID, name: 'Downtown Clinic', agency: { id: AGENCY_ID, name: 'Northwind Care Staffing' } },

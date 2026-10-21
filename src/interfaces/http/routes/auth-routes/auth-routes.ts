@@ -13,10 +13,13 @@ import { validateBody } from '../../middleware/validate/validate.js'
 import { completePasswordBody, loginBody, recoverBody, type CompletePasswordBody, type LoginBody, type RecoverBody } from '../../schemas/auth/auth.js'
 import {
   clearSessionCookies,
+  readBearerToken,
   readSessionCookies,
   setSessionCookies,
   type SessionCookieConfig,
 } from '../../session-cookies/session-cookies.js'
+import type { SessionPayload } from '../../../../application/session-payload/session-payload.js'
+import type { AuthSession } from '../../../../domain/ports/auth-provider/auth-provider.js'
 
 export interface AuthRouterDependencies {
   provider: AuthProvider | null
@@ -33,6 +36,13 @@ const COMPLETE_PASSWORD_ERRORS: Record<CompletePasswordFailure, () => AppError> 
   weak_password: () => new AppError(422, 'weak_password', 'Choose a longer, less common password'),
 }
 
+/**
+ * Sign-in responses carry the access token for API clients (`Authorization:
+ * Bearer`) next to the safe user payload. The refresh token stays in its
+ * HttpOnly cookie only; the web app ignores `token` and relies on cookies.
+ */
+const signInResponse = (session: AuthSession, payload: SessionPayload) => ({ token: session.accessToken, ...payload })
+
 export function createAuthRouter({ provider, store, cookieConfig, authAdmin, setPasswordUrl }: AuthRouterDependencies) {
   const router = Router()
 
@@ -47,11 +57,11 @@ export function createAuthRouter({ provider, store, cookieConfig, authAdmin, set
     }
 
     setSessionCookies(res, result.session, cookieConfig)
-    res.json(result.payload)
+    res.json(signInResponse(result.session, result.payload))
   })
 
   router.post('/logout', async (req, res) => {
-    const { accessToken } = readSessionCookies(req, cookieConfig)
+    const accessToken = readBearerToken(req).accessToken ?? readSessionCookies(req, cookieConfig).accessToken
     if (provider && accessToken) await signOut({ auth: provider }, accessToken)
     clearSessionCookies(res, cookieConfig)
     res.status(204).end()
@@ -71,7 +81,7 @@ export function createAuthRouter({ provider, store, cookieConfig, authAdmin, set
     if (!result.ok) throw COMPLETE_PASSWORD_ERRORS[result.outcome]()
 
     setSessionCookies(res, result.session, cookieConfig)
-    res.json(result.payload)
+    res.json(signInResponse(result.session, result.payload))
   })
 
   // Public: always 204, whether or not the address exists or email is configured.

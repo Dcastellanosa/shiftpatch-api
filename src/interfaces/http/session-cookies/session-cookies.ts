@@ -5,8 +5,27 @@ import type { AuthSession } from '../../../domain/ports/auth-provider/auth-provi
 export const REFRESH_COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 
 // Tokens are opaque to this service, but anything outside this shape is
-// treated as a malformed cookie and never forwarded to Supabase.
-const TOKEN_PATTERN = /^[A-Za-z0-9._~+/=-]{1,4096}$/
+// treated as a malformed credential and never forwarded to Supabase.
+export const TOKEN_PATTERN = /^[A-Za-z0-9._~+/=-]{1,4096}$/
+
+export interface BearerToken {
+  accessToken?: string
+  /** True when an Authorization header is present (well-formed or not). */
+  present: boolean
+}
+
+/**
+ * Reads `Authorization: Bearer <token>` for API clients (the trial contract).
+ * A present but malformed header is reported as present with no token, so
+ * the caller answers 401 instead of falling back to cookies.
+ */
+export function readBearerToken(req: Request): BearerToken {
+  const header = req.get('authorization')
+  if (header === undefined) return { present: false }
+  const match = /^Bearer\s+(\S+)$/i.exec(header.trim())
+  const token = match?.[1]
+  return { present: true, accessToken: token && TOKEN_PATTERN.test(token) ? token : undefined }
+}
 
 export interface SessionCookieConfig {
   secure: boolean

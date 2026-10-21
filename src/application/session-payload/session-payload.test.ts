@@ -1,26 +1,32 @@
 import { describe, expect, it } from 'vitest'
-import { AGENCY_PROFILE, USER, fakeDataStore } from '../../test-support/fakes.js'
+import { ADMIN_PROFILE, AGENCY_PROFILE, NURSE_PROFILE, USER, fakeDataStore } from '../../test-support/fakes.js'
 import { loadSessionPayload, toSessionPayload } from './session-payload.js'
 
 describe('toSessionPayload', () => {
-  it('combines the verified user with the profile', () => {
+  it('identifies an agency user by the agency they manage (public id)', () => {
     expect(toSessionPayload(USER, AGENCY_PROFILE)).toEqual({
       user: {
-        id: USER.id,
+        id: AGENCY_PROFILE.agencySlug,
+        name: AGENCY_PROFILE.fullName,
         email: USER.email,
-        fullName: AGENCY_PROFILE.fullName,
         role: 'agency',
-        agencyId: AGENCY_PROFILE.agencyId,
-        agencyIds: AGENCY_PROFILE.agencyIds,
+        agencyId: AGENCY_PROFILE.agencySlug,
+        agencyIds: AGENCY_PROFILE.agencySlugs,
       },
     })
+  })
+
+  it.each([NURSE_PROFILE, ADMIN_PROFILE])('identifies a $role by their profile public id, never the Auth UUID', (profile) => {
+    const { user } = toSessionPayload(USER, profile)
+    expect(user.id).toBe(profile.slug)
+    expect(JSON.stringify(user)).not.toContain(USER.id)
   })
 
   it('returns null profile fields for a user without a profile', () => {
     expect(toSessionPayload(USER, null).user).toEqual({
       id: USER.id,
+      name: null,
       email: USER.email,
-      fullName: null,
       role: null,
       agencyId: null,
       agencyIds: [],
@@ -30,8 +36,8 @@ describe('toSessionPayload', () => {
   it('never includes tokens', () => {
     expect(Object.keys(toSessionPayload(USER, AGENCY_PROFILE).user)).toEqual([
       'id',
+      'name',
       'email',
-      'fullName',
       'role',
       'agencyId',
       'agencyIds',

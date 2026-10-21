@@ -7,6 +7,7 @@ export const ENTITY_STATUSES = ['active', 'inactive'] as const
 export type EntityStatus = (typeof ENTITY_STATUSES)[number]
 
 export interface Agency {
+  /** Public id (slug), e.g. `agency-a`. */
   id: string
   name: string
   status: EntityStatus
@@ -16,7 +17,9 @@ export interface Agency {
 }
 
 export interface AgencyBranch {
+  /** Branch ids are UUIDs (branches are an internal refinement of the contract's agency-level shifts). */
   id: string
+  /** Public id of the agency. */
   agencyId: string
   name: string
   address: string

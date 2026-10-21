@@ -14,16 +14,24 @@ import {
 } from '../../../../test-support/fakes.js'
 
 const EXPECTED_PAYLOAD = {
-  user: { id: USER.id, email: USER.email, fullName: null, role: null, agencyId: null, agencyIds: [] },
+  user: { id: USER.id, name: null, email: USER.email, role: null, agencyId: null, agencyIds: [] },
 }
 
 const CLEARED = /Expires=Thu, 01 Jan 1970 00:00:00 GMT/
 
+/** Refresh tokens never appear in JSON; an access token only ever appears as the top-level `token` of a sign-in response. */
 function expectNoTokens(body: unknown) {
   const json = JSON.stringify(body)
   for (const token of [SESSION.accessToken, SESSION.refreshToken, REFRESHED_SESSION.accessToken, REFRESHED_SESSION.refreshToken]) {
     expect(json).not.toContain(token)
   }
+  expect(json).not.toMatch(/access_?token|refresh_?token/i)
+}
+
+function expectSignInPayload(body: unknown, session = SESSION) {
+  expect(body).toEqual({ token: session.accessToken, ...EXPECTED_PAYLOAD })
+  const json = JSON.stringify(body)
+  expect(json).not.toContain(session.refreshToken)
   expect(json).not.toMatch(/access_?token|refresh_?token/i)
 }
 
@@ -42,7 +50,7 @@ describe('POST /auth/login', () => {
     const res = await login(buildApp(provider), body)
 
     expect(res.status).toBe(400)
-    expect(res.body.error.code).toBe('validation_error')
+    expect(res.body.code).toBe('validation_error')
     expect(provider.signInWithPassword).not.toHaveBeenCalled()
     expect(setCookies(res.headers)).toEqual([])
   })
@@ -60,7 +68,7 @@ describe('POST /auth/login', () => {
       .send('{"email":')
 
     expect(res.status).toBe(400)
-    expect(res.body).toEqual({ error: { code: 'invalid_json', message: 'Malformed JSON body' } })
+    expect(res.body).toEqual({ error: 'Malformed JSON body', code: 'invalid_json' })
   })
 
   it('returns a generic 401 and sets no cookies for invalid credentials', async () => {
@@ -68,19 +76,16 @@ describe('POST /auth/login', () => {
     const res = await login(buildApp(provider), { email: 'nurse@example.com', password: 'wrong' })
 
     expect(res.status).toBe(401)
-    expect(res.body).toEqual({
-      error: { code: 'invalid_credentials', message: 'Invalid email or password' },
-    })
+    expect(res.body).toEqual({ error: 'Invalid email or password', code: 'invalid_credentials' })
     expect(setCookies(res.headers)).toEqual([])
   })
 
-  it('returns only the safe session payload and never tokens in JSON', async () => {
+  it('returns the safe session payload plus the access token for API clients, never the refresh token', async () => {
     const provider = fakeAuthProvider({ signInWithPassword: async () => SESSION })
     const res = await login(buildApp(provider), { email: 'nurse@example.com', password: 'correct' })
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual(EXPECTED_PAYLOAD)
-    expectNoTokens(res.body)
+    expectSignInPayload(res.body)
   })
 
   it('sets HttpOnly, SameSite=Lax, Path=/ session cookies without a Domain', async () => {
@@ -130,13 +135,13 @@ describe('POST /auth/login', () => {
       agencyIds: ['agency-1'],
     })
 
-    expect(res.body).toEqual(EXPECTED_PAYLOAD)
+    expectSignInPayload(res.body)
   })
 
   it('returns 503 when auth is not configured', async () => {
     const res = await login(buildApp(null), { email: 'nurse@example.com', password: 'x' })
     expect(res.status).toBe(503)
-    expect(res.body.error.code).toBe('auth_unavailable')
+    expect(res.body.code).toBe('auth_unavailable')
   })
 
   it('returns 429 when the provider rate-limits', async () => {
@@ -147,7 +152,7 @@ describe('POST /auth/login', () => {
     })
     const res = await login(buildApp(provider), { email: 'nurse@example.com', password: 'x' })
     expect(res.status).toBe(429)
-    expect(res.body.error.code).toBe('rate_limited')
+    expect(res.body.code).toBe('rate_limited')
   })
 })
 
@@ -157,7 +162,7 @@ describe('GET /auth/me', () => {
     const res = await request(buildApp(provider)).get('/auth/me')
 
     expect(res.status).toBe(401)
-    expect(res.body).toEqual({ error: { code: 'unauthenticated', message: 'Authentication required' } })
+    expect(res.body).toEqual({ error: 'Authentication required', code: 'unauthenticated' })
     expect(provider.getUser).not.toHaveBeenCalled()
   })
 
@@ -177,7 +182,7 @@ describe('GET /auth/me', () => {
     const res = await request(buildApp(provider)).get('/auth/me').set('Cookie', 'sp_access=expired-token')
 
     expect(res.status).toBe(401)
-    expect(res.body.error.code).toBe('unauthenticated')
+    expect(res.body.code).toBe('unauthenticated')
     expect(cookieFor(setCookies(res.headers), 'sp_access')).toMatch(CLEARED)
   })
 
@@ -244,7 +249,56 @@ describe('GET /auth/me', () => {
     })
     const res = await request(buildApp(provider)).get('/auth/me').set('Cookie', 'sp_access=some-token')
     expect(res.status).toBe(503)
-    expect(res.body.error.code).toBe('auth_unavailable')
+    expect(res.body.code).toBe('auth_unavailable')
+  })
+})
+
+describe('Bearer sessions (API clients)', () => {
+  const bearer = (app: ReturnType<typeof buildApp>, token: string) =>
+    request(app).get('/auth/me').set('Authorization', `Bearer ${token}`)
+
+  it('accepts Authorization: Bearer with a valid access token and sets no cookie', async () => {
+    const provider = fakeAuthProvider({ getUser: async () => USER })
+    const res = await bearer(buildApp(provider), SESSION.accessToken)
+
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual(EXPECTED_PAYLOAD)
+    expect(provider.getUser).toHaveBeenCalledWith(SESSION.accessToken)
+    expect(setCookies(res.headers)).toEqual([])
+  })
+
+  it('answers 401 for a rejected bearer token without falling back to cookies or refreshing', async () => {
+    const provider = fakeAuthProvider({ getUser: async (token) => (token === SESSION.accessToken ? USER : null) })
+    const res = await request(buildApp(provider))
+      .get('/auth/me')
+      .set('Authorization', 'Bearer stale-token')
+      .set('Cookie', `sp_access=${SESSION.accessToken}; sp_refresh=${SESSION.refreshToken}`)
+
+    expect(res.status).toBe(401)
+    expect(provider.getUser).toHaveBeenCalledTimes(1)
+    expect(provider.refreshSession).not.toHaveBeenCalled()
+    expect(setCookies(res.headers)).toEqual([])
+  })
+
+  it('answers 401 for a malformed Authorization header without contacting the provider', async () => {
+    const provider = fakeAuthProvider()
+    for (const header of ['Basic abc', 'Bearer', 'Bearer <script>', `Token ${SESSION.accessToken}`]) {
+      const res = await request(buildApp(provider)).get('/auth/me').set('Authorization', header)
+      expect(res.status).toBe(401)
+    }
+    expect(provider.getUser).not.toHaveBeenCalled()
+  })
+
+  it('answers 503 for a bearer request when auth is not configured', async () => {
+    const res = await bearer(buildApp(null), SESSION.accessToken)
+    expect(res.status).toBe(503)
+  })
+
+  it('revokes a bearer session on logout', async () => {
+    const provider = fakeAuthProvider()
+    const res = await request(buildApp(provider)).post('/auth/logout').set('Authorization', `Bearer ${SESSION.accessToken}`)
+    expect(res.status).toBe(204)
+    expect(provider.signOut).toHaveBeenCalledWith(SESSION.accessToken)
   })
 })
 
@@ -288,8 +342,7 @@ describe('POST /auth/complete-password', () => {
     const res = await complete(appWith(auth), VALID)
 
     expect(res.status).toBe(200)
-    expect(res.body).toEqual(EXPECTED_PAYLOAD)
-    expectNoTokens(res.body)
+    expectSignInPayload(res.body)
     expect(auth.completePassword).toHaveBeenCalledWith(VALID.tokenHash, 'invite', VALID.password)
     const cookies = setCookies(res.headers)
     expect(cookieFor(cookies, 'sp_access')).toContain(`sp_access=${SESSION.accessToken}`)
@@ -308,7 +361,7 @@ describe('POST /auth/complete-password', () => {
     const auth = fakeAuthAdmin({ completePassword: async () => outcome })
     const res = await complete(appWith(auth), { ...VALID, type: 'recovery' })
     expect(res.status).toBe(status)
-    expect(res.body).toEqual({ error: { code, message: expect.any(String) } })
+    expect(res.body).toEqual({ error: expect.any(String), code })
     expect(res.headers['set-cookie']).toBeUndefined()
     expect(JSON.stringify(res.body)).not.toContain(VALID.tokenHash)
   })
@@ -336,7 +389,7 @@ describe('POST /auth/complete-password', () => {
     const auth = fakeAuthAdmin()
     const res = await complete(appWith(auth), body)
     expect(res.status).toBe(400)
-    expect(res.body.error.code).toBe('validation_error')
+    expect(res.body.code).toBe('validation_error')
     expect(auth.completePassword).not.toHaveBeenCalled()
     expect(JSON.stringify(res.body)).not.toMatch(/short|magiclink|not a hash|correct horse/)
     expect(res.headers['set-cookie']).toBeUndefined()
