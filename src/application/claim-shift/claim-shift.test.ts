@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { claimShift } from './claim-shift.js'
-import type { ClaimOutcome } from '../../domain/shift/shift.js'
+import type { ClaimOutcome } from '../../domain/outcomes/outcomes.js'
 import { NURSE_PROFILE, SHIFT_ID, USER, fakeDataStore, shiftFixture, viewerFor } from '../../test-support/fakes.js'
 
 const nurse = viewerFor(NURSE_PROFILE)

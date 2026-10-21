@@ -11,7 +11,7 @@ import {
   type AuthProvider,
   type AuthSession,
 } from '../../../domain/ports/auth-provider/auth-provider.js'
-import type { AuthUser } from '../../../domain/identity/identity.js'
+import type { AuthUser } from '../../../domain/viewer/viewer.js'
 
 interface SupabaseAuthConfig {
   url: string

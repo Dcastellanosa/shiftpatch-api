@@ -1,4 +1,4 @@
-import type { AuthUser, Profile } from '../../domain/identity/identity.js'
+import type { AuthUser, Profile } from '../../domain/viewer/viewer.js'
 import type { AppRole } from '../../domain/shift/shift.js'
 import type { DataStore } from '../../domain/ports/data-store/data-store.js'
 

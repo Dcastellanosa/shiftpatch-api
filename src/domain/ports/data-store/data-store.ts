@@ -1,19 +1,12 @@
-import type { Profile, Viewer } from '../../identity/identity.js'
+import type { Profile, Viewer } from '../../viewer/viewer.js'
+import type { ClaimOutcome, CommandResult, CreateOutcome } from '../../outcomes/outcomes.js'
 import type {
   Branch,
-  ClaimOutcome,
-  CreateOutcome,
   CreateShiftInput,
   Shift,
   ShiftEvent,
   ShiftFilters,
 } from '../../shift/shift.js'
-
-export interface CommandResult<Outcome extends string> {
-  outcome: Outcome
-  shiftId: string | null
-  eventId: string | null
-}
 
 /**
  * Driven port: all business-data access. Reads run as the caller (RLS

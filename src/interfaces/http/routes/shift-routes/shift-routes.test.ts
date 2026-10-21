@@ -1,14 +1,15 @@
 import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 import { DataStoreError, DataUnavailableError } from '../../../../domain/ports/data-store/data-store.js'
-import type { Profile } from '../../../../domain/identity/identity.js'
-import type { ClaimOutcome, Shift } from '../../../../domain/shift/shift.js'
+import type { Profile } from '../../../../domain/viewer/viewer.js'
+import type { ClaimOutcome } from '../../../../domain/outcomes/outcomes.js'
+import type { Shift } from '../../../../domain/shift/shift.js'
 import {
   myShiftsResponse,
   shiftEventsResponse,
   shiftListResponse,
   shiftResponse,
-} from '../../schemas/contracts/contracts.js'
+} from '../../schemas/shifts/shifts.js'
 import {
   ADMIN_PROFILE,
   AGENCY_PROFILE,

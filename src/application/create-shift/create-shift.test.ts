@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createShift } from './create-shift.js'
-import type { CreateOutcome } from '../../domain/shift/shift.js'
+import type { CreateOutcome } from '../../domain/outcomes/outcomes.js'
 import type { CreateShiftInput } from '../../domain/shift/shift.js'
 import {
   ADMIN_PROFILE,

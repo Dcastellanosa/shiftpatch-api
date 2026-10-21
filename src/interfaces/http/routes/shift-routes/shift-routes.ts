@@ -8,7 +8,7 @@ import { listMyShifts } from '../../../../application/list-my-shifts/list-my-shi
 import { listShifts } from '../../../../application/list-shifts/list-shifts.js'
 import type { DataStore } from '../../../../domain/ports/data-store/data-store.js'
 import type { CreateShiftInput } from '../../../../domain/shift/shift.js'
-import { createShiftBody, listShiftsQuery, shiftIdParams } from '../../schemas/contracts/contracts.js'
+import { createShiftBody, listShiftsQuery, shiftIdParams } from '../../schemas/shifts/shifts.js'
 import { AppError } from '../../errors/errors.js'
 import { parseInput, validateBody } from '../../middleware/validate/validate.js'
 import { loadViewer, requireRole } from '../../middleware/viewer/viewer.js'

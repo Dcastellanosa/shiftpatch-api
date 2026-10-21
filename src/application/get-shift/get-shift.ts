@@ -1,4 +1,4 @@
-import type { Viewer } from '../../domain/identity/identity.js'
+import type { Viewer } from '../../domain/viewer/viewer.js'
 import type { Shift } from '../../domain/shift/shift.js'
 import type { DataStore } from '../../domain/ports/data-store/data-store.js'
 

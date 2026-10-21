@@ -67,18 +67,3 @@ export interface CreateShiftInput {
   endsAt: string
 }
 
-/** Outcomes of the atomic `claim_shift` workflow. */
-export type ClaimOutcome =
-  | 'claimed'
-  | 'shift_not_found'
-  | 'not_a_nurse'
-  | 'shift_not_open'
-  | 'shift_started'
-  | 'eligibility_inactive'
-  | 'credential_missing'
-  | 'credential_revoked'
-  | 'credential_expired'
-  | 'schedule_conflict'
-
-/** Outcomes of the atomic `create_shift` workflow. */
-export type CreateOutcome = 'created' | 'actor_not_allowed' | 'branch_not_found' | 'invalid_time_range' | 'shift_in_past'

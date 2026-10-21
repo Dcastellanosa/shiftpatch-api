@@ -1,4 +1,4 @@
-import type { AuthUser } from '../../domain/identity/identity.js'
+import type { AuthUser } from '../../domain/viewer/viewer.js'
 import type { AuthProvider, AuthSession } from '../../domain/ports/auth-provider/auth-provider.js'
 
 export interface SessionTokens {

@@ -3,7 +3,7 @@ import type { AuthProvider, AuthSession } from '../domain/ports/auth-provider/au
 import type { DataStore } from '../domain/ports/data-store/data-store.js'
 import { parseEnv } from '../infrastructure/config/env/env.js'
 import { createApp } from '../composition/create-app/create-app.js'
-import type { AuthUser, Profile, Viewer } from '../domain/identity/identity.js'
+import type { AuthUser, Profile, Viewer } from '../domain/viewer/viewer.js'
 import type { Shift } from '../domain/shift/shift.js'
 
 export const ALLOWED_ORIGIN = 'http://localhost:5173'

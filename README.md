@@ -117,7 +117,7 @@ Errors always use `{ "error": { "code", "message", "details"? } }`.
 | `GET` | `/branches` | → `{ branches }` (for the create-shift form and admin filters) |
 | `GET` | `/health` | `{ "status": "ok" }` |
 
-Shift shape (`src/domain/shift/`, validated by Zod in `src/interfaces/http/schemas/contracts/`):
+Shift shape (`src/domain/shift/`, validated by Zod in `src/interfaces/http/schemas/shifts/`):
 
 ```json
 {

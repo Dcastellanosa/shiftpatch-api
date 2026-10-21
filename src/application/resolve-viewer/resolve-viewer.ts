@@ -1,4 +1,4 @@
-import type { AuthUser, Viewer } from '../../domain/identity/identity.js'
+import type { AuthUser, Viewer } from '../../domain/viewer/viewer.js'
 import type { DataStore } from '../../domain/ports/data-store/data-store.js'
 
 export type ResolveViewerFailure = 'profile_missing' | 'membership_inactive'

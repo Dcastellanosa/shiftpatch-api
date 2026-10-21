@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import { z } from 'zod'
 import type { AuthProvider } from '../../../../domain/ports/auth-provider/auth-provider.js'
 import type { DataStore } from '../../../../domain/ports/data-store/data-store.js'
 import { loadSessionPayload } from '../../../../application/session-payload/session-payload.js'
@@ -14,11 +13,7 @@ import {
 } from '../../session-cookies/session-cookies.js'
 import { authUnavailable, requireSession, resolveSession } from '../../middleware/session/session.js'
 import { validateBody } from '../../middleware/validate/validate.js'
-
-const loginBody = z.object({
-  email: z.email().max(320),
-  password: z.string().min(1).max(1024),
-})
+import { loginBody, type LoginBody } from '../../schemas/auth/auth.js'
 
 export function createAuthRouter(
   provider: AuthProvider | null,
@@ -29,7 +24,7 @@ export function createAuthRouter(
 
   router.post('/login', validateBody(loginBody), async (req, res) => {
     if (!provider) throw authUnavailable()
-    const { email, password } = req.body as z.infer<typeof loginBody>
+    const { email, password } = req.body as LoginBody
 
     const result = await signIn({ auth: provider, store }, email, password)
     if (!result.ok) {

@@ -3,16 +3,14 @@ import { z } from 'zod'
 import {
   DataStoreError,
   DataUnavailableError,
-  type CommandResult,
   type DataStore,
 } from '../../../domain/ports/data-store/data-store.js'
-import type { Viewer } from '../../../domain/identity/identity.js'
+import type { ClaimOutcome, CommandResult, CreateOutcome } from '../../../domain/outcomes/outcomes.js'
+import type { Viewer } from '../../../domain/viewer/viewer.js'
 import {
   APP_ROLES,
   SHIFT_EVENT_TYPES,
   SHIFT_STATUSES,
-  type ClaimOutcome,
-  type CreateOutcome,
   type Shift,
   type ShiftEvent,
 } from '../../../domain/shift/shift.js'

@@ -5,11 +5,12 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 
 // Hexagonal dependency rule: dependencies point inward only.
 // domain (types + ports) <- application (use cases) <- interfaces (http) / infrastructure (supabase, config) <- composition (create-app)
-const frameworks = [
+const httpFrameworks = [
   { group: ['express', 'express/*', 'cors', 'cookie-parser'], message: 'HTTP frameworks belong in src/interfaces/http.' },
-  { group: ['@supabase/*'], message: 'Supabase belongs in src/infrastructure.' },
-  { group: ['zod'], message: 'Input validation belongs in src/interfaces/http.' },
 ]
+const supabase = [{ group: ['@supabase/*'], message: 'Supabase belongs in src/infrastructure.' }]
+const validation = [{ group: ['zod'], message: 'Input validation belongs in src/interfaces/http or an infrastructure adapter.' }]
+const frameworks = [...httpFrameworks, ...supabase, ...validation]
 const outerLayers = (...layers) =>
   layers.map((layer) => ({
     group: [`**/${layer}/**`, `**/${layer}.js`],
@@ -49,12 +50,22 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/interfaces/**/*.ts', 'src/infrastructure/**/*.ts'],
+    files: ['src/interfaces/**/*.ts'],
     ignores: ['**/*.test.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
-        { patterns: outerLayers('composition', 'config') },
+        { patterns: [...supabase, ...outerLayers('composition', 'infrastructure')] },
+      ],
+    },
+  },
+  {
+    files: ['src/infrastructure/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        { patterns: [...httpFrameworks, ...outerLayers('composition', 'interfaces')] },
       ],
     },
   },
