@@ -223,8 +223,8 @@ pnpm db:push                       # supabase db push
 
 # Remote project shared with another application (the current development project)
 supabase link --project-ref <ref>
-pnpm db:push:shared -- --dry-run   # lists applied / pending versions
-pnpm db:push:shared                # applies pending migrations, one transaction each
+pnpm db:push:shared -- --dry-run   # lists applied / pending versions (read-only)
+pnpm db:push:shared                # APPLIES every pending migration, one transaction each
 ```
 
 The development project is shared with another application whose migrations own the CLI history table

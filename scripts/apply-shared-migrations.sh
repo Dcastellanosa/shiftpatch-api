@@ -9,11 +9,21 @@
 # in shiftpatch_meta.schema_migrations, our own history table.
 #
 # Usage: scripts/apply-shared-migrations.sh [--dry-run]
+#        pnpm db:push:shared [-- --dry-run]
+#
+# Without --dry-run every pending migration is applied to the linked project.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 dry_run=false
-[[ "${1:-}" == "--dry-run" ]] && dry_run=true
+# `pnpm db:push:shared -- --dry-run` forwards the literal `--`; skip it.
+[[ "${1:-}" == "--" ]] && shift
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) dry_run=true ;;
+    *) echo "Unknown argument: $arg (only --dry-run is accepted)" >&2; exit 2 ;;
+  esac
+done
 
 query_json() {
   supabase db query --linked -o json "$@" 2>/dev/null
