@@ -1,5 +1,5 @@
 import request from 'supertest'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
 import {
   agencyDetailResponse,
   agencyListResponse,
@@ -161,7 +161,7 @@ describe('admin routes are closed to other roles', () => {
   })
 })
 
-const MAILPIT = 'http://127.0.0.1:55324'
+const MAILPIT = inject('stack').mailUrl
 
 interface MailpitMessage {
   ID: string

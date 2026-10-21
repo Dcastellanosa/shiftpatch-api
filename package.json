@@ -19,6 +19,8 @@
     "db:reset": "supabase db reset --local",
     "db:push": "supabase db push",
     "seed": "tsx scripts/seed.ts",
+    "e2e:reset": "tsx scripts/e2e-reset.ts",
+    "e2e:api": "tsx scripts/e2e-api.ts",
     "db:push:shared": "scripts/apply-shared-migrations.sh"
   },
   "dependencies": {

@@ -81,11 +81,17 @@ binaries, so its install script is not needed. Revisit this only if `pnpm dev` f
 ## Security rules
 
 - Never commit secrets. `.env`, `.env.*` (except `.env.example`) and `.vercel/` are gitignored. Keep it that way.
-- `SUPABASE_SERVICE_ROLE_KEY` is **server-only**. It is used only for the workflow RPCs (`create_shift`,
-  `claim_shift`) after the session and role are verified, and by `pnpm seed`. Never return it, log it, or send it
+- `SUPABASE_SERVICE_ROLE_KEY` is **server-only**. It is used only for the `SECURITY DEFINER` commands (shift,
+  agency, branch, user and eligibility workflows) after the session and role are verified, for the Auth admin API
+  (invitations), and by the seed / e2e scripts. Never return it, log it, or send it
   to the frontend. Reads use a request-scoped client with the caller's access token so Row Level Security applies.
 - Never run `pnpm seed` against production. Seeded account passwords come from `SEED_USER_PASSWORD` and are never
   committed.
+- `scripts/e2e-reset.ts` and `scripts/e2e-api.ts` (`pnpm e2e:reset`, `pnpm e2e:api`) exist for shiftpatch-web's local
+  Playwright suite. They read the local stack from `supabase status`, refuse non-local addresses, ignore `.env` and
+  never print keys. Keep them local-only.
+- On every failure path of invitation, password completion and recovery, do not return or log passwords, hashes,
+  tokens or invitation URLs, and do not set cookies. `POST /auth/recover` always answers `204`.
 - Supabase access and refresh tokens live only in HttpOnly cookies set by this API. Never return tokens in JSON.
   Responses expose only the safe session payload (`src/application/session-payload/`).
 - Identity comes only from the validated cookie session (`req.auth`, set by `resolveSession`). Never trust a user ID,

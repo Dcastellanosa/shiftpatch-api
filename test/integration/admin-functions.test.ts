@@ -17,10 +17,11 @@ async function run(db: Queryable, call: string, params: unknown[]): Promise<Resu
 }
 
 /** Audit rows for one entity, read as the superuser (no client role can). */
+/** Audit rows written for `entityId` in the current (rolled-back) transaction; rows committed by other files are ignored. */
 async function audits(db: Queryable, entityId: string) {
   await db.query('reset role')
   const { rows } = await db.query(
-    'select entity_type, action, previous_status, new_status, actor_id from shiftpatch.audit_events where entity_id = $1 order by occurred_at, id',
+    'select entity_type, action, previous_status, new_status, actor_id from shiftpatch.audit_events where entity_id = $1 and occurred_at >= now() order by occurred_at, id',
     [entityId],
   )
   return rows as { entity_type: string; action: string; previous_status: string | null; new_status: string | null; actor_id: string }[]
