@@ -4,7 +4,7 @@ import type { TokenVerifier } from '../../../../domain/ports/token-verifier/toke
 import { AppError, invalidToken, unauthenticated } from '../../errors/errors.js'
 import { readBearer } from '../../bearer/bearer.js'
 
-export const authUnavailable = () => new AppError(503, 'auth_unavailable', 'Authentication is not available')
+export const authUnavailable = () => new AppError(503, 'Authentication is not available')
 
 /**
  * Resolves `req.auth` from `Authorization: Bearer <access token>`, the only

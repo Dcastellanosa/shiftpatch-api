@@ -31,7 +31,7 @@ import {
   SHIFT_EVENT_TYPES,
   type Shift,
   type ShiftEvent,
-  type ShiftStatus,
+  SHIFT_STATUSES,
 } from '../../../domain/shift/shift.js'
 
 interface SupabaseDataConfig {
@@ -60,14 +60,9 @@ const agencyScope = (viewer: Viewer) => (viewer.agencyIds.length > 0 ? viewer.ag
 // Status vocabulary: the database says `claimed`, the contract says `filled`.
 // ---------------------------------------------------------------------------
 
-const DB_SHIFT_STATUSES = ['open', 'claimed', 'cancelled', 'completed', 'no_show'] as const
-type DbShiftStatus = (typeof DB_SHIFT_STATUSES)[number]
-
-const toExternalStatus = (status: DbShiftStatus): ShiftStatus => (status === 'claimed' ? 'filled' : status)
-const toDbStatus = (status: ShiftStatus): DbShiftStatus => (status === 'filled' ? 'claimed' : status)
-
 const appRoleSchema = z.enum(APP_ROLES)
-const dbShiftStatusSchema = z.enum(DB_SHIFT_STATUSES)
+// Reads are restricted to the two stored statuses a shift can have today.
+const dbShiftStatusSchema = z.enum(SHIFT_STATUSES)
 const shiftEventTypeSchema = z.enum(SHIFT_EVENT_TYPES)
 const entityStatusSchema = z.enum(ENTITY_STATUSES)
 
@@ -99,8 +94,8 @@ const eventRow = z.object({
   id: z.uuid(),
   actor_id: z.uuid(),
   event_type: shiftEventTypeSchema,
-  previous_status: dbShiftStatusSchema.nullable(),
-  new_status: dbShiftStatusSchema,
+  previous_status: z.string().nullable(),
+  new_status: z.string(),
   reason: z.string().nullable(),
   occurred_at: z.string(),
   actor: z.object({ full_name: z.string() }).nullable(),
@@ -232,7 +227,7 @@ function toShift(row: z.infer<typeof marketRow>): Shift {
     date: start.date,
     startTime: start.time,
     endTime: end.time,
-    status: toExternalStatus(row.status),
+    status: row.status,
     claimedBy: row.assigned_nurse_slug,
     claimedByName: row.assigned_nurse_name,
     branch: {
@@ -277,8 +272,8 @@ function toEvent(row: z.infer<typeof eventRow>): ShiftEvent {
   return {
     id: row.id,
     eventType: row.event_type,
-    previousStatus: row.previous_status ? toExternalStatus(row.previous_status) : null,
-    newStatus: toExternalStatus(row.new_status),
+    previousStatus: row.previous_status,
+    newStatus: row.new_status,
     reason: row.reason,
     occurredAt: iso(row.occurred_at),
     actor: { id: row.actor_id, fullName: row.actor?.full_name ?? null },
@@ -395,7 +390,7 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
 
     async listShifts(viewer, filters) {
       let query = marketplace(viewer, { agencySlug: filters.agencyId })
-      if (filters.status) query = query.eq('status', toDbStatus(filters.status))
+      if (filters.status) query = query.eq('status', filters.status)
       if (filters.branchId) query = query.eq('branch_id', filters.branchId)
       if (filters.from) query = query.gte('starts_at', filters.from)
       if (filters.to) query = query.lt('starts_at', filters.to)

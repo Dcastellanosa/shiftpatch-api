@@ -17,11 +17,11 @@ export function requireTrustedOrigin(allowedOrigins: ReadonlySet<string>): Reque
     const origin = req.get('origin')
     if (origin !== undefined) {
       if (allowedOrigins.has(origin)) return next()
-      throw new AppError(403, 'invalid_origin', 'Request origin is not allowed')
+      throw new AppError(403, 'Request origin is not allowed')
     }
 
     if (req.get('sec-fetch-site') !== undefined || req.get('sec-fetch-mode') !== undefined) {
-      throw new AppError(403, 'origin_required', 'Origin header is required')
+      throw new AppError(403, 'Origin header is required')
     }
 
     next()

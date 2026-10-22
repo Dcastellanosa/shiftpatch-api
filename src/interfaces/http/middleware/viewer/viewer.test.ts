@@ -9,7 +9,7 @@ describe('loadViewer', () => {
   it('rejects a request without a validated session', async () => {
     await expect(loadViewer(fakeDataStore())({} as Request, res, vi.fn())).rejects.toMatchObject({
       status: 401,
-      code: 'unauthenticated',
+      message: 'Authentication required',
     })
   })
 })
@@ -17,14 +17,14 @@ describe('loadViewer', () => {
 describe('requireRole', () => {
   it('rejects a request without a viewer', () => {
     expect(() => requireRole('admin')({} as Request, res, vi.fn())).toThrow(
-      expect.objectContaining({ status: 401, code: 'unauthenticated' }),
+      expect.objectContaining({ status: 401, message: 'Authentication required' }),
     )
   })
 
   it('rejects a viewer with another role', () => {
     const req = { viewer: viewerFor(NURSE_PROFILE) } as Request
     expect(() => requireRole('agency', 'admin')(req, res, vi.fn())).toThrow(
-      expect.objectContaining({ status: 403, code: 'forbidden' }),
+      expect.objectContaining({ status: 403, message: 'You do not have permission to perform this action' }),
     )
   })
 

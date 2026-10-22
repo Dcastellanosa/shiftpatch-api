@@ -33,12 +33,11 @@ import {
   userIdParams,
 } from '../../schemas/admin/admin.js'
 
-const forbidden = () => new AppError(403, 'forbidden', 'You do not have permission to manage agencies')
-const agencyNotFound = () => new AppError(404, 'agency_not_found', 'Agency not found')
-const branchNotFound = () => new AppError(404, 'branch_not_found', 'Branch not found')
-const nameTaken = (what: string) => () => new AppError(409, 'name_taken', `${what} with this name already exists`)
-const agencyInactive = () =>
-  new AppError(422, 'agency_inactive', 'This agency is inactive; activate it before adding branches')
+const forbidden = () => new AppError(403, 'You do not have permission to manage agencies')
+const agencyNotFound = () => new AppError(404, 'Agency not found')
+const branchNotFound = () => new AppError(404, 'Branch not found')
+const nameTaken = (what: string) => () => new AppError(409, `${what} with this name already exists`)
+const agencyInactive = () => new AppError(422, 'This agency is inactive; activate it before adding branches')
 
 const CREATE_AGENCY_ERRORS: Record<CreateAgencyFailure, () => AppError> = {
   actor_not_allowed: forbidden,
@@ -69,31 +68,27 @@ const UPDATE_BRANCH_ERRORS: Record<UpdateBranchFailure, () => AppError> = {
 const DELETE_AGENCY_ERRORS: Record<DeleteAgencyFailure, () => AppError> = {
   actor_not_allowed: forbidden,
   agency_not_found: agencyNotFound,
-  agency_has_shifts: () =>
-    new AppError(409, 'agency_has_shifts', 'This agency has shifts and cannot be deleted; deactivate it instead'),
+  agency_has_shifts: () => new AppError(409, 'This agency has shifts and cannot be deleted; deactivate it instead'),
 }
 
 const DELETE_USER_ERRORS: Record<DeleteUserFailure, () => AppError> = {
   actor_not_allowed: forbidden,
-  user_not_found: () => new AppError(404, 'user_not_found', 'User not found'),
-  self_delete: () => new AppError(409, 'cannot_delete_self', 'You cannot delete your own account'),
-  user_has_history: () =>
-    new AppError(409, 'user_has_history', 'This user has shifts or recorded actions and cannot be deleted'),
+  user_not_found: () => new AppError(404, 'User not found'),
+  self_delete: () => new AppError(409, 'You cannot delete your own account'),
+  user_has_history: () => new AppError(409, 'This user has shifts or recorded actions and cannot be deleted'),
 }
 
 const INVITE_ERRORS: Record<InviteUserFailure, () => AppError> = {
-  email_exists: () => new AppError(409, 'email_exists', 'An account with this email already exists'),
+  email_exists: () => new AppError(409, 'An account with this email already exists'),
   actor_not_allowed: forbidden,
   auth_user_not_found: authUnavailable,
-  profile_exists: () => new AppError(409, 'email_exists', 'An account with this email already exists'),
-  invalid_assignment: () => new AppError(422, 'invalid_assignment', 'The access assignment does not match the role'),
+  profile_exists: () => new AppError(409, 'An account with this email already exists'),
+  invalid_assignment: () => new AppError(422, 'The access assignment does not match the role'),
   agency_not_found: agencyNotFound,
-  agency_inactive: () =>
-    new AppError(422, 'agency_inactive', 'This agency is inactive; activate it before assigning users'),
+  agency_inactive: () => new AppError(422, 'This agency is inactive; activate it before assigning users'),
   branch_not_found: branchNotFound,
-  branch_inactive: () =>
-    new AppError(422, 'branch_inactive', 'This branch is inactive; activate it before assigning nurses'),
-  user_not_found: () => new AppError(404, 'user_not_found', 'User not found'),
+  branch_inactive: () => new AppError(422, 'This branch is inactive; activate it before assigning nurses'),
+  user_not_found: () => new AppError(404, 'User not found'),
 }
 
 /**

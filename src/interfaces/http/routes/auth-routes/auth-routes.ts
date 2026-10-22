@@ -23,7 +23,7 @@ import {
   type RecoverBody,
 } from '../../schemas/auth/auth.js'
 import { readBearer } from '../../bearer/bearer.js'
-import type { SessionPayload } from '../../../../application/session-payload/session-payload.js'
+import type { SignInPayload } from '../../../../application/session-payload/session-payload.js'
 import type { AuthSession } from '../../../../domain/ports/auth-provider/auth-provider.js'
 
 export interface AuthRouterDependencies {
@@ -38,9 +38,8 @@ export interface AuthRouterDependencies {
 }
 
 const COMPLETE_PASSWORD_ERRORS: Record<CompletePasswordFailure, () => AppError> = {
-  invalid_link: () =>
-    new AppError(401, 'invalid_or_expired_link', 'This link is invalid or has expired. Request a new one.'),
-  weak_password: () => new AppError(422, 'weak_password', 'Choose a longer, less common password'),
+  invalid_link: () => new AppError(401, 'This link is invalid or has expired. Request a new one.'),
+  weak_password: () => new AppError(422, 'Choose a longer, less common password'),
 }
 
 /**
@@ -48,7 +47,10 @@ const COMPLETE_PASSWORD_ERRORS: Record<CompletePasswordFailure, () => AppError> 
  * Clients keep it in memory and send it as `Authorization: Bearer`; the
  * refresh token is never returned, so an expired token means signing in again.
  */
-const signInResponse = (session: AuthSession, payload: SessionPayload) => ({ token: session.accessToken, ...payload })
+const signInResponse = (session: AuthSession, payload: SignInPayload) => ({
+  token: session.accessToken,
+  user: payload.user,
+})
 
 export function createAuthRouter({ provider, store, verifier, authAdmin, setPasswordUrl }: AuthRouterDependencies) {
   const router = Router()
@@ -60,7 +62,7 @@ export function createAuthRouter({ provider, store, verifier, authAdmin, setPass
     const result = await signIn({ auth: provider, store }, email, password)
     if (!result.ok) {
       // One generic response for every rejection to avoid account enumeration.
-      throw new AppError(401, 'invalid_credentials', 'Invalid email or password')
+      throw new AppError(401, 'Invalid email or password')
     }
 
     res.json(signInResponse(result.session, result.payload))

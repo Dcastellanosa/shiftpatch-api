@@ -15,14 +15,20 @@ import {
 import { publicIdSchema } from '../ids/ids.js'
 
 /**
- * HTTP request and response contracts for the shift API. Response schemas are
- * the shapes clients rely on; `satisfies` keeps them in step with the domain
- * types. The flat `id, agencyId, agencyName, role, date, startTime, endTime,
- * status, claimedBy` part is the trial contract; the rest is a superset.
+ * HTTP request and response contracts for the shift API. Every shift leaves
+ * this API as the contract's flat shape and nothing else:
+ * `id, agencyId, agencyName, role, date, startTime, endTime, status, claimedBy`.
+ * The stored status `claimed` is the public `filled`; the translation lives
+ * in `toContractShift` only.
  */
 
 export const appRoleSchema = z.enum(APP_ROLES)
+/** Stored statuses, as the domain and the data store speak them. */
 export const shiftStatusSchema = z.enum(SHIFT_STATUSES)
+/** Public statuses, as the contract reads. */
+export const CONTRACT_SHIFT_STATUSES = ['open', 'filled'] as const
+export type ContractShiftStatus = (typeof CONTRACT_SHIFT_STATUSES)[number]
+export const contractShiftStatusSchema = z.enum(CONTRACT_SHIFT_STATUSES)
 export const shiftEventTypeSchema = z.enum(SHIFT_EVENT_TYPES)
 export const entityStatusSchema = z.enum(ENTITY_STATUSES)
 
@@ -46,29 +52,50 @@ export const branchSchema = z.object({
   agency: z.object({ id: publicIdSchema, name: z.string() }),
 }) satisfies z.ZodType<Branch>
 
-export const shiftSchema = z.object({
-  id: publicIdSchema,
-  agencyId: publicIdSchema,
-  agencyName: z.string(),
-  role: z.string(),
-  date: localDate,
-  startTime: localTime,
-  endTime: localTime,
-  status: shiftStatusSchema,
-  claimedBy: publicIdSchema.nullable(),
-  claimedByName: z.string().nullable(),
-  branch: z.object({
-    id: z.uuid(),
-    name: z.string(),
-    address: z.string(),
-    timezone: z.string(),
-    status: entityStatusSchema,
-  }),
-  startsAt: isoTimestamp,
-  endsAt: isoTimestamp,
-  createdAt: isoTimestamp,
-  updatedAt: isoTimestamp,
-}) satisfies z.ZodType<Shift>
+export const CONTRACT_SHIFT_KEYS = [
+  'id',
+  'agencyId',
+  'agencyName',
+  'role',
+  'date',
+  'startTime',
+  'endTime',
+  'status',
+  'claimedBy',
+] as const
+
+export const shiftSchema = z
+  .object({
+    id: publicIdSchema,
+    agencyId: publicIdSchema,
+    agencyName: z.string(),
+    role: z.string(),
+    date: localDate,
+    startTime: localTime,
+    endTime: localTime,
+    status: contractShiftStatusSchema,
+    claimedBy: publicIdSchema.nullable(),
+  })
+  .strict()
+
+export type ContractShift = z.infer<typeof shiftSchema>
+
+const toContractStatus = (status: Shift['status']): ContractShiftStatus => (status === 'claimed' ? 'filled' : 'open')
+
+/** Projects a domain shift onto the contract shape: exactly the nine public keys. */
+export function toContractShift(shift: Shift): ContractShift {
+  return {
+    id: shift.id,
+    agencyId: shift.agencyId,
+    agencyName: shift.agencyName,
+    role: shift.role,
+    date: shift.date,
+    startTime: shift.startTime,
+    endTime: shift.endTime,
+    status: toContractStatus(shift.status),
+    claimedBy: shift.claimedBy,
+  }
+}
 
 export const cancellationSchema = z.object({
   reason: z.enum(CANCEL_REASONS),
@@ -78,8 +105,8 @@ export const cancellationSchema = z.object({
 export const shiftEventSchema = z.object({
   id: z.uuid(),
   eventType: shiftEventTypeSchema,
-  previousStatus: shiftStatusSchema.nullable(),
-  newStatus: shiftStatusSchema,
+  previousStatus: z.string().nullable(),
+  newStatus: z.string(),
   reason: z.string().nullable(),
   occurredAt: isoTimestamp,
   /** `fullName` is null when the caller may not see the actor's profile. */
@@ -102,9 +129,14 @@ export const myShiftsResponse = z.object({ upcoming: z.array(shiftSchema), past:
 export const shiftIdParams = z.object({ shiftId: publicIdSchema })
 export const agencyShiftsParams = z.object({ agencyId: publicIdSchema })
 
+/** `?status=` speaks the public words only (`open`, `filled`); the store receives the stored value. */
+const statusFilter = contractShiftStatusSchema.transform((value): Shift['status'] =>
+  value === 'filled' ? 'claimed' : 'open',
+)
+
 export const listShiftsQuery = z
   .object({
-    status: shiftStatusSchema.optional(),
+    status: statusFilter.optional(),
     branchId: z.uuid().optional(),
     agencyId: publicIdSchema.optional(),
     from: z.iso.datetime({ offset: true }).optional(),

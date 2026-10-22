@@ -12,8 +12,13 @@ import type { EntityStatus } from '../agency/agency.js'
 export const APP_ROLES = ['admin', 'agency', 'nurse'] as const
 export type AppRole = (typeof APP_ROLES)[number]
 
-/** `filled` is the contract's word for a claimed shift. */
-export const SHIFT_STATUSES = ['open', 'filled', 'cancelled', 'completed', 'no_show'] as const
+/**
+ * Stored representation of a shift's status: `open` or `claimed`. The public
+ * contract calls a claimed shift `filled`; that word exists only at the HTTP
+ * boundary (`toContractShift`). No command produces any other status: a
+ * cancellation reopens the shift.
+ */
+export const SHIFT_STATUSES = ['open', 'claimed'] as const
 export type ShiftStatus = (typeof SHIFT_STATUSES)[number]
 
 export const SHIFT_EVENT_TYPES = ['created', 'claimed', 'cancelled', 'completed', 'no_show'] as const
@@ -71,8 +76,9 @@ export interface ShiftCancellation {
 export interface ShiftEvent {
   id: string
   eventType: ShiftEventType
-  previousStatus: ShiftStatus | null
-  newStatus: ShiftStatus
+  /** Stored status words as recorded in the history (`open`, `claimed`, ...). */
+  previousStatus: string | null
+  newStatus: string
   reason: string | null
   occurredAt: string
   /** `fullName` is null when the caller may not see the actor's profile. */

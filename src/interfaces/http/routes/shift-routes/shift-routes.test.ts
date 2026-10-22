@@ -5,12 +5,14 @@ import type { Profile } from '../../../../domain/viewer/viewer.js'
 import type { ClaimOutcome } from '../../../../domain/outcomes/outcomes.js'
 import type { Branch } from '../../../../domain/shift/shift.js'
 import {
+  CONTRACT_SHIFT_KEYS,
   agencyShiftsResponse,
   cancelResponse,
   myShiftsResponse,
   shiftEventsResponse,
   shiftListResponse,
   shiftResponse,
+  toContractShift,
 } from '../../schemas/shifts/shifts.js'
 import {
   ADMIN_PROFILE,
@@ -33,6 +35,10 @@ import {
 } from '../../../../test-support/fakes.js'
 
 const asProfile = (profile: Profile | null) => async () => profile
+
+/** Exactly the nine contract keys, nothing internal (branch, instants, names, timestamps). */
+const CONTRACT_KEYS = [...CONTRACT_SHIFT_KEYS].sort()
+const expectContractShift = (body: unknown) => expect(Object.keys(body as object).sort()).toEqual(CONTRACT_KEYS)
 
 const get = (app: ReturnType<typeof buildApp>, path: string) => request(app).get(path).set(BEARER)
 const post = (app: ReturnType<typeof buildApp>, path: string, body?: object) =>
@@ -68,7 +74,7 @@ describe('authentication and profile gate', () => {
       method === 'GET' ? await request(app).get(path) : await request(app).post(path).set('Origin', ALLOWED_ORIGIN)
 
     expect(res.status).toBe(401)
-    expect(res.body.code).toBe('unauthenticated')
+    expect(Object.keys(res.body)).toEqual(['error'])
     expect(store.getProfile).not.toHaveBeenCalled()
   })
 
@@ -76,7 +82,7 @@ describe('authentication and profile gate', () => {
     const store = fakeDataStore({ getProfile: asProfile(null) })
     const res = await get(buildSignedInApp(store), '/shifts')
     expect(res.status).toBe(403)
-    expect(res.body.code).toBe('profile_missing')
+    expect(Object.keys(res.body)).toEqual(['error'])
   })
 
   it('returns 403 membership_inactive for an agency user without an active membership', async () => {
@@ -85,13 +91,13 @@ describe('authentication and profile gate', () => {
     })
     const res = await get(buildSignedInApp(store), '/shifts')
     expect(res.status).toBe(403)
-    expect(res.body.code).toBe('membership_inactive')
+    expect(Object.keys(res.body)).toEqual(['error'])
   })
 
   it('returns 503 when the data layer is not configured', async () => {
     const res = await get(buildSignedInApp(null), '/shifts')
     expect(res.status).toBe(503)
-    expect(res.body.code).toBe('data_unavailable')
+    expect(Object.keys(res.body)).toEqual(['error'])
   })
 
   it('looks the profile up with the verified user id and the session token', async () => {
@@ -156,8 +162,9 @@ describe('GET /shifts (the marketplace)', () => {
       `/shifts?status=filled&branchId=${BRANCH_ID}&agencyId=agency-b&from=2030-01-01T00:00:00Z&to=2030-02-01T00:00:00Z`,
     )
     expect(res.status).toBe(200)
+    // `filled` on the wire is `claimed` in the store.
     expect(store.listShifts.mock.calls[0]![1]).toEqual({
-      status: 'filled',
+      status: 'claimed',
       branchId: BRANCH_ID,
       agencyId: 'agency-b',
       from: '2030-01-01T00:00:00Z',
@@ -176,7 +183,7 @@ describe('GET /shifts (the marketplace)', () => {
     const store = fakeDataStore({ getProfile: asProfile(NURSE_PROFILE) })
     const res = await get(buildSignedInApp(store), `/shifts?${query}`)
     expect(res.status).toBe(400)
-    expect(res.body.code).toBe('validation_error')
+    expect(Object.keys(res.body)).toEqual(['error'])
     expect(store.listShifts).not.toHaveBeenCalled()
   })
 })
@@ -186,7 +193,7 @@ describe('POST /shifts', () => {
     const store = fakeDataStore({ getProfile: asProfile(NURSE_PROFILE) })
     const res = await post(buildSignedInApp(store), '/shifts', VALID_BODY)
     expect(res.status).toBe(403)
-    expect(res.body.code).toBe('forbidden')
+    expect(Object.keys(res.body)).toEqual(['error'])
     expect(store.createShift).not.toHaveBeenCalled()
   })
 
@@ -203,7 +210,8 @@ describe('POST /shifts', () => {
       const res = await post(buildSignedInApp(store), '/shifts', VALID_BODY)
 
       expect(res.status).toBe(201)
-      expect(shiftResponse.parse(res.body)).toEqual(shift)
+      expect(shiftResponse.parse(res.body)).toEqual(toContractShift(shift))
+      expectContractShift(res.body)
       expect(store.createShift).toHaveBeenCalledWith(USER.id, {
         branchId: BRANCH_ID,
         title: 'RN',
@@ -239,7 +247,7 @@ describe('POST /shifts', () => {
     })
     const res = await post(buildSignedInApp(store), '/shifts', VALID_BODY)
     expect(res.status).toBe(400)
-    expect(res.body).toEqual({ error: 'Choose the branch this shift is for', code: 'validation_error' })
+    expect(res.body).toEqual({ error: 'Choose the branch this shift is for' })
     expect(store.createShift).not.toHaveBeenCalled()
   })
 
@@ -259,7 +267,7 @@ describe('POST /shifts', () => {
     const store = fakeDataStore({ getProfile: asProfile(AGENCY_PROFILE) })
     const res = await post(buildSignedInApp(store), '/shifts', body)
     expect(res.status).toBe(400)
-    expect(res.body.code).toBe('validation_error')
+    expect(Object.keys(res.body)).toEqual(['error'])
     expect(JSON.stringify(res.body)).not.toMatch(/attacker|7am/)
     expect(store.createShift).not.toHaveBeenCalled()
   })
@@ -287,7 +295,7 @@ describe('GET /shifts/:shiftId', () => {
     const store = fakeDataStore({ getProfile: asProfile(AGENCY_PROFILE), getShift: async () => null })
     const res = await get(buildSignedInApp(store), `/shifts/${SHIFT_ID}`)
     expect(res.status).toBe(404)
-    expect(res.body.code).toBe('shift_not_found')
+    expect(Object.keys(res.body)).toEqual(['error'])
   })
 
   it('returns the bare shift, looked up by its public id', async () => {
@@ -295,6 +303,7 @@ describe('GET /shifts/:shiftId', () => {
     const res = await get(buildSignedInApp(store), `/shifts/${SHIFT_ID}`)
     expect(res.status).toBe(200)
     expect(shiftResponse.parse(res.body).id).toBe(SHIFT_ID)
+    expectContractShift(res.body)
     expect(store.getShift).toHaveBeenCalledWith(expect.anything(), SHIFT_ID)
   })
 })
@@ -317,7 +326,9 @@ describe('POST /shifts/:shiftId/claim', () => {
     const res = await post(buildSignedInApp(store), `/shifts/${SHIFT_ID}/claim`, { nurseId: 'attacker' })
 
     expect(res.status).toBe(200)
-    expect(shiftResponse.parse(res.body)).toEqual(claimed)
+    expect(shiftResponse.parse(res.body)).toEqual(toContractShift(claimed))
+    expectContractShift(res.body)
+    // Stored `claimed` is `filled` on the wire; nothing internal leaks.
     expect(res.body).toMatchObject({ status: 'filled', claimedBy: NURSE_SLUG })
     expect(store.claimShift).toHaveBeenCalledWith(USER.id, SHIFT_ID)
   })
@@ -331,7 +342,7 @@ describe('POST /shifts/:shiftId/claim', () => {
       })
       const res = await post(buildSignedInApp(store), `/shifts/${SHIFT_ID}/claim`)
       expect(res.status).toBe(403)
-      expect(res.body).toEqual({ error: 'Credential expired, cannot claim shift', code: outcome })
+      expect(res.body).toEqual({ error: 'Credential expired, cannot claim shift' })
     },
   )
 
@@ -351,9 +362,8 @@ describe('POST /shifts/:shiftId/claim', () => {
     const res = await post(buildSignedInApp(store), `/shifts/${SHIFT_ID}/claim`)
 
     expect(res.status).toBe(status)
-    expect(Object.keys(res.body).sort()).toEqual(['code', 'error'])
-    expect(res.body).toEqual({ error: expect.any(String), code: expect.any(String) })
-    if (status !== 403 && status !== 404) expect(res.body.code).toBe(outcome)
+    expect(res.body).toEqual({ error: expect.any(String) })
+    expect(res.body.error).not.toContain(outcome)
     expect(store.getShift).not.toHaveBeenCalled()
   })
 })
@@ -380,20 +390,22 @@ describe('POST /shifts/:shiftId/cancel', () => {
 
       expect(res.status).toBe(200)
       expect(cancelResponse.parse(res.body)).toEqual({
-        ...reopened,
+        ...toContractShift(reopened),
         cancellation: { reason: 'no-show', previousNurseId: NURSE_SLUG },
       })
+      expect(Object.keys(res.body).sort()).toEqual([...CONTRACT_KEYS, 'cancellation'].sort())
+      expect(Object.keys(res.body.cancellation).sort()).toEqual(['previousNurseId', 'reason'])
       expect(res.body).toMatchObject({ status: 'open', claimedBy: null })
       expect(store.cancelClaim).toHaveBeenCalledWith(USER.id, SHIFT_ID, 'no-show')
     },
   )
 
   it.each([
-    ['shift_not_found', 404, 'shift_not_found'],
-    ['shift_not_claimed', 409, 'shift_not_filled'],
-    ['actor_not_allowed', 403, 'forbidden'],
-    ['invalid_reason', 400, 'validation_error'],
-  ] as const)('maps %s to %i %s', async (outcome, status, code) => {
+    ['shift_not_found', 404, 'Shift not found'],
+    ['shift_not_claimed', 409, 'Shift is not filled'],
+    ['actor_not_allowed', 403, 'Forbidden'],
+    ['invalid_reason', 400, 'reason must be "no-show" or "advance"'],
+  ] as const)('maps %s to %i %s', async (outcome, status, error) => {
     const store = fakeDataStore({
       getProfile: asProfile(AGENCY_PROFILE),
       cancelClaim: async () => ({
@@ -406,7 +418,7 @@ describe('POST /shifts/:shiftId/cancel', () => {
     })
     const res = await post(buildSignedInApp(store), `/shifts/${SHIFT_ID}/cancel`, { reason: 'advance' })
     expect(res.status).toBe(status)
-    expect(res.body.code).toBe(code)
+    expect(res.body).toEqual({ error })
     expect(store.getShift).not.toHaveBeenCalled()
   })
 
@@ -481,13 +493,11 @@ describe('GET /me/shifts', () => {
       id: 'shift-11',
       startsAt: '2020-01-01T08:00:00.000Z',
       endsAt: '2020-01-01T16:00:00.000Z',
-      status: 'completed',
     })
     const past2 = claimedShiftFixture({
       id: 'shift-12',
       startsAt: '2021-01-01T08:00:00.000Z',
       endsAt: '2021-01-01T16:00:00.000Z',
-      status: 'completed',
     })
     const next = claimedShiftFixture({ id: 'shift-13' })
     const store = fakeDataStore({
@@ -500,6 +510,7 @@ describe('GET /me/shifts', () => {
     const body = myShiftsResponse.parse(res.body)
     expect(body.upcoming.map((s) => s.id)).toEqual([next.id])
     expect(body.past.map((s) => s.id)).toEqual([past2.id, past1.id])
+    for (const shift of [...body.upcoming, ...body.past]) expectContractShift(shift)
   })
 })
 
@@ -517,14 +528,16 @@ describe('GET /agencies/:agencyId/shifts', () => {
       ['shift-1', 'open', null],
       ['shift-2', 'filled', NURSE_SLUG],
     ])
+    for (const shift of body.shifts) expectContractShift(shift)
     expect(store.listShifts.mock.calls[0]![1]).toEqual({ agencyId: AGENCY_ID })
   })
 
   it('lets an admin read any agency and forwards the filters', async () => {
     const store = fakeDataStore({ getProfile: asProfile(ADMIN_PROFILE), listShifts: async () => [] })
-    const res = await get(buildSignedInApp(store), '/agencies/agency-b/shifts?status=open')
+    const res = await get(buildSignedInApp(store), '/agencies/agency-b/shifts?status=filled')
     expect(res.status).toBe(200)
-    expect(store.listShifts.mock.calls[0]![1]).toEqual({ status: 'open', agencyId: 'agency-b' })
+    // The public word is `filled`; the store speaks the stored representation.
+    expect(store.listShifts.mock.calls[0]![1]).toEqual({ status: 'claimed', agencyId: 'agency-b' })
   })
 
   it('answers 403 for another agency and for nurses without touching the store', async () => {
@@ -532,7 +545,7 @@ describe('GET /agencies/:agencyId/shifts', () => {
       const store = fakeDataStore({ getProfile: asProfile(profile) })
       const res = await get(buildSignedInApp(store), '/agencies/agency-b/shifts')
       expect(res.status).toBe(403)
-      expect(res.body).toEqual({ error: 'Forbidden', code: 'forbidden' })
+      expect(res.body).toEqual({ error: 'Forbidden' })
       expect(store.listShifts).not.toHaveBeenCalled()
     }
   })
@@ -565,7 +578,7 @@ describe('data layer failures', () => {
     })
     const res = await get(buildSignedInApp(store), '/shifts')
     expect(res.status).toBe(500)
-    expect(res.body).toEqual({ error: 'Internal server error', code: 'internal_error' })
+    expect(res.body).toEqual({ error: 'Internal server error' })
   })
 
   it('maps DataUnavailableError to 503', async () => {
@@ -577,6 +590,6 @@ describe('data layer failures', () => {
     })
     const res = await post(buildSignedInApp(store), `/shifts/${SHIFT_ID}/claim`)
     expect(res.status).toBe(503)
-    expect(res.body.code).toBe('data_unavailable')
+    expect(Object.keys(res.body)).toEqual(['error'])
   })
 })

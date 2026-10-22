@@ -11,12 +11,16 @@ import {
   fakeTokenVerifier,
 } from '../../../../test-support/fakes.js'
 
+/** `GET /auth/me` for a user without a profile: the name falls back to the email. */
 const EXPECTED_PAYLOAD = {
-  user: { id: USER.id, name: null, email: USER.email, role: null, agencyId: null, agencyIds: [] },
+  user: { id: USER.id, name: USER.email, email: USER.email, role: null, agencyId: null, agencyIds: [] },
 }
 
+/** Sign-in responses are exactly `{ token, user: { id, name, role } }`, as the contract reads. */
 function expectSignInPayload(body: unknown, session = SESSION) {
-  expect(body).toEqual({ token: session.accessToken, ...EXPECTED_PAYLOAD })
+  expect(body).toEqual({ token: session.accessToken, user: { id: USER.id, name: USER.email, role: null } })
+  expect(Object.keys(body as object).sort()).toEqual(['token', 'user'])
+  expect(Object.keys((body as { user: object }).user).sort()).toEqual(['id', 'name', 'role'])
   const json = JSON.stringify(body)
   expect(json).not.toContain(session.refreshToken)
   expect(json).not.toMatch(/access_?token|refresh_?token/i)
@@ -40,7 +44,20 @@ describe('POST /auth/login', () => {
     const res = await login(buildApp(provider), body)
 
     expect(res.status).toBe(400)
-    expect(res.body.code).toBe('validation_error')
+    expect(res.body).toEqual({ error: 'Invalid request body' })
+    expect(provider.signInWithPassword).not.toHaveBeenCalled()
+  })
+
+  it('rejects unknown keys in the body (strict contract) without contacting the provider', async () => {
+    const provider = fakeAuthProvider({ signInWithPassword: async () => SESSION })
+    const res = await login(buildApp(provider), {
+      email: 'nurse@example.com',
+      password: 'correct',
+      id: 'attacker-chosen-id',
+      role: 'admin',
+    })
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'Invalid request body' })
     expect(provider.signInWithPassword).not.toHaveBeenCalled()
   })
 
@@ -57,7 +74,7 @@ describe('POST /auth/login', () => {
       .send('{"email":')
 
     expect(res.status).toBe(400)
-    expect(res.body).toEqual({ error: 'Malformed JSON body', code: 'invalid_json' })
+    expect(res.body).toEqual({ error: 'Malformed JSON body' })
   })
 
   it('returns a generic 401 for invalid credentials', async () => {
@@ -65,7 +82,7 @@ describe('POST /auth/login', () => {
     const res = await login(buildApp(provider), { email: 'nurse@example.com', password: 'wrong' })
 
     expect(res.status).toBe(401)
-    expect(res.body).toEqual({ error: 'Invalid email or password', code: 'invalid_credentials' })
+    expect(res.body).toEqual({ error: 'Invalid email or password' })
   })
 
   it('returns the access token with the safe payload, never the refresh token, and sets no cookie', async () => {
@@ -84,24 +101,10 @@ describe('POST /auth/login', () => {
     expect(res.headers['set-cookie']).toBeUndefined()
   })
 
-  it('ignores identity fields supplied in the body', async () => {
-    const provider = fakeAuthProvider({ signInWithPassword: async () => SESSION })
-    const res = await login(buildApp(provider), {
-      email: 'nurse@example.com',
-      password: 'correct',
-      id: 'attacker-chosen-id',
-      role: 'admin',
-      agencyId: 'agency-1',
-      agencyIds: ['agency-1'],
-    })
-
-    expectSignInPayload(res.body)
-  })
-
   it('returns 503 when auth is not configured', async () => {
     const res = await login(buildApp(null), { email: 'nurse@example.com', password: 'x' })
     expect(res.status).toBe(503)
-    expect(res.body.code).toBe('auth_unavailable')
+    expect(res.body).toEqual({ error: 'Authentication is not available' })
   })
 
   it('returns 429 when the provider rate-limits', async () => {
@@ -112,7 +115,7 @@ describe('POST /auth/login', () => {
     })
     const res = await login(buildApp(provider), { email: 'nurse@example.com', password: 'x' })
     expect(res.status).toBe(429)
-    expect(res.body.code).toBe('rate_limited')
+    expect(res.body).toEqual({ error: 'Too many authentication attempts' })
   })
 })
 
@@ -126,7 +129,7 @@ describe('GET /auth/me (bearer sessions)', () => {
     const res = await me(appWith(verifier))
 
     expect(res.status).toBe(401)
-    expect(res.body).toEqual({ error: 'Authentication required', code: 'unauthenticated' })
+    expect(res.body).toEqual({ error: 'Authentication required' })
     expect(verifier.verify).not.toHaveBeenCalled()
   })
 
@@ -145,7 +148,7 @@ describe('GET /auth/me (bearer sessions)', () => {
     const res = await me(appWith(fakeTokenVerifier())).set('Authorization', 'Bearer stale-token')
 
     expect(res.status).toBe(401)
-    expect(res.body).toEqual({ error: 'Invalid or expired token', code: 'invalid_token' })
+    expect(res.body).toEqual({ error: 'Invalid or expired token' })
   })
 
   it('never reads a session from cookies', async () => {
@@ -161,7 +164,7 @@ describe('GET /auth/me (bearer sessions)', () => {
     for (const header of ['Basic abc', 'Bearer', 'Bearer <script>', `Token ${SESSION.accessToken}`]) {
       const res = await me(appWith(verifier)).set('Authorization', header)
       expect(res.status).toBe(401)
-      expect(res.body).toEqual({ error: 'Invalid or expired token', code: 'invalid_token' })
+      expect(res.body).toEqual({ error: 'Invalid or expired token' })
     }
     expect(verifier.verify).not.toHaveBeenCalled()
   })
@@ -174,7 +177,7 @@ describe('GET /auth/me (bearer sessions)', () => {
   it('answers 503 for a bearer request when auth is not configured', async () => {
     const res = await me(appWith(null)).set('Authorization', `Bearer ${SESSION.accessToken}`)
     expect(res.status).toBe(503)
-    expect(res.body.code).toBe('auth_unavailable')
+    expect(res.body).toEqual({ error: 'Authentication is not available' })
   })
 })
 
@@ -223,13 +226,13 @@ describe('POST /auth/complete-password', () => {
   })
 
   it.each([
-    ['invalid_link', 401, 'invalid_or_expired_link'],
-    ['weak_password', 422, 'weak_password'],
-  ] as const)('maps %s to %i without a token', async (outcome, status, code) => {
+    ['invalid_link', 401, 'This link is invalid or has expired. Request a new one.'],
+    ['weak_password', 422, 'Choose a longer, less common password'],
+  ] as const)('maps %s to %i without a token', async (outcome, status, error) => {
     const auth = fakeAuthAdmin({ completePassword: async () => outcome })
     const res = await complete(appWith(auth), { ...VALID, type: 'recovery' })
     expect(res.status).toBe(status)
-    expect(res.body).toEqual({ error: expect.any(String), code })
+    expect(res.body).toEqual({ error })
     expect(JSON.stringify(res.body)).not.toContain(VALID.tokenHash)
   })
 
@@ -256,7 +259,7 @@ describe('POST /auth/complete-password', () => {
     const auth = fakeAuthAdmin()
     const res = await complete(appWith(auth), body)
     expect(res.status).toBe(400)
-    expect(res.body.code).toBe('validation_error')
+    expect(res.body).toEqual({ error: 'Invalid request body' })
     expect(auth.completePassword).not.toHaveBeenCalled()
     expect(JSON.stringify(res.body)).not.toMatch(/short|magiclink|not a hash|correct horse/)
   })

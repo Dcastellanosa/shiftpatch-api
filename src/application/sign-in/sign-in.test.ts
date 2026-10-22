@@ -13,14 +13,7 @@ describe('signIn', () => {
       ok: true,
       session: SESSION,
       payload: {
-        user: {
-          id: NURSE_PROFILE.slug,
-          name: NURSE_PROFILE.fullName,
-          email: USER.email,
-          role: 'nurse',
-          agencyId: null,
-          agencyIds: [],
-        },
+        user: { id: NURSE_PROFILE.slug, name: NURSE_PROFILE.fullName, role: 'nurse' },
       },
     })
     expect(auth.signInWithPassword).toHaveBeenCalledWith('nurse@example.com', 'pw')
@@ -38,13 +31,6 @@ describe('signIn', () => {
   it('returns null profile fields when the data layer is not configured', async () => {
     const auth = fakeAuthProvider({ signInWithPassword: async () => SESSION })
     const result = await signIn({ auth, store: null }, 'nurse@example.com', 'pw')
-    expect(result.ok && result.payload.user).toEqual({
-      id: USER.id,
-      name: null,
-      email: USER.email,
-      role: null,
-      agencyId: null,
-      agencyIds: [],
-    })
+    expect(result.ok && result.payload.user).toEqual({ id: USER.id, name: USER.email, role: null })
   })
 })

@@ -2,12 +2,12 @@ import type { PasswordLinkType } from '../../domain/admin/admin.js'
 import type { AuthAdmin } from '../../domain/ports/auth-admin/auth-admin.js'
 import type { AuthSession } from '../../domain/ports/auth-provider/auth-provider.js'
 import type { DataStore } from '../../domain/ports/data-store/data-store.js'
-import { loadSessionPayload, type SessionPayload } from '../session-payload/session-payload.js'
+import { loadSignInPayload, type SignInPayload } from '../session-payload/session-payload.js'
 
 export type CompletePasswordFailure = 'invalid_link' | 'weak_password'
 
 export type CompletePasswordResult =
-  { ok: true; session: AuthSession; payload: SessionPayload } | { ok: false; outcome: CompletePasswordFailure }
+  { ok: true; session: AuthSession; payload: SignInPayload } | { ok: false; outcome: CompletePasswordFailure }
 
 /**
  * Finishes an invitation or a password recovery: exchanges the one-time link
@@ -22,5 +22,5 @@ export async function completePassword(
 ): Promise<CompletePasswordResult> {
   const result = await auth.completePassword(tokenHash, type, password)
   if (typeof result === 'string') return { ok: false, outcome: result }
-  return { ok: true, session: result, payload: await loadSessionPayload({ store }, result.user, result.accessToken) }
+  return { ok: true, session: result, payload: await loadSignInPayload({ store }, result.user, result.accessToken) }
 }

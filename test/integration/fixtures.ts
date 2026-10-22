@@ -322,7 +322,7 @@ export const SHIFTS: readonly SeedShift[] = [
     branchId: BRANCHES.downtown.id,
     title: 'Med-Surg RN — Day',
     when: { dayOffset: -5, startHourUtc: 12, hours: 8 },
-    status: 'completed',
+    status: 'claimed',
     assignedNurseId: USERS.ava.id,
     createdById: USERS.northwindAgency.id,
   },

@@ -76,7 +76,7 @@ describe('admin agency and branch lifecycle over HTTP', () => {
   it('refuses a duplicate agency name with 409', async () => {
     const res = await post(agents.admin, '/admin/agencies', { name })
     expect(res.status).toBe(409)
-    expect(res.body).toEqual({ error: expect.any(String), code: 'name_taken' })
+    expect(res.body).toEqual({ error: expect.any(String) })
   })
 
   it('creates a branch and shows it in the detail and in /branches', async () => {
@@ -128,14 +128,14 @@ describe('admin agency and branch lifecycle over HTTP', () => {
 
     const blockedCreate = await post(agents.admin, '/shifts', utcShift(branchId, 'Blocked'))
     expect(blockedCreate.status).toBe(422)
-    expect(blockedCreate.body.code).toBe('branch_inactive')
+    expect(Object.keys(blockedCreate.body)).toEqual(['error'])
 
-    // The marketplace still lists it (with its inactive branch), but it cannot be claimed.
+    // The marketplace still lists it (the branch state is not part of the contract shape), but it cannot be claimed.
     const listed = shiftListResponse.parse((await agents.ava.get('/shifts')).body).shifts
-    expect(listed.find((s) => s.id === shift.id)).toMatchObject({ branch: { status: 'inactive' } })
+    expect(listed.find((s) => s.id === shift.id)).toMatchObject({ status: 'open', claimedBy: null })
     const blockedClaim = await post(agents.ava, `/shifts/${shift.id}/claim`, {})
     expect(blockedClaim.status).toBe(422)
-    expect(blockedClaim.body.code).toBe('branch_inactive')
+    expect(Object.keys(blockedClaim.body)).toEqual(['error'])
 
     const on = await patch(agents.admin, `/admin/agencies/${agencyId}/branches/${branchId}`, { status: 'active' })
     expect(on.status).toBe(200)
@@ -154,13 +154,13 @@ describe('admin agency and branch lifecycle over HTTP', () => {
       timezone: 'UTC',
     })
     expect(newBranch.status).toBe(422)
-    expect(newBranch.body.code).toBe('agency_inactive')
+    expect(Object.keys(newBranch.body)).toEqual(['error'])
     const create = await post(agents.admin, '/shifts', utcShift(branchId, 'Blocked'))
     expect(create.status).toBe(422)
-    expect(create.body.code).toBe('agency_inactive')
+    expect(Object.keys(create.body)).toEqual(['error'])
     const claim = await post(agents.ava, `/shifts/${shift.id}/claim`, {})
     expect(claim.status).toBe(422)
-    expect(claim.body.code).toBe('agency_inactive')
+    expect(Object.keys(claim.body)).toEqual(['error'])
 
     const on = await patch(agents.admin, `/admin/agencies/${agencyId}`, { status: 'active', name: `${name} Renamed` })
     expect(on.status).toBe(200)
@@ -173,7 +173,7 @@ describe('admin agency and branch lifecycle over HTTP', () => {
       status: 'inactive',
     })
     expect(res.status).toBe(404)
-    expect(res.body.code).toBe('branch_not_found')
+    expect(Object.keys(res.body)).toEqual(['error'])
     const { rows } = await pool.query('select status from shiftpatch.agency_branches where id = $1', [branchId])
     expect(rows).toEqual([{ status: 'active' }])
   })
@@ -279,7 +279,7 @@ describe('invitations, password completion and recovery over HTTP', () => {
   it('refuses a second invitation for the same address and keeps the existing account intact', async () => {
     const res = await post(agents.admin, '/admin/users', { email, fullName: 'Again', role: 'admin' })
     expect(res.status).toBe(409)
-    expect(res.body.code).toBe('email_exists')
+    expect(Object.keys(res.body)).toEqual(['error'])
     const { rows } = await pool.query('select full_name, role from shiftpatch.profiles where slug = $1', [invitedId])
     expect(rows).toEqual([{ full_name: 'Invited Nurse', role: 'nurse' }])
     const { rows: auth } = await pool.query(
@@ -314,7 +314,7 @@ describe('invitations, password completion and recovery over HTTP', () => {
       .set('Origin', ALLOWED_ORIGIN)
       .send({ tokenHash, type: 'invite', password: 'brand-new-password-1' })
     expect(res.status).toBe(200)
-    expect(res.body.user).toMatchObject({ id: invitedId, email, role: 'nurse', name: 'Invited Nurse' })
+    expect(res.body.user).toEqual({ id: invitedId, role: 'nurse', name: 'Invited Nurse' })
     expect(JSON.stringify(res.body)).not.toMatch(/hash|refresh/i)
     expect(typeof res.body.token).toBe('string')
     expect(res.headers['set-cookie']).toBeUndefined()
@@ -338,7 +338,7 @@ describe('invitations, password completion and recovery over HTTP', () => {
       password: 'another-password-2',
     })
     expect(res.status).toBe(401)
-    expect(res.body.code).toBe('invalid_or_expired_link')
+    expect(Object.keys(res.body)).toEqual(['error'])
     expect(res.headers['set-cookie']).toBeUndefined()
   })
 
@@ -402,20 +402,20 @@ describe('deletion over HTTP', () => {
       .delete(`/admin/agencies/${AGENCIES.northwind.slug}`)
       .set('Origin', ALLOWED_ORIGIN)
     expect(refused.status).toBe(409)
-    expect(refused.body.code).toBe('agency_has_shifts')
+    expect(Object.keys(refused.body)).toEqual(['error'])
   })
 
   it('refuses deleting oneself, users with history, and anything from a non-admin', async () => {
     const self = await agents.admin.delete(`/admin/users/${USERS.admin.slug}`).set('Origin', ALLOWED_ORIGIN)
     expect(self.status).toBe(409)
-    expect(self.body.code).toBe('cannot_delete_self')
+    expect(Object.keys(self.body)).toEqual(['error'])
 
     const history = await agents.admin.delete(`/admin/users/${USERS.ava.slug}`).set('Origin', ALLOWED_ORIGIN)
     expect(history.status).toBe(409)
-    expect(history.body.code).toBe('user_has_history')
+    expect(Object.keys(history.body)).toEqual(['error'])
 
     const spec = await agents.admin.delete(`/admin/users/${SPEC_USERS.maria.slug}`).set('Origin', ALLOWED_ORIGIN)
-    expect(spec.body.code).toBe('user_has_history')
+    expect(Object.keys(spec.body)).toEqual(['error'])
 
     expect(
       (await agents.northwindAgency.delete(`/admin/users/${USERS.eli.slug}`).set('Origin', ALLOWED_ORIGIN)).status,

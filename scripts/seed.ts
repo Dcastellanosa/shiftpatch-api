@@ -202,15 +202,15 @@ export async function seedDatabase(options: SeedOptions) {
 interface SeedEvent {
   shift_id: string
   actor_id: string
-  event_type: 'created' | 'claimed' | 'completed'
+  event_type: 'created' | 'claimed'
   previous_status: 'open' | 'claimed' | null
-  new_status: 'open' | 'claimed' | 'completed'
+  new_status: 'open' | 'claimed'
   occurred_at: string
 }
 
 function seedEvents(data: SeedDataset, shift: SeedShift, now: Date): SeedEvent[] {
   // Posted five days before the shift (never in the future), claimed two hours later.
-  const { starts_at, ends_at } = shiftTimes(shift, now)
+  const { starts_at } = shiftTimes(shift, now)
   const posted = Math.min(Date.parse(starts_at) - 5 * DAY_MS, now.getTime() - 3 * HOUR_MS)
   const created = new Date(posted + data.shifts.indexOf(shift) * 60_000)
   const events: SeedEvent[] = [
@@ -231,16 +231,6 @@ function seedEvents(data: SeedDataset, shift: SeedShift, now: Date): SeedEvent[]
       previous_status: 'open',
       new_status: 'claimed',
       occurred_at: new Date(created.getTime() + 2 * HOUR_MS).toISOString(),
-    })
-  }
-  if (shift.status === 'completed') {
-    events.push({
-      shift_id: shift.id,
-      actor_id: shift.createdById,
-      event_type: 'completed',
-      previous_status: 'claimed',
-      new_status: 'completed',
-      occurred_at: ends_at,
     })
   }
   return events

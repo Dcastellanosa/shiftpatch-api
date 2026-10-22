@@ -11,7 +11,8 @@
 
 export type SeedRole = 'admin' | 'agency' | 'nurse'
 export type SeedStatus = 'active' | 'inactive'
-export type SeedShiftStatus = 'open' | 'claimed' | 'completed'
+/** Stored statuses a shift can have: no command produces any other. */
+export type SeedShiftStatus = 'open' | 'claimed'
 
 export interface SeedAgency {
   id: string

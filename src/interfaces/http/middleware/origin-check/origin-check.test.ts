@@ -13,7 +13,7 @@ function run(method: string, headers: Record<string, string> = {}) {
     check(req, {} as Response, next)
     return { passed: next.mock.calls.length === 1 }
   } catch (error) {
-    return { passed: false, code: (error as { code?: string }).code }
+    return { passed: false, message: (error as { message?: string }).message }
   }
 }
 
@@ -27,13 +27,16 @@ describe('requireTrustedOrigin', () => {
   })
 
   it('rejects an origin that only shares a prefix with an allowed one', () => {
-    expect(run('POST', { Origin: `${ALLOWED}.evil.example` })).toEqual({ passed: false, code: 'invalid_origin' })
+    expect(run('POST', { Origin: `${ALLOWED}.evil.example` })).toEqual({
+      passed: false,
+      message: 'Request origin is not allowed',
+    })
   })
 
   it.each<Record<string, string>>([{ 'Sec-Fetch-Site': 'same-site' }, { 'Sec-Fetch-Mode': 'cors' }])(
     'requires Origin on browser requests (%o)',
     (headers) => {
-      expect(run('DELETE', headers)).toEqual({ passed: false, code: 'origin_required' })
+      expect(run('DELETE', headers)).toEqual({ passed: false, message: 'Origin header is required' })
     },
   )
 

@@ -9,7 +9,8 @@ import type { DataStore } from '../../domain/ports/data-store/data-store.js'
  */
 export interface SessionUser {
   id: string
-  name: string | null
+  /** Full name from the profile; falls back to the email, then the id, so it is never empty. */
+  name: string
   email: string | null
   role: AppRole | null
   /** Public id of the first active agency (agency users). Prefer `agencyIds`. */
@@ -22,17 +23,46 @@ export interface SessionPayload {
   user: SessionUser
 }
 
+/** The contract's login payload: exactly `{ id, name, role }`. */
+export interface SignInUser {
+  id: string
+  name: string
+  role: AppRole | null
+}
+
+export interface SignInPayload {
+  user: SignInUser
+}
+
+const publicId = (user: AuthUser, profile: Profile | null) =>
+  profile ? (profile.role === 'agency' ? (profile.agencySlug ?? profile.slug) : profile.slug) : user.id
+
+const displayName = (user: AuthUser, profile: Profile | null, id: string) => profile?.fullName ?? user.email ?? id
+
+export function toSignInPayload(user: AuthUser, profile: Profile | null): SignInPayload {
+  const id = publicId(user, profile)
+  return { user: { id, name: displayName(user, profile, id), role: profile?.role ?? null } }
+}
+
+export async function loadSignInPayload(
+  { store }: { store: DataStore | null },
+  user: AuthUser,
+  accessToken: string,
+): Promise<SignInPayload> {
+  return toSignInPayload(user, store ? await store.getProfile(accessToken, user.id) : null)
+}
+
 /**
  * Profile fields come from the `profiles` table keyed by the verified
  * `user.id`. A signed-in user without a provisioned profile gets nulls and
  * no access to business routes.
  */
 export function toSessionPayload(user: AuthUser, profile: Profile | null): SessionPayload {
-  const id = profile ? (profile.role === 'agency' ? (profile.agencySlug ?? profile.slug) : profile.slug) : user.id
+  const id = publicId(user, profile)
   return {
     user: {
       id,
-      name: profile?.fullName ?? null,
+      name: displayName(user, profile, id),
       email: user.email,
       role: profile?.role ?? null,
       agencyId: profile?.agencySlug ?? null,

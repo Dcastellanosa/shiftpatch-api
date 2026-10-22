@@ -121,7 +121,6 @@ describe('the vertical slice: create → see → claim → status and history', 
       id: created.id,
       status: 'filled',
       claimedBy: USERS.ava.slug,
-      claimedByName: USERS.ava.fullName,
     })
 
     // It stays in the marketplace as filled and appears in My Shifts.
@@ -133,17 +132,17 @@ describe('the vertical slice: create → see → claim → status and history', 
     // 4. A second claim is rejected.
     const again = await claimAs(agents.eli, created.id)
     expect(again.status).toBe(409)
-    expect(again.body).toEqual({ error: expect.any(String), code: 'shift_not_open' })
+    expect(again.body).toEqual({ error: expect.any(String) })
 
     // 5. Agency and admin see the assigned nurse and the history.
     for (const agent of [agents.northwindAgency, agents.admin]) {
       const shift = shiftResponse.parse((await agent.get(`/shifts/${created.id}`)).body)
-      expect(shift).toMatchObject({ status: 'filled', claimedBy: USERS.ava.slug, claimedByName: USERS.ava.fullName })
+      expect(shift).toMatchObject({ status: 'filled', claimedBy: USERS.ava.slug })
 
       const history = shiftEventsResponse.parse((await agent.get(`/shifts/${created.id}/events`)).body).events
       expect(history.map((e) => [e.eventType, e.previousStatus, e.newStatus, e.actor.id])).toEqual([
         ['created', null, 'open', USERS.northwindAgency.id],
-        ['claimed', 'open', 'filled', USERS.ava.id],
+        ['claimed', 'open', 'claimed', USERS.ava.id],
       ])
     }
 
@@ -162,7 +161,7 @@ describe('the vertical slice: create → see → claim → status and history', 
     const events = shiftEventsResponse.parse((await agents.admin.get(`/shifts/${created.id}/events`)).body).events
     expect(events.at(-1)).toMatchObject({
       eventType: 'no_show',
-      previousStatus: 'filled',
+      previousStatus: 'claimed',
       newStatus: 'open',
       reason: 'no-show',
       actor: { id: USERS.northwindAgency.id },
@@ -178,11 +177,11 @@ describe('claim rule failures over HTTP', () => {
     ['ben', 'credential_expired', 403, 'Credential expired, cannot claim shift'],
     ['dev', 'credential_missing', 403, 'Credential expired, cannot claim shift'],
     ['cora', 'eligibility_inactive', 422, expect.any(String)],
-  ] as const)('%s gets %s', async (nurse, code, status, message) => {
+  ] as const)('%s gets %s', async (nurse, _outcome, status, message) => {
     const shift = await createAs(agents.northwindAgency, BRANCHES.downtown.id)
     const res = await claimAs(agents[nurse], shift.id)
     expect(res.status).toBe(status)
-    expect(res.body).toEqual({ error: message, code })
+    expect(res.body).toEqual({ error: message })
 
     const still = shiftResponse.parse((await agents.northwindAgency.get(`/shifts/${shift.id}`)).body)
     expect(still).toMatchObject({ status: 'open', claimedBy: null })
@@ -203,7 +202,7 @@ describe('claim rule failures over HTTP', () => {
     expect((await claimAs(agents.ava, first.body.id)).status).toBe(200)
     const res = await claimAs(agents.ava, second.body.id)
     expect(res.status).toBe(409)
-    expect(res.body.code).toBe('schedule_conflict')
+    expect(Object.keys(res.body)).toEqual(['error'])
   })
 
   it('lets exactly one of two simultaneous claims win', async () => {
@@ -250,7 +249,7 @@ describe('cancellation over HTTP', () => {
     const open = await createAs(agents.northwindAgency, BRANCHES.downtown.id)
     const notFilled = await cancelAs(agents.admin, open.id, 'no-show')
     expect(notFilled.status).toBe(409)
-    expect(notFilled.body.code).toBe('shift_not_filled')
+    expect(Object.keys(notFilled.body)).toEqual(['error'])
     expect((await cancelAs(agents.admin, shift.id, 'late')).status).toBe(400)
     expect(shiftResponse.parse((await agents.admin.get(`/shifts/${shift.id}`)).body)).toMatchObject({
       status: 'filled',
@@ -281,7 +280,7 @@ describe('role authorization', () => {
     delete body.branchId
     const res = await agents.admin.post('/shifts').set('Origin', ALLOWED_ORIGIN).send(body)
     expect(res.status).toBe(400)
-    expect(res.body).toEqual({ error: 'Choose the branch this shift is for', code: 'validation_error' })
+    expect(res.body).toEqual({ error: 'Choose the branch this shift is for' })
   })
 
   it('/me/shifts is nurse-only', async () => {
@@ -321,7 +320,7 @@ describe('agency views', () => {
       .set('Origin', ALLOWED_ORIGIN)
       .send(contractBody(BRANCHES.bayview.id))
     expect(res.status).toBe(404)
-    expect(res.body.code).toBe('branch_not_found')
+    expect(Object.keys(res.body)).toEqual(['error'])
   })
 
   it('each agency lists only its own branches', async () => {
@@ -345,7 +344,9 @@ describe('agency views', () => {
     expect(filled.every((s) => s.status === 'filled' && s.claimedBy)).toBe(true)
 
     const bayview = shiftListResponse.parse((await agents.admin.get(`/shifts?branchId=${BRANCHES.bayview.id}`)).body)
-    expect(bayview.shifts.every((s) => s.branch.id === BRANCHES.bayview.id)).toBe(true)
+    expect(bayview.shifts.length).toBeGreaterThan(0)
+    expect(bayview.shifts.every((s) => s.agencyId === AGENCIES.harbor.slug)).toBe(true)
+    expect(bayview.shifts.length).toBeLessThan(all.length)
 
     const harbor = shiftListResponse.parse((await agents.admin.get(`/shifts?agencyId=${AGENCIES.harbor.slug}`)).body)
     expect(harbor.shifts.length).toBeGreaterThan(0)
@@ -390,7 +391,9 @@ describe('the marketplace', () => {
 
   it('splits My Shifts into upcoming and past', async () => {
     const mine = myShiftsResponse.parse((await agents.ava.get('/me/shifts')).body)
-    expect(mine.past.some((s) => s.status === 'completed')).toBe(true)
-    expect(mine.upcoming.every((s) => Date.parse(s.endsAt) > Date.now())).toBe(true)
+    const today = new Date().toISOString().slice(0, 10)
+    expect(mine.past.length).toBeGreaterThan(0)
+    expect(mine.past.every((s) => s.status === 'filled' && s.date < today)).toBe(true)
+    expect(mine.upcoming.every((s) => s.status === 'filled' && s.date >= today)).toBe(true)
   })
 })

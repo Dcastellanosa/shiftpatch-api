@@ -13,14 +13,7 @@ describe('completePassword', () => {
       ok: true,
       session: SESSION,
       payload: {
-        user: {
-          id: NURSE_PROFILE.slug,
-          name: NURSE_PROFILE.fullName,
-          email: USER.email,
-          role: 'nurse',
-          agencyId: null,
-          agencyIds: [],
-        },
+        user: { id: NURSE_PROFILE.slug, name: NURSE_PROFILE.fullName, role: 'nurse' },
       },
     })
     expect(auth.completePassword).toHaveBeenCalledWith('hash-1', 'invite', 'correct horse battery')
@@ -40,6 +33,6 @@ describe('completePassword', () => {
   it('works without a data layer (profile fields stay null)', async () => {
     const auth = fakeAuthAdmin({ completePassword: async () => SESSION })
     const result = await completePassword({ auth, store: null }, 'hash-1', 'invite', 'correct horse battery')
-    expect(result).toMatchObject({ ok: true, payload: { user: { role: null, name: null } } })
+    expect(result).toMatchObject({ ok: true, payload: { user: { id: USER.id, role: null, name: USER.email } } })
   })
 })

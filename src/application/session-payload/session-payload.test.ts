@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ADMIN_PROFILE, AGENCY_PROFILE, NURSE_PROFILE, USER, fakeDataStore } from '../../test-support/fakes.js'
-import { loadSessionPayload, toSessionPayload } from './session-payload.js'
+import { loadSessionPayload, loadSignInPayload, toSessionPayload, toSignInPayload } from './session-payload.js'
 
 describe('toSessionPayload', () => {
   it('identifies an agency user by the agency they manage (public id)', () => {
@@ -25,15 +25,19 @@ describe('toSessionPayload', () => {
     },
   )
 
-  it('returns null profile fields for a user without a profile', () => {
+  it('falls back to the email as the name for a user without a profile', () => {
     expect(toSessionPayload(USER, null).user).toEqual({
       id: USER.id,
-      name: null,
+      name: USER.email,
       email: USER.email,
       role: null,
       agencyId: null,
       agencyIds: [],
     })
+  })
+
+  it('falls back to the id when there is neither a profile nor an email', () => {
+    expect(toSessionPayload({ id: USER.id, email: null }, null).user.name).toBe(USER.id)
   })
 
   it('never includes tokens', () => {
@@ -45,6 +49,29 @@ describe('toSessionPayload', () => {
       'agencyId',
       'agencyIds',
     ])
+  })
+})
+
+describe('toSignInPayload', () => {
+  it('is exactly { user: { id, name, role } }, the contract login payload', () => {
+    expect(toSignInPayload(USER, NURSE_PROFILE)).toEqual({
+      user: { id: NURSE_PROFILE.slug, name: NURSE_PROFILE.fullName, role: 'nurse' },
+    })
+    expect(Object.keys(toSignInPayload(USER, AGENCY_PROFILE).user)).toEqual(['id', 'name', 'role'])
+    expect(toSignInPayload(USER, AGENCY_PROFILE).user.id).toBe(AGENCY_PROFILE.agencySlug)
+  })
+
+  it('always carries a string name', () => {
+    expect(toSignInPayload(USER, null).user).toEqual({ id: USER.id, name: USER.email, role: null })
+    expect(toSignInPayload({ id: USER.id, email: null }, null).user.name).toBe(USER.id)
+  })
+})
+
+describe('loadSignInPayload', () => {
+  it('looks the profile up with the access token and verified user id', async () => {
+    const store = fakeDataStore({ getProfile: async () => NURSE_PROFILE })
+    await expect(loadSignInPayload({ store }, USER, 'token')).resolves.toEqual(toSignInPayload(USER, NURSE_PROFILE))
+    expect(store.getProfile).toHaveBeenCalledWith('token', USER.id)
   })
 })
 

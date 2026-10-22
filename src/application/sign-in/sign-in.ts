@@ -1,8 +1,8 @@
 import type { AuthProvider, AuthSession } from '../../domain/ports/auth-provider/auth-provider.js'
 import type { DataStore } from '../../domain/ports/data-store/data-store.js'
-import { loadSessionPayload, type SessionPayload } from '../session-payload/session-payload.js'
+import { loadSignInPayload, type SignInPayload } from '../session-payload/session-payload.js'
 
-export type SignInResult = { ok: true; session: AuthSession; payload: SessionPayload } | { ok: false }
+export type SignInResult = { ok: true; session: AuthSession; payload: SignInPayload } | { ok: false }
 
 /**
  * Signs in with email and password. Every rejection (unknown email, wrong
@@ -15,5 +15,5 @@ export async function signIn(
 ): Promise<SignInResult> {
   const session = await auth.signInWithPassword(email, password)
   if (!session) return { ok: false }
-  return { ok: true, session, payload: await loadSessionPayload({ store }, session.user, session.accessToken) }
+  return { ok: true, session, payload: await loadSignInPayload({ store }, session.user, session.accessToken) }
 }

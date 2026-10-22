@@ -79,19 +79,19 @@ describe('PUT and DELETE /nurses/:nurseId/eligibility/:branchId', () => {
   })
 
   it.each([
-    ['branch_not_found', 404, 'branch_not_found'],
-    ['nurse_not_found', 404, 'nurse_not_found'],
-    ['agency_inactive', 422, 'agency_inactive'],
-    ['branch_inactive', 422, 'branch_inactive'],
-    ['actor_not_allowed', 403, 'forbidden'],
-  ] as const)('maps %s to %i', async (outcome, status, code) => {
+    ['branch_not_found', 404],
+    ['nurse_not_found', 404],
+    ['agency_inactive', 422],
+    ['branch_inactive', 422],
+    ['actor_not_allowed', 403],
+  ] as const)('maps %s to %i', async (outcome, status) => {
     const store = fakeDataStore({
       getProfile: asProfile(AGENCY_PROFILE),
       setBranchEligibility: async () => ({ outcome, entityId: null }),
     })
     const res = await put(buildSignedInApp(store), PATH)
     expect(res.status).toBe(status)
-    expect(res.body).toEqual({ error: expect.any(String), code })
+    expect(res.body).toEqual({ error: expect.any(String) })
   })
 
   it('refuses nurses and rejects malformed ids before touching the store', async () => {

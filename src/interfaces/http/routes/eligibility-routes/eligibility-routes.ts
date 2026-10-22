@@ -11,12 +11,12 @@ import { loadViewer, requireRole } from '../../middleware/viewer/viewer.js'
 import { eligibilityParams } from '../../schemas/eligibility/eligibility.js'
 
 const ELIGIBILITY_ERRORS: Record<SetEligibilityFailure, () => AppError> = {
-  actor_not_allowed: () => new AppError(403, 'forbidden', 'You do not have permission to manage nurse eligibility'),
-  branch_not_found: () => new AppError(404, 'branch_not_found', 'Branch not found'),
-  nurse_not_found: () => new AppError(404, 'nurse_not_found', 'Nurse not found'),
-  agency_inactive: () => new AppError(422, 'agency_inactive', 'This agency is inactive; eligibility cannot change'),
-  branch_inactive: () => new AppError(422, 'branch_inactive', 'This branch is inactive; eligibility cannot change'),
-  eligibility_not_found: () => new AppError(404, 'nurse_not_found', 'Nurse not found'),
+  actor_not_allowed: () => new AppError(403, 'You do not have permission to manage nurse eligibility'),
+  branch_not_found: () => new AppError(404, 'Branch not found'),
+  nurse_not_found: () => new AppError(404, 'Nurse not found'),
+  agency_inactive: () => new AppError(422, 'This agency is inactive; eligibility cannot change'),
+  branch_inactive: () => new AppError(422, 'This branch is inactive; eligibility cannot change'),
+  eligibility_not_found: () => new AppError(404, 'Nurse not found'),
 }
 
 /**

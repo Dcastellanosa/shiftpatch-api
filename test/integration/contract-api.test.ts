@@ -67,7 +67,7 @@ describe('1. POST /api/auth/login', () => {
   it('answers { token, user: { id, name, role } } for a nurse', async () => {
     const res = await login(USERS.maria.email)
     expect(res.status).toBe(200)
-    expect(res.body).toMatchObject({
+    expect(res.body).toEqual({
       token: expect.any(String),
       user: { id: 'nurse-1', name: 'Maria Lopez', role: 'nurse' },
     })
@@ -81,14 +81,23 @@ describe('1. POST /api/auth/login', () => {
   ])('%s signs in as %s with role %s', async (email, id, role) => {
     const res = await login(email)
     expect(res.status).toBe(200)
-    expect(res.body.user).toMatchObject({ id, role })
+    expect(res.body.user).toEqual({ id, name: expect.any(String), role })
+    expect(Object.keys(res.body).sort()).toEqual(['token', 'user'])
   })
 
   it('answers 401 { "error": "Invalid email or password" } for bad credentials', async () => {
     const res = await login(USERS.maria.email, 'wrong-password')
     expect(res.status).toBe(401)
-    expect(res.body).toMatchObject({ error: 'Invalid email or password' })
+    expect(res.body).toEqual({ error: 'Invalid email or password' })
     expect(res.headers['set-cookie']).toBeUndefined()
+  })
+
+  it('answers 400 { "error": "Invalid request body" } for an extra key (strict body)', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: USERS.maria.email, password: inject('seedPassword'), role: 'admin' })
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'Invalid request body' })
   })
 })
 
@@ -96,10 +105,13 @@ describe('authentication', () => {
   it('every shift route needs a bearer token and answers a string error', async () => {
     const missing = await request(app).get('/api/shifts')
     expect(missing.status).toBe(401)
-    expect(missing.body).toMatchObject({ error: expect.any(String) })
-    expect(typeof missing.body.error).toBe('string')
+    expect(missing.body).toEqual({ error: 'Authentication required' })
     const stale = await request(app).get('/api/shifts').set('Authorization', 'Bearer not-a-real-token')
     expect(stale.status).toBe(401)
+    expect(stale.body).toEqual({ error: 'Invalid or expired token' })
+    const malformed = await request(app).get('/api/shifts').set('Authorization', 'Basic abc')
+    expect(malformed.status).toBe(401)
+    expect(malformed.body).toEqual({ error: 'Invalid or expired token' })
   })
 })
 
@@ -108,9 +120,15 @@ describe('2. GET /api/shifts', () => {
     const res = await request(app).get('/api/shifts').set(bearer(tokens.maria))
     expect(res.status).toBe(200)
     const byId = new Map((res.body.shifts as { id: string }[]).map((s) => [s.id, s]))
-    expect(byId.get('shift-1')).toMatchObject(SHIFT_1)
-    expect(byId.get('shift-2')).toMatchObject(SHIFT_2)
-    expect(byId.get('shift-3')).toMatchObject(SHIFT_3)
+    expect(byId.get('shift-1')).toEqual(SHIFT_1)
+    expect(byId.get('shift-2')).toEqual(SHIFT_2)
+    expect(byId.get('shift-3')).toEqual(SHIFT_3)
+    for (const shift of res.body.shifts as object[]) {
+      expect(Object.keys(shift).sort()).toEqual(
+        ['id', 'agencyId', 'agencyName', 'role', 'date', 'startTime', 'endTime', 'status', 'claimedBy'].sort(),
+      )
+      expect(['open', 'filled']).toContain((shift as { status: string }).status)
+    }
   })
 })
 
@@ -121,7 +139,8 @@ describe('3. POST /api/shifts', () => {
       .set(bearer(tokens.sunrise))
       .send({ role: 'RN', date: '2026-10-05', startTime: '07:00', endTime: '19:00' })
     expect(res.status).toBe(201)
-    expect(res.body).toMatchObject({
+    expect(res.body).toEqual({
+      id: expect.stringMatching(/^shift-\d+$/),
       agencyId: 'agency-a',
       agencyName: 'Sunrise Health Staffing',
       role: 'RN',
@@ -131,7 +150,6 @@ describe('3. POST /api/shifts', () => {
       status: 'open',
       claimedBy: null,
     })
-    expect(res.body.id).toMatch(/^shift-\d+$/)
   })
 
   it('refuses nurses', async () => {
@@ -148,15 +166,15 @@ describe('4. POST /api/shifts/:id/claim', () => {
   it('answers 403 { "error": "Credential expired, cannot claim shift" } for James Cook', async () => {
     const res = await request(app).post('/api/shifts/shift-1/claim').set(bearer(tokens.james)).send()
     expect(res.status).toBe(403)
-    expect(res.body).toMatchObject({ error: 'Credential expired, cannot claim shift' })
+    expect(res.body).toEqual({ error: 'Credential expired, cannot claim shift' })
     const still = await request(app).get('/api/shifts/shift-1').set(bearer(tokens.admin))
-    expect(still.body).toMatchObject({ status: 'open', claimedBy: null })
+    expect(still.body).toEqual(SHIFT_1)
   })
 
   it('fills the shift for Maria Lopez', async () => {
     const res = await request(app).post('/api/shifts/shift-1/claim').set(bearer(tokens.maria)).send()
     expect(res.status).toBe(200)
-    expect(res.body).toMatchObject({ ...SHIFT_1, status: 'filled', claimedBy: 'nurse-1' })
+    expect(res.body).toEqual({ ...SHIFT_1, status: 'filled', claimedBy: 'nurse-1' })
   })
 })
 
@@ -167,7 +185,7 @@ describe('5. POST /api/shifts/:id/cancel', () => {
       .set(bearer(tokens.sunrise))
       .send({ reason: 'no-show' })
     expect(res.status).toBe(200)
-    expect(res.body).toMatchObject({
+    expect(res.body).toEqual({
       ...SHIFT_2,
       status: 'open',
       claimedBy: null,
@@ -200,7 +218,7 @@ describe('6. GET /api/agencies/:agencyId/shifts', () => {
   it('refuses another agency with a string error', async () => {
     const res = await request(app).get('/api/agencies/agency-b/shifts').set(bearer(tokens.sunrise))
     expect(res.status).toBe(403)
-    expect(res.body).toMatchObject({ error: 'Forbidden' })
+    expect(res.body).toEqual({ error: 'Forbidden' })
   })
 })
 
@@ -208,6 +226,6 @@ describe('the same routes without the /api prefix (behind the web proxy)', () =>
   it('serve the same contract', async () => {
     const res = await request(app).get('/shifts/shift-3').set(bearer(tokens.maria))
     expect(res.status).toBe(200)
-    expect(res.body).toMatchObject(SHIFT_3)
+    expect(res.body).toEqual(SHIFT_3)
   })
 })

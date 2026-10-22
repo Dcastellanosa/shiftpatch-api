@@ -149,7 +149,7 @@ export function shiftFixture(overrides: Partial<Shift> = {}): Shift {
 
 /** The fixture shift as the nurse of `NURSE_PROFILE` holds it. */
 export const claimedShiftFixture = (overrides: Partial<Shift> = {}) =>
-  shiftFixture({ status: 'filled', claimedBy: NURSE_SLUG, claimedByName: NURSE_PROFILE.fullName, ...overrides })
+  shiftFixture({ status: 'claimed', claimedBy: NURSE_SLUG, claimedByName: NURSE_PROFILE.fullName, ...overrides })
 
 export function buildApp(
   authProvider: AuthProvider | null = fakeAuthProvider(),

@@ -137,7 +137,7 @@ const SHIFT = {
   date: '2030-01-10',
   startTime: '07:00',
   endTime: '15:00',
-  status: 'filled',
+  status: 'claimed',
   claimedBy: NURSE_SLUG,
   claimedByName: 'Ava Thompson',
   branch: { id: BRANCH_ID, name: 'Downtown', address: '120 Main', timezone: 'America/New_York', status: 'active' },
@@ -298,7 +298,7 @@ describe('createSupabaseDataStore', () => {
 
     it('applies every optional filter, translating the contract status word', async () => {
       await createSupabaseDataStore(CONFIG).listShifts(admin, {
-        status: 'filled',
+        status: 'claimed',
         branchId: BRANCH_ID,
         agencyId: 'agency-b',
         from: '2030-01-01T00:00:00Z',
@@ -361,7 +361,7 @@ describe('createSupabaseDataStore', () => {
         id: EVENT_ID,
         eventType: 'claimed',
         previousStatus: 'open',
-        newStatus: 'filled',
+        newStatus: 'claimed',
         reason: null,
         occurredAt: '2030-01-01T10:00:00.000Z',
         actor: { id: NURSE_UUID, fullName: 'Ava Thompson' },

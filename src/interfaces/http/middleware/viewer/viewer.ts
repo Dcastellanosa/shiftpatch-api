@@ -4,11 +4,11 @@ import { resolveViewer, type ResolveViewerFailure } from '../../../../applicatio
 import type { AppRole } from '../../../../domain/shift/shift.js'
 import { AppError, unauthenticated } from '../../errors/errors.js'
 
-export const dataUnavailable = () => new AppError(503, 'data_unavailable', 'Data service is not available')
+export const dataUnavailable = () => new AppError(503, 'Data service is not available')
 
 const VIEWER_ERRORS: Record<ResolveViewerFailure, () => AppError> = {
-  profile_missing: () => new AppError(403, 'profile_missing', 'Your account has not been set up for ShiftPatch yet'),
-  membership_inactive: () => new AppError(403, 'membership_inactive', 'Your agency membership is not active'),
+  profile_missing: () => new AppError(403, 'Your account has not been set up for ShiftPatch yet'),
+  membership_inactive: () => new AppError(403, 'Your agency membership is not active'),
 }
 
 /** Resolves `req.viewer` from the validated session (`req.auth`) and the caller's own profile row. */
@@ -28,7 +28,7 @@ export function requireRole(...roles: AppRole[]): RequestHandler {
   return (req, _res, next) => {
     if (!req.viewer) throw unauthenticated()
     if (!roles.includes(req.viewer.role)) {
-      throw new AppError(403, 'forbidden', 'You do not have permission to perform this action')
+      throw new AppError(403, 'You do not have permission to perform this action')
     }
     next()
   }

@@ -80,7 +80,7 @@ describe('eligibility changes and their effect on claims', () => {
   it('Harbor cannot touch Ava at Downtown (404), and sees no Downtown data', async () => {
     const res = await del(agents.harborAgency, USERS.ava.slug, BRANCHES.downtown.id)
     expect(res.status).toBe(404)
-    expect(res.body.code).toBe('branch_not_found')
+    expect(Object.keys(res.body)).toEqual(['error'])
     const { rows } = await pool.query(
       'select status from shiftpatch.branch_nurse_eligibility where nurse_id = $1 and branch_id = $2',
       [USERS.ava.id, BRANCHES.downtown.id],
@@ -92,10 +92,10 @@ describe('eligibility changes and their effect on claims', () => {
     // The trial nurses are connected to Sunrise and Metro only, never to Northwind.
     const stranger = await put(agents.northwindAgency, 'nurse-1', BRANCHES.downtown.id)
     expect(stranger.status).toBe(404)
-    expect(stranger.body.code).toBe('nurse_not_found')
+    expect(Object.keys(stranger.body)).toEqual(['error'])
     const unknown = await put(agents.northwindAgency, 'nurse-404', BRANCHES.downtown.id)
     expect(unknown.status).toBe(404)
-    expect(unknown.body.code).toBe('nurse_not_found')
+    expect(Object.keys(unknown.body)).toEqual(['error'])
   })
 
   it('suspending Ava at Downtown hides and blocks its shifts; re-activating restores them', async () => {
@@ -126,7 +126,7 @@ describe('eligibility changes and their effect on claims', () => {
     expect(listed.map((s) => s.id)).toContain(shiftId)
     const blocked = await claim(agents.ava, shiftId)
     expect(blocked.status).toBe(422)
-    expect(blocked.body.code).toBe('eligibility_inactive')
+    expect(Object.keys(blocked.body)).toEqual(['error'])
 
     const activated = await put(agents.northwindAgency, USERS.ava.slug, BRANCHES.downtown.id)
     expect(activated.status).toBe(200)
@@ -144,7 +144,7 @@ describe('eligibility changes and their effect on claims', () => {
 
     const inactive = await put(agents.admin, USERS.ava.slug, BRANCHES.lakesideClinic.id)
     expect(inactive.status).toBe(422)
-    expect(inactive.body.code).toBe('agency_inactive')
+    expect(Object.keys(inactive.body)).toEqual(['error'])
   })
 
   it('nurses cannot manage eligibility', async () => {
