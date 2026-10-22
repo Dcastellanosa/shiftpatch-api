@@ -1,5 +1,11 @@
 import type { Profile, Viewer } from '../../viewer/viewer.js'
-import type { AdminUser, EligibilityRecord, InviteUserCommand, NurseEligibility } from '../../admin/admin.js'
+import type {
+  AdminUser,
+  AuditEvent,
+  EligibilityRecord,
+  InviteUserCommand,
+  NurseEligibility,
+} from '../../admin/admin.js'
 import type {
   Agency,
   AgencyBranch,
@@ -99,6 +105,9 @@ export interface DataStore {
   listNurseCredentials(viewer: Viewer): Promise<NurseCredential[]>
   /** `nurseId` is the nurse's Auth UUID (the viewer's own id). One row per nurse and credential type. */
   upsertNurseCredential(nurseId: string, input: UpsertCredentialInput): Promise<CredentialCommandResult>
+
+  /** The unified audit log, read as the viewer: the database refuses anyone but an admin. */
+  listAuditEvents(viewer: Viewer): Promise<AuditEvent[]>
 }
 
 export interface UpsertCredentialInput {

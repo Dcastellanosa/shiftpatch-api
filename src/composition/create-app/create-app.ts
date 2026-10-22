@@ -6,6 +6,7 @@ import { requireTrustedOrigin } from '../../interfaces/http/middleware/origin-ch
 import { requireSession, resolveSession } from '../../interfaces/http/middleware/session/session.js'
 import { createAdminRouter } from '../../interfaces/http/routes/admin-routes/admin-routes.js'
 import { createCredentialRouter } from '../../interfaces/http/routes/credential-routes/credential-routes.js'
+import { createTimesheetRouter } from '../../interfaces/http/routes/timesheet-routes/timesheet-routes.js'
 import { createEligibilityRouter } from '../../interfaces/http/routes/eligibility-routes/eligibility-routes.js'
 import { createShiftRouter } from '../../interfaces/http/routes/shift-routes/shift-routes.js'
 import { createSupabaseAuthAdmin } from '../../infrastructure/auth/supabase-auth-admin/supabase-auth-admin.js'
@@ -127,6 +128,7 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
   routes.use(createShiftRouter(dataStore, authenticate))
   routes.use(createEligibilityRouter(dataStore, authenticate))
   routes.use(createCredentialRouter({ store: dataStore, files: fileStore }, authenticate))
+  routes.use(createTimesheetRouter(dataStore, authenticate))
   routes.use('/admin', createAdminRouter({ store: dataStore, authAdmin, setPasswordUrl }, authenticate))
   app.use(routes)
   app.use('/api', routes)

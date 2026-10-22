@@ -96,6 +96,24 @@ export interface ShiftFilters {
   to?: string | undefined
 }
 
+/** One read-only timesheet row, derived from a filled shift. */
+export interface Timesheet {
+  shiftId: string
+  /** Public id of the nurse. */
+  nurseId: string
+  nurseName: string
+  agencyId: string
+  agencyName: string
+  role: string
+  date: string
+  startTime: string
+  endTime: string
+  /** Hours between the shift's instants, to two decimals. */
+  scheduledHours: number
+  /** `worked` once the shift has ended, `scheduled` before that. */
+  status: 'scheduled' | 'worked'
+}
+
 /** What an agency posts: the contract body. `branchId` is optional when the agency has one active branch. */
 export interface CreateShiftInput {
   role: string

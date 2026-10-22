@@ -443,3 +443,13 @@ describe('credential uploads', () => {
     ])
   })
 })
+
+describe('audit log reader', () => {
+  it('list_audit_log_admin is executable by signed-in users (it refuses non-admins itself) but not by anon', async () => {
+    const { rows } = await pool.query(
+      `select has_function_privilege('anon', 'shiftpatch.list_audit_log_admin()', 'EXECUTE') as anon,
+              has_function_privilege('authenticated', 'shiftpatch.list_audit_log_admin()', 'EXECUTE') as authenticated`,
+    )
+    expect(rows[0]).toEqual({ anon: false, authenticated: true })
+  })
+})

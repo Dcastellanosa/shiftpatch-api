@@ -8,7 +8,7 @@ import type { TokenVerifier } from '../domain/ports/token-verifier/token-verifie
 import { parseEnv } from '../infrastructure/config/env/env.js'
 import { createApp } from '../composition/create-app/create-app.js'
 import type { AuthUser, Profile, Viewer } from '../domain/viewer/viewer.js'
-import type { AdminUser, EligibilityRecord, NurseEligibility } from '../domain/admin/admin.js'
+import type { AdminUser, AuditEvent, EligibilityRecord, NurseEligibility } from '../domain/admin/admin.js'
 import type { Agency, AgencyBranch } from '../domain/agency/agency.js'
 import type { Shift } from '../domain/shift/shift.js'
 
@@ -81,6 +81,23 @@ export function fakeDataStore(overrides: Partial<DataStore> = {}) {
     upsertNurseCredential: vi.fn<DataStore['upsertNurseCredential']>(
       overrides.upsertNurseCredential ?? unexpected('upsertNurseCredential'),
     ),
+    listAuditEvents: vi.fn<DataStore['listAuditEvents']>(overrides.listAuditEvents ?? unexpected('listAuditEvents')),
+  }
+}
+
+export function auditEventFixture(overrides: Partial<AuditEvent> = {}): AuditEvent {
+  return {
+    id: 'f3000000-0000-4000-8000-000000000001',
+    occurredAt: '2026-10-21T12:00:00.000Z',
+    actorId: ADMIN_PROFILE.slug,
+    actorName: ADMIN_PROFILE.fullName,
+    entityType: 'agency',
+    entityId: AGENCY_ID,
+    action: 'created',
+    previousStatus: null,
+    newStatus: 'active',
+    reason: null,
+    ...overrides,
   }
 }
 

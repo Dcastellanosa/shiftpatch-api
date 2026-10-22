@@ -218,6 +218,20 @@ const credentialRow = z.object({
 
 const credentialCommandRow = z.object({ outcome: z.string(), credential_id: z.uuid().nullable() })
 
+const auditRow = z.object({
+  id: z.uuid(),
+  occurred_at: z.string(),
+  actor_id: z.uuid(),
+  actor_slug: z.string().nullable(),
+  actor_name: z.string().nullable(),
+  entity_type: z.string(),
+  entity_id: z.string(),
+  action: z.string(),
+  previous_status: z.string().nullable(),
+  new_status: z.string().nullable(),
+  reason: z.string().nullable(),
+})
+
 const adminCommandRow = z.object({
   outcome: z.string(),
   entity_id: z.uuid().nullable(),
@@ -542,6 +556,26 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
       const parsed = credentialCommandRow.safeParse(data)
       if (!parsed.success) throw new DataStoreError('upsert_nurse_credential returned an unexpected shape')
       return { outcome: parsed.data.outcome as CredentialOutcome, credentialId: parsed.data.credential_id }
+    },
+
+    async listAuditEvents(viewer) {
+      const rows = parseRows(
+        auditRow,
+        unwrap(await asUser(viewer.accessToken).rpc('list_audit_log_admin'), 'list audit events'),
+        'list audit events',
+      )
+      return rows.map((row) => ({
+        id: row.id,
+        occurredAt: new Date(row.occurred_at).toISOString(),
+        actorId: row.actor_slug ?? row.actor_id,
+        actorName: row.actor_name,
+        entityType: row.entity_type,
+        entityId: row.entity_id,
+        action: row.action,
+        previousStatus: row.previous_status,
+        newStatus: row.new_status,
+        reason: row.reason,
+      }))
     },
 
     async listAgencyNurses(viewer) {

@@ -922,3 +922,46 @@ describe('nurse eligibility', () => {
     ).resolves.toEqual({ outcome: 'nurse_not_found', entityId: null })
   })
 })
+
+describe('listAuditEvents', () => {
+  const ROW = {
+    id: EVENT_ID,
+    occurred_at: '2026-10-21 12:00:00+00',
+    actor_id: NURSE_UUID,
+    actor_slug: 'admin-1',
+    actor_name: 'Alex Kim',
+    entity_type: 'shift',
+    entity_id: SHIFT_SLUG,
+    action: 'claimed',
+    previous_status: 'open',
+    new_status: 'claimed',
+    reason: null,
+  }
+
+  it('reads the unified log as the viewer through list_audit_log_admin and maps it to camelCase', async () => {
+    respond({ data: [ROW], error: null })
+    const events = await createSupabaseDataStore(CONFIG).listAuditEvents(admin)
+
+    expect(touched).toEqual(['user:rpc list_audit_log_admin'])
+    expect(rpcs).toEqual([['list_audit_log_admin', undefined]])
+    expect(events).toEqual([
+      {
+        id: EVENT_ID,
+        occurredAt: '2026-10-21T12:00:00.000Z',
+        actorId: 'admin-1',
+        actorName: 'Alex Kim',
+        entityType: 'shift',
+        entityId: SHIFT_SLUG,
+        action: 'claimed',
+        previousStatus: 'open',
+        newStatus: 'claimed',
+        reason: null,
+      },
+    ])
+  })
+
+  it('maps a refused read (non-admin) to a DataStoreError without row data', async () => {
+    respond({ data: null, error: { code: '42501' } })
+    await expect(createSupabaseDataStore(CONFIG).listAuditEvents(nurse)).rejects.toBeInstanceOf(DataStoreError)
+  })
+})

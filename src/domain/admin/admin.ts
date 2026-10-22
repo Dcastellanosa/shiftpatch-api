@@ -39,6 +39,25 @@ export type InviteUserCommand = { email: string; fullName: string } & (
   | { role: 'nurse'; branchId: string }
 )
 
+/**
+ * One line of the unified audit log: administration actions (`audit_events`)
+ * and shift history (`shift_events`) normalised. Ids are public ids where
+ * the entity has one (agencies, profiles, shifts); statuses are the stored
+ * words as recorded.
+ */
+export interface AuditEvent {
+  id: string
+  occurredAt: string
+  actorId: string
+  actorName: string | null
+  entityType: string
+  entityId: string
+  action: string
+  previousStatus: string | null
+  newStatus: string | null
+  reason: string | null
+}
+
 export const PASSWORD_LINK_TYPES = ['invite', 'recovery'] as const
 export type PasswordLinkType = (typeof PASSWORD_LINK_TYPES)[number]
 

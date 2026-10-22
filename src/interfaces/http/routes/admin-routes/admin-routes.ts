@@ -5,6 +5,7 @@ import { deleteAgency, type DeleteAgencyFailure } from '../../../../application/
 import { deleteUser, type DeleteUserFailure } from '../../../../application/delete-user/delete-user.js'
 import { getAgency } from '../../../../application/get-agency/get-agency.js'
 import { inviteUser, type InviteUserFailure } from '../../../../application/invite-user/invite-user.js'
+import { listAuditEvents } from '../../../../application/list-audit-events/list-audit-events.js'
 import { listAgencies } from '../../../../application/list-agencies/list-agencies.js'
 import { listUsers } from '../../../../application/list-users/list-users.js'
 import { updateAgency, type UpdateAgencyFailure } from '../../../../application/update-agency/update-agency.js'
@@ -111,6 +112,12 @@ export function createAdminRouter(
 
   router.get('/agencies', ...asAdmin, async (req, res) => {
     res.json({ agencies: await listAgencies({ store: store! }, req.viewer!) })
+  })
+
+  // The unified audit log: administration actions and shift history. Only
+  // this reader exists; the tables themselves are unreadable by every client role.
+  router.get('/audit-events', ...asAdmin, async (req, res) => {
+    res.json({ events: await listAuditEvents({ store: store! }, req.viewer!) })
   })
 
   router.post('/agencies', ...asAdmin, validateBody(createAgencyBody), async (req, res) => {

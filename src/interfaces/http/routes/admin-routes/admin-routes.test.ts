@@ -11,6 +11,7 @@ import {
   BEARER,
   INVITED_USER_ID,
   adminUserFixture,
+  auditEventFixture,
   agencyBranchFixture,
   agencyFixture,
   buildApp,
@@ -436,5 +437,52 @@ describe('deletion', () => {
   it('rejects a malformed user id with 400', async () => {
     const res = await del(buildSignedInApp(adminStore(), fakeAuthAdmin()), '/admin/users/Not_An_Id')
     expect(res.status).toBe(400)
+  })
+})
+
+describe('GET /admin/audit-events', () => {
+  it.each([NURSE_PROFILE, AGENCY_PROFILE])('is refused to a $role without reading the log', async (profile) => {
+    const store = fakeDataStore({ getProfile: asProfile(profile) })
+    const res = await get(buildSignedInApp(store), '/admin/audit-events')
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({ error: expect.any(String) })
+    expect(store.listAuditEvents).not.toHaveBeenCalled()
+  })
+
+  it('returns the unified audit log to an admin, most recent first as the database orders it', async () => {
+    const events = [
+      auditEventFixture(),
+      auditEventFixture({
+        id: 'e2',
+        entityType: 'shift',
+        entityId: 'shift-2',
+        action: 'claimed',
+        previousStatus: 'open',
+        newStatus: 'claimed',
+      }),
+    ]
+    const store = adminStore({ listAuditEvents: async () => events })
+    const res = await get(buildSignedInApp(store), '/admin/audit-events')
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ events })
+    expect(Object.keys(res.body.events[0]).sort()).toEqual(
+      [
+        'id',
+        'occurredAt',
+        'actorId',
+        'actorName',
+        'entityType',
+        'entityId',
+        'action',
+        'previousStatus',
+        'newStatus',
+        'reason',
+      ].sort(),
+    )
+  })
+
+  it('needs a session', async () => {
+    const res = await request(buildSignedInApp(fakeDataStore())).get('/admin/audit-events')
+    expect(res.status).toBe(401)
   })
 })
