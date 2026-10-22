@@ -162,7 +162,18 @@ describe('POST /me/credentials', () => {
     expect(files.put).not.toHaveBeenCalled()
   })
 
-  it('answers 413 with the JSON envelope for a file over 5 MiB', async () => {
+  it('answers 400 for a file name over 255 characters without storing anything', async () => {
+    const files = fakeFileStore()
+    const res = await uploadAs(nurseApp(recorded(), files), PDF, {
+      expiresAt: '2028-01-01',
+      filename: `${'x'.repeat(260)}.pdf`,
+    })
+    expect(res.status).toBe(400)
+    expect(res.body).toEqual({ error: 'File name must be between 1 and 255 characters' })
+    expect(files.put).not.toHaveBeenCalled()
+  })
+
+  it('answers 413 with the JSON envelope for a file over 4 MiB', async () => {
     const big = Buffer.alloc(MAX_CREDENTIAL_BYTES + 1)
     PDF.copy(big)
     const res = await uploadAs(nurseApp(recorded()), big, { expiresAt: '2028-01-01' })

@@ -55,8 +55,18 @@ describe('uploadCredential', () => {
     ).resolves.toEqual({ ok: false, outcome: 'unsupported_file' })
   })
 
-  it('refuses a file over 5 MiB', async () => {
-    const big = new Uint8Array(5 * 1024 * 1024 + 1)
+  it('refuses a file name that is empty or longer than 255 characters before touching storage', async () => {
+    const files = fakeFileStore()
+    for (const originalName of ['', 'x'.repeat(256)]) {
+      await expect(
+        uploadCredential(deps(fakeDataStore(), files), viewerFor(NURSE_PROFILE), upload({ originalName })),
+      ).resolves.toEqual({ ok: false, outcome: 'invalid_file_name' })
+    }
+    expect(files.put).not.toHaveBeenCalled()
+  })
+
+  it('refuses a file over 4 MiB', async () => {
+    const big = new Uint8Array(4 * 1024 * 1024 + 1)
     big.set(PDF)
     await expect(uploadCredential(deps(), viewerFor(NURSE_PROFILE), upload({ bytes: big }))).resolves.toEqual({
       ok: false,

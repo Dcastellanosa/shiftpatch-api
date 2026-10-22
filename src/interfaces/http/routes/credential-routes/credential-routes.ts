@@ -19,6 +19,7 @@ const UPLOAD_ERRORS: Record<UploadCredentialFailure, () => AppError> = {
   not_a_nurse: () => new AppError(403, 'Only nurses can upload credentials'),
   credential_type_not_found: () => new AppError(400, 'Unknown credential type'),
   unsupported_file: () => new AppError(400, 'Unsupported file type'),
+  invalid_file_name: () => new AppError(400, 'File name must be between 1 and 255 characters'),
   file_too_large: () => new AppError(413, 'File too large'),
 }
 

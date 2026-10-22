@@ -7,7 +7,11 @@
 export const CREDENTIAL_CONTENT_TYPES = ['application/pdf', 'image/png', 'image/jpeg'] as const
 export type CredentialContentType = (typeof CREDENTIAL_CONTENT_TYPES)[number]
 
-export const MAX_CREDENTIAL_BYTES = 5 * 1024 * 1024
+/** Below the hosting platform's 4.5 MB request limit, so an oversized file is refused by this API with its envelope. */
+export const MAX_CREDENTIAL_BYTES = 4 * 1024 * 1024
+
+/** The stored `original_name` column accepts 1 to 255 characters. */
+export const MAX_FILE_NAME_LENGTH = 255
 
 export const CREDENTIAL_STATUSES = ['valid', 'expired', 'revoked'] as const
 export type CredentialStatus = (typeof CREDENTIAL_STATUSES)[number]

@@ -11,7 +11,7 @@
 alter table shiftpatch.nurse_credentials
   add column original_name text check (original_name is null or char_length(original_name) between 1 and 255),
   add column content_type text check (content_type is null or content_type in ('application/pdf', 'image/png', 'image/jpeg')),
-  add column size_bytes integer check (size_bytes is null or (size_bytes > 0 and size_bytes <= 5242880)),
+  add column size_bytes integer check (size_bytes is null or (size_bytes > 0 and size_bytes <= 4194304)),
   add column uploaded_at timestamptz;
 
 comment on column shiftpatch.nurse_credentials.file_path is
@@ -84,7 +84,7 @@ do $$
 begin
   if exists (select 1 from pg_namespace where nspname = 'storage') then
     insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-    values ('shiftpatch-credentials', 'shiftpatch-credentials', false, 5242880, array['application/pdf', 'image/png', 'image/jpeg'])
+    values ('shiftpatch-credentials', 'shiftpatch-credentials', false, 4194304, array['application/pdf', 'image/png', 'image/jpeg'])
     on conflict (id) do nothing;
   end if;
 end;

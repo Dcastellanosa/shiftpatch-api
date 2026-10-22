@@ -380,12 +380,19 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
     }
   }
 
-  /** The marketplace projection as the caller (the function checks the caller is provisioned). */
+  /**
+   * The marketplace projection as the caller (the function checks the caller
+   * is provisioned), restricted to the two statuses a shift can have today
+   * (`open`, `claimed`): a legacy row in any other status is left out rather
+   * than failing the whole read.
+   */
   const marketplace = (viewer: Viewer, args: { agencySlug?: string | null; shiftSlug?: string | null } = {}) =>
-    asUser(viewer.accessToken).rpc('list_shifts_marketplace', {
-      p_agency_slug: args.agencySlug ?? null,
-      p_shift_slug: args.shiftSlug ?? null,
-    })
+    asUser(viewer.accessToken)
+      .rpc('list_shifts_marketplace', {
+        p_agency_slug: args.agencySlug ?? null,
+        p_shift_slug: args.shiftSlug ?? null,
+      })
+      .in('status', [...SHIFT_STATUSES])
 
   return {
     async getProfile(accessToken, userId) {

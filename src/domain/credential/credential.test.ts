@@ -19,7 +19,7 @@ describe('detectCredentialContentType', () => {
     expect(detectCredentialContentType(new TextEncoder().encode('<script>'))).toBeNull()
   })
 
-  it('caps uploads at 5 MiB', () => {
-    expect(MAX_CREDENTIAL_BYTES).toBe(5 * 1024 * 1024)
+  it('caps uploads at 4 MiB (below the hosting platform’s 4.5 MB request limit)', () => {
+    expect(MAX_CREDENTIAL_BYTES).toBe(4 * 1024 * 1024)
   })
 })

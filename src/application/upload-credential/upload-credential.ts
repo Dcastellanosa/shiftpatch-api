@@ -2,6 +2,7 @@ import {
   detectCredentialContentType,
   EXTENSION_FOR,
   MAX_CREDENTIAL_BYTES,
+  MAX_FILE_NAME_LENGTH,
   type CredentialUpload,
   type NurseCredential,
 } from '../../domain/credential/credential.js'
@@ -11,7 +12,8 @@ import type { CredentialOutcome } from '../../domain/outcomes/outcomes.js'
 import type { Viewer } from '../../domain/viewer/viewer.js'
 import { listCredentials } from '../list-credentials/list-credentials.js'
 
-export type UploadCredentialFailure = Exclude<CredentialOutcome, 'recorded'> | 'unsupported_file' | 'file_too_large'
+export type UploadCredentialFailure =
+  Exclude<CredentialOutcome, 'recorded'> | 'unsupported_file' | 'file_too_large' | 'invalid_file_name'
 
 export type UploadCredentialResult =
   { ok: true; credential: NurseCredential } | { ok: false; outcome: UploadCredentialFailure }
@@ -36,6 +38,9 @@ export async function uploadCredential(
   upload: CredentialUpload,
 ): Promise<UploadCredentialResult> {
   if (viewer.role !== 'nurse') return { ok: false, outcome: 'not_a_nurse' }
+  if (upload.originalName.length < 1 || upload.originalName.length > MAX_FILE_NAME_LENGTH) {
+    return { ok: false, outcome: 'invalid_file_name' }
+  }
   if (upload.bytes.byteLength > MAX_CREDENTIAL_BYTES) return { ok: false, outcome: 'file_too_large' }
   const contentType = detectCredentialContentType(upload.bytes)
   if (!contentType || contentType !== upload.declaredContentType) return { ok: false, outcome: 'unsupported_file' }

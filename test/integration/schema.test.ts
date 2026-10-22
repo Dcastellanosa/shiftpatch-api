@@ -433,13 +433,13 @@ describe('credential uploads', () => {
     expect(idx[0]?.indexdef).toMatch(/UNIQUE INDEX .* \(nurse_id, credential_type_id\)/)
   })
 
-  it('the credentials bucket exists, is private and capped at 5 MiB', async () => {
+  it('the credentials bucket exists, is private and capped at 4 MiB', async () => {
     const { rows } = await pool.query(
       `select public, file_size_limit::int as file_size_limit, allowed_mime_types
        from storage.buckets where id = 'shiftpatch-credentials'`,
     )
     expect(rows).toEqual([
-      { public: false, file_size_limit: 5242880, allowed_mime_types: ['application/pdf', 'image/png', 'image/jpeg'] },
+      { public: false, file_size_limit: 4194304, allowed_mime_types: ['application/pdf', 'image/png', 'image/jpeg'] },
     ])
   })
 })

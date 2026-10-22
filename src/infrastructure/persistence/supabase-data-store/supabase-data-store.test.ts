@@ -267,7 +267,7 @@ describe('createSupabaseDataStore', () => {
       expect(call('order')).toEqual([['starts_at'], ['id']])
       expect(call('limit')).toEqual([[500]])
       expect(call('eq')).toEqual([])
-      expect(call('in')).toEqual([])
+      expect(call('in')).toEqual([['status', ['open', 'claimed']]])
     })
 
     it('derives date and times in the branch time zone', async () => {
@@ -292,7 +292,7 @@ describe('createSupabaseDataStore', () => {
 
     it('does not pin agency users: the marketplace spans every agency', async () => {
       await createSupabaseDataStore(CONFIG).listShifts(agency, {})
-      expect(call('in')).toEqual([])
+      expect(call('in')).toEqual([['status', ['open', 'claimed']]])
       expect(rpcs).toEqual([['list_shifts_marketplace', MARKET_ARGS]])
     })
 
@@ -313,6 +313,12 @@ describe('createSupabaseDataStore', () => {
       expect(call('lt')).toEqual([['starts_at', '2030-02-01T00:00:00Z']])
     })
 
+    it('asks the database only for open and claimed shifts, so a legacy status never reaches the parser', async () => {
+      respond(ok([MARKET_ROW]))
+      await createSupabaseDataStore(CONFIG).listShifts(admin, {})
+      expect(call('in')).toEqual([['status', ['open', 'claimed']]])
+    })
+
     it('rejects rows that do not match the expected shape', async () => {
       respond(ok([{ ...MARKET_ROW, status: 'unknown' }]))
       await expect(createSupabaseDataStore(CONFIG).listShifts(admin, {})).rejects.toThrow(
@@ -327,6 +333,7 @@ describe('createSupabaseDataStore', () => {
       await expect(createSupabaseDataStore(CONFIG).getShift(admin, SHIFT_SLUG)).resolves.toEqual(SHIFT)
       expect(rpcs).toEqual([['list_shifts_marketplace', { p_agency_slug: null, p_shift_slug: SHIFT_SLUG }]])
       expect(methods()).toContain('maybeSingle')
+      expect(call('in')).toEqual([['status', ['open', 'claimed']]])
     })
 
     it('returns null when the shift does not exist', async () => {
@@ -339,6 +346,7 @@ describe('createSupabaseDataStore', () => {
     respond(ok([MARKET_ROW]))
     await expect(createSupabaseDataStore(CONFIG).listAssignedShifts(nurse)).resolves.toEqual([SHIFT])
     expect(call('eq')).toEqual([['assigned_nurse_id', NURSE_UUID]])
+    expect(call('in')).toEqual([['status', ['open', 'claimed']]])
   })
 
   describe('listShiftEvents', () => {

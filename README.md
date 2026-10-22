@@ -94,7 +94,7 @@ The response is the reopened shift plus `cancellation: { reason, previousNurseId
 
 A nurse uploads a licence or screening document as `multipart/form-data` (`file`, `expiresAt`, optional
 `credentialTypeCode`, default `nursing_license`). The API reads the file into memory (never to disk), rejects
-anything over 5 MiB (`413`) or whose **bytes** are not a PDF, PNG or JPEG (`400 "Unsupported file type"`, whatever
+anything over 4 MiB (`413`) or whose **bytes** are not a PDF, PNG or JPEG (`400 "Unsupported file type"`, whatever
 the client declared), writes it to the private `shiftpatch-credentials` bucket with its service-role client under
 `<nurse uuid>/<type>/<random>.<ext>`, and records the metadata through `upsert_nurse_credential` (one row per
 nurse and credential type; a new upload replaces the previous document and resets the status to `valid`). If the
