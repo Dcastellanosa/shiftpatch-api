@@ -80,6 +80,25 @@ For runtime changes, also start `pnpm dev` and exercise the affected endpoints.
 `pnpm-workspace.yaml` sets `allowBuilds: { esbuild: false }`. esbuild (used by `tsx`) ships prebuilt platform
 binaries, so its install script is not needed. Revisit this only if `pnpm dev` fails to start.
 
+## Deployed API
+
+The `main` branch is deployed by Vercel to https://shiftpatch-api-psi.vercel.app (every route also answers under
+`/api`). Smoke-test it after a deployment:
+
+1. Anonymous: `GET /api/health` → `200 {"status":"ok"}`; every protected route → `401 "Authentication required"`;
+   a fake bearer → `401 "Invalid or expired token"`; an unsafe method from an unlisted `Origin` → `403`.
+2. Authenticated: sign in with the trial accounts (`POST /api/auth/login`, password `Trial2026!`; admin
+   `alex.kim@example.com`, agencies `admin@sunrisehealth.example` / `admin@metrocare.example`, nurses
+   `maria.lopez@example.com` / `james.cook@example.com` with the expired licence) and check each role's `GET`
+   routes against the access matrix in the README (own data `200`, other agency `403`, wrong role `403`).
+   Keep the token in a shell variable and never print it.
+3. Writes (`POST`, `PUT`, `PATCH`, `DELETE`, including claims, cancellations, invitations and deletions) change
+   the deployed database that reviewers and the web app use. Run them only when explicitly asked, and prefer
+   the local stack (`pnpm test:db`, `pnpm e2e:api`) to exercise write paths.
+
+The deployed database is not guaranteed to hold only the trial dataset: earlier sessions left extra agencies,
+users and shifts, and a trial shift may already be claimed. Do not assume `shift-1` is open there.
+
 ## Security rules
 
 - Never commit secrets. `.env`, `.env.*` (except `.env.example`) and `.vercel/` are gitignored. Keep it that way.
