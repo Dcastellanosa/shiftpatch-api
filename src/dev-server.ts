@@ -12,6 +12,6 @@ const env = parseEnv(process.env)
 createApp(env).listen(env.PORT, () => {
   console.log(`shiftpatch-api listening on http://localhost:${env.PORT}`)
   if (!env.SUPABASE_URL) {
-    console.warn('Supabase is not configured: /auth/login and session validation will return 503.')
+    console.warn('Supabase is not configured: /auth/login and every bearer-protected route will return 503.')
   }
 })
