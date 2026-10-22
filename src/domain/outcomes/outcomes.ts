@@ -21,9 +21,13 @@ export type ClaimOutcome =
 export type CreateOutcome =
   'created' | 'actor_not_allowed' | 'branch_not_found' | 'agency_inactive' | 'branch_inactive' | 'invalid_time_range'
 
-/** Outcomes of `cancel_shift_claim` (no-show or advance cancellation; reopens the shift). */
+/**
+ * Outcomes of `cancel_shift_claim` (no-show or advance cancellation; reopens
+ * the shift). `reason_not_allowed`: the assigned nurse may only cancel in
+ * advance; a no-show is the agency's (or an admin's) call.
+ */
 export type CancelOutcome =
-  'cancelled' | 'actor_not_allowed' | 'invalid_reason' | 'shift_not_found' | 'shift_not_claimed'
+  'cancelled' | 'actor_not_allowed' | 'reason_not_allowed' | 'invalid_reason' | 'shift_not_found' | 'shift_not_claimed'
 
 /** What a shift command returns: its outcome plus the ids it touched. */
 export interface CommandResult<Outcome extends string> {

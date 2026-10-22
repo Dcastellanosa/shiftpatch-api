@@ -377,33 +377,44 @@ describe('POST /shifts/:shiftId/cancel', () => {
     previousNurseSlug: NURSE_SLUG,
   }
 
-  it.each([AGENCY_PROFILE, ADMIN_PROFILE, NURSE_PROFILE])(
-    'reopens the shift as $role and reports who held it',
-    async (profile) => {
-      const reopened = shiftFixture()
-      const store = fakeDataStore({
-        getProfile: asProfile(profile),
-        cancelClaim: async () => cancelled,
-        getShift: async () => reopened,
-      })
-      const res = await post(buildSignedInApp(store), `/shifts/${SHIFT_ID}/cancel`, { reason: 'no-show' })
+  it.each([
+    [AGENCY_PROFILE, 'no-show'],
+    [ADMIN_PROFILE, 'no-show'],
+    [AGENCY_PROFILE, 'advance'],
+    [NURSE_PROFILE, 'advance'],
+  ] as const)('reopens the shift as $0.role with reason $1 and reports who held it', async (profile, reason) => {
+    const reopened = shiftFixture()
+    const store = fakeDataStore({
+      getProfile: asProfile(profile),
+      cancelClaim: async () => cancelled,
+      getShift: async () => reopened,
+    })
+    const res = await post(buildSignedInApp(store), `/shifts/${SHIFT_ID}/cancel`, { reason })
 
-      expect(res.status).toBe(200)
-      expect(cancelResponse.parse(res.body)).toEqual({
-        ...toContractShift(reopened),
-        cancellation: { reason: 'no-show', previousNurseId: NURSE_SLUG },
-      })
-      expect(Object.keys(res.body).sort()).toEqual([...CONTRACT_KEYS, 'cancellation'].sort())
-      expect(Object.keys(res.body.cancellation).sort()).toEqual(['previousNurseId', 'reason'])
-      expect(res.body).toMatchObject({ status: 'open', claimedBy: null })
-      expect(store.cancelClaim).toHaveBeenCalledWith(USER.id, SHIFT_ID, 'no-show')
-    },
-  )
+    expect(res.status).toBe(200)
+    expect(cancelResponse.parse(res.body)).toEqual({
+      ...toContractShift(reopened),
+      cancellation: { reason, previousNurseId: NURSE_SLUG },
+    })
+    expect(Object.keys(res.body).sort()).toEqual([...CONTRACT_KEYS, 'cancellation'].sort())
+    expect(Object.keys(res.body.cancellation).sort()).toEqual(['previousNurseId', 'reason'])
+    expect(res.body).toMatchObject({ status: 'open', claimedBy: null })
+    expect(store.cancelClaim).toHaveBeenCalledWith(USER.id, SHIFT_ID, reason)
+  })
+
+  it('answers 403 to a nurse reporting a no-show without touching the store', async () => {
+    const store = fakeDataStore({ getProfile: asProfile(NURSE_PROFILE) })
+    const res = await post(buildSignedInApp(store), `/shifts/${SHIFT_ID}/cancel`, { reason: 'no-show' })
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({ error: 'Nurses can only cancel in advance' })
+    expect(store.cancelClaim).not.toHaveBeenCalled()
+  })
 
   it.each([
     ['shift_not_found', 404, 'Shift not found'],
     ['shift_not_claimed', 409, 'Shift is not filled'],
     ['actor_not_allowed', 403, 'Forbidden'],
+    ['reason_not_allowed', 403, 'Nurses can only cancel in advance'],
     ['invalid_reason', 400, 'reason must be "no-show" or "advance"'],
   ] as const)('maps %s to %i %s', async (outcome, status, error) => {
     const store = fakeDataStore({

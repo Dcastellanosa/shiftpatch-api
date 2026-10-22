@@ -179,6 +179,20 @@ describe('4. POST /api/shifts/:id/claim', () => {
 })
 
 describe('5. POST /api/shifts/:id/cancel', () => {
+  const cancel = (token: string, shiftId: string, reason: string) =>
+    request(app).post(`/api/shifts/${shiftId}/cancel`).set(bearer(token)).send({ reason })
+
+  it('refuses another agency, another nurse and a nurse no-show, leaving shift-2 filled', async () => {
+    expect((await cancel(tokens.metro, 'shift-2', 'no-show')).body).toEqual({ error: 'Forbidden' })
+    expect((await cancel(tokens.metro, 'shift-2', 'advance')).body).toEqual({ error: 'Forbidden' })
+    expect((await cancel(tokens.james, 'shift-2', 'advance')).body).toEqual({ error: 'Forbidden' })
+    const noShow = await cancel(tokens.maria, 'shift-2', 'no-show')
+    expect(noShow.status).toBe(403)
+    expect(noShow.body).toEqual({ error: 'Nurses can only cancel in advance' })
+    const still = await request(app).get('/api/shifts/shift-2').set(bearer(tokens.admin))
+    expect(still.body).toEqual(SHIFT_2)
+  })
+
   it('reopens shift-2 as a no-show and reports the previous nurse', async () => {
     const res = await request(app)
       .post('/api/shifts/shift-2/cancel')

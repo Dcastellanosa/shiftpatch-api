@@ -56,6 +56,7 @@ const CREATE_ERRORS: Record<CreateShiftFailure, () => AppError> = {
 const CANCEL_ERRORS: Record<CancelClaimFailure, () => AppError> = {
   shift_not_found: shiftNotFound,
   actor_not_allowed: () => new AppError(403, 'Forbidden'),
+  reason_not_allowed: () => new AppError(403, 'Nurses can only cancel in advance'),
   invalid_reason: () => new AppError(400, 'reason must be "no-show" or "advance"'),
   shift_not_claimed: () => new AppError(409, 'Shift is not filled'),
 }

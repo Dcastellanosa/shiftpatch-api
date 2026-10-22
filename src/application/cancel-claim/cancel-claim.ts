@@ -9,9 +9,12 @@ export type CancelClaimResult =
   { ok: true; shift: Shift; cancellation: ShiftCancellation } | { ok: false; outcome: CancelClaimFailure }
 
 /**
- * No-show or advance cancellation of a claimed shift. The database command
- * checks the actor (owning agency, admin or the assigned nurse), releases the
- * claim, reopens the shift and records the event atomically.
+ * No-show or advance cancellation of a claimed shift. Authorization: an admin
+ * may cancel any claimed shift; an agency user the shifts of their agencies;
+ * the assigned nurse their own shift, and only in advance. The database
+ * command enforces the same rules atomically, releases the claim, reopens
+ * the shift and records the event; the nurse/no-show rule is also settled
+ * here so the request never reaches the database.
  */
 export async function cancelClaim(
   { store }: { store: DataStore },
@@ -19,6 +22,7 @@ export async function cancelClaim(
   shiftId: string,
   reason: CancelReason,
 ): Promise<CancelClaimResult> {
+  if (viewer.role === 'nurse' && reason !== 'advance') return { ok: false, outcome: 'reason_not_allowed' }
   const result = await store.cancelClaim(viewer.id, shiftId, reason)
   if (result.outcome !== 'cancelled') return { ok: false, outcome: result.outcome }
   const shift = await store.getShift(viewer, shiftId)

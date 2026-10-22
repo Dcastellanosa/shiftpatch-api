@@ -227,6 +227,22 @@ describe('cancel_shift_claim', () => {
   }
 
   it.each([
+    ['the assigned nurse reporting a no-show', 'no-show', () => USERS.ava.id, 'reason_not_allowed'],
+    ['another nurse', 'advance', () => USERS.ben.id, 'actor_not_allowed'],
+    ['another agency', 'no-show', () => USERS.harborAgency.id, 'actor_not_allowed'],
+    ['another agency, in advance', 'advance', () => USERS.harborAgency.id, 'actor_not_allowed'],
+  ])('refuses %s with %s', async (_who, reason, actor, outcome) => {
+    await inRollback(pool, async (db) => {
+      const shift = await claimedShift(db)
+      expect(await cancel(db, actor(), shift.id, reason)).toMatchObject({ outcome })
+      const { rows } = await db.query('select status, assigned_nurse_id from shiftpatch.shifts where id = $1', [
+        shift.id,
+      ])
+      expect(rows[0]).toEqual({ status: 'claimed', assigned_nurse_id: USERS.ava.id })
+    })
+  })
+
+  it.each([
     ['the owning agency', 'no-show', 'no_show', () => USERS.northwindAgency.id],
     ['an admin', 'advance', 'cancelled', () => USERS.admin.id],
     ['the assigned nurse', 'advance', 'cancelled', () => USERS.ava.id],

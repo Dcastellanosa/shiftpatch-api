@@ -55,13 +55,20 @@ export function parseEnv(source: NodeJS.ProcessEnv): Env {
   return result.data
 }
 
+/**
+ * The trial specification's password for every sample account. It is a
+ * required public test credential, not an application secret, so it is the
+ * default of `pnpm seed`, `pnpm e2e:reset` and the integration suite.
+ */
+export const TRIAL_SEED_PASSWORD = 'Trial2026!'
+
 const seedEnvSchema = z.object({
   NODE_ENV: z.preprocess(blankAsUndefined, z.enum(['development', 'test', 'production']).default('development')),
   SUPABASE_URL: z.preprocess(blankAsUndefined, z.url({ protocol: /^https?$/ })),
   SUPABASE_SERVICE_ROLE_KEY: z.preprocess(blankAsUndefined, z.string('is required')),
   SEED_USER_PASSWORD: z.preprocess(
     blankAsUndefined,
-    z.string('is required (password for every seeded test account)').min(8, 'must be at least 8 characters'),
+    z.string().min(8, 'must be at least 8 characters').default(TRIAL_SEED_PASSWORD),
   ),
 })
 

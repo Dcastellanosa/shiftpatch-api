@@ -95,6 +95,8 @@ describe('parseSeedEnv', () => {
   })
 
   it('requires the service-role key and names the variable', () => {
+    expect(parseSeedEnv({ ...valid, SEED_USER_PASSWORD: undefined }).SEED_USER_PASSWORD).toBe('Trial2026!')
+    expect(parseSeedEnv({ ...valid, SEED_USER_PASSWORD: '' }).SEED_USER_PASSWORD).toBe('Trial2026!')
     expect(() => parseSeedEnv({ ...valid, SUPABASE_SERVICE_ROLE_KEY: '' })).toThrow(
       /Invalid seed configuration:[\s\S]*SUPABASE_SERVICE_ROLE_KEY/,
     )

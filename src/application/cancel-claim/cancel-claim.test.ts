@@ -3,6 +3,7 @@ import { cancelClaim } from './cancel-claim.js'
 import type { CancelOutcome } from '../../domain/outcomes/outcomes.js'
 import {
   AGENCY_PROFILE,
+  NURSE_PROFILE,
   NURSE_SLUG,
   SHIFT_ID,
   USER,
@@ -36,8 +37,27 @@ describe('cancelClaim', () => {
     expect(store.getShift).toHaveBeenCalledWith(viewer, SHIFT_ID)
   })
 
+  it('refuses a no-show from a nurse before touching the store (nurses only cancel in advance)', async () => {
+    const store = fakeDataStore()
+    await expect(cancelClaim({ store }, viewerFor(NURSE_PROFILE), SHIFT_ID, 'no-show')).resolves.toEqual({
+      ok: false,
+      outcome: 'reason_not_allowed',
+    })
+    expect(store.cancelClaim).not.toHaveBeenCalled()
+  })
+
+  it('lets a nurse cancel in advance through the store, which checks the shift is theirs', async () => {
+    const reopened = shiftFixture({ status: 'open', claimedBy: null })
+    const store = fakeDataStore({ cancelClaim: async () => cancelled(), getShift: async () => reopened })
+    await expect(cancelClaim({ store }, viewerFor(NURSE_PROFILE), SHIFT_ID, 'advance')).resolves.toMatchObject({
+      ok: true,
+    })
+    expect(store.cancelClaim).toHaveBeenCalledWith(USER.id, SHIFT_ID, 'advance')
+  })
+
   it.each<Exclude<CancelOutcome, 'cancelled'>>([
     'actor_not_allowed',
+    'reason_not_allowed',
     'invalid_reason',
     'shift_not_found',
     'shift_not_claimed',
