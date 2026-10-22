@@ -9,10 +9,12 @@ import {
 } from '../../../domain/admin/admin.js'
 import { ENTITY_STATUSES, type Agency, type AgencyBranch, type AgencyDetail } from '../../../domain/agency/agency.js'
 import { toLocalDateTime } from '../../../domain/local-time/local-time.js'
+import { CREDENTIAL_STATUSES } from '../../../domain/credential/credential.js'
 import type {
   AdminCommandResult,
   CancelCommandResult,
   CancelOutcome,
+  CredentialOutcome,
   ClaimOutcome,
   CommandResult,
   CreateAgencyOutcome,
@@ -204,6 +206,17 @@ const cancelRow = z.object({
   previous_nurse_id: z.uuid().nullable(),
   previous_nurse_slug: z.string().nullable(),
 })
+
+const credentialRow = z.object({
+  id: z.uuid(),
+  expires_at: z.string(),
+  status: z.enum(CREDENTIAL_STATUSES),
+  original_name: z.string().nullable(),
+  uploaded_at: z.string().nullable(),
+  credential_type: z.object({ code: z.string() }),
+})
+
+const credentialCommandRow = z.object({ outcome: z.string(), credential_id: z.uuid().nullable() })
 
 const adminCommandRow = z.object({
   outcome: z.string(),
@@ -488,6 +501,47 @@ export function createSupabaseDataStore(config: SupabaseDataConfig): DataStore {
         previousNurseId: parsed.data.previous_nurse_id,
         previousNurseSlug: parsed.data.previous_nurse_slug,
       }
+    },
+
+    async listNurseCredentials(viewer) {
+      const rows = parseRows(
+        credentialRow,
+        unwrap(
+          await asUser(viewer.accessToken)
+            .from('nurse_credentials')
+            .select('id, expires_at, status, original_name, uploaded_at, credential_type:credential_types!inner (code)')
+            .eq('nurse_id', viewer.id)
+            .order('expires_at', { ascending: true }),
+          'list credentials',
+        ),
+        'list credentials',
+      )
+      return rows.map((row) => ({
+        id: row.id,
+        type: row.credential_type.code,
+        expiresAt: row.expires_at,
+        status: row.status,
+        fileName: row.original_name,
+        uploadedAt: row.uploaded_at,
+      }))
+    },
+
+    async upsertNurseCredential(nurseId, input) {
+      const data = unwrap(
+        await service().rpc('upsert_nurse_credential', {
+          p_nurse_id: nurseId,
+          p_credential_type_code: input.credentialTypeCode,
+          p_expires_at: input.expiresAt,
+          p_file_path: input.filePath,
+          p_original_name: input.originalName,
+          p_content_type: input.contentType,
+          p_size_bytes: input.sizeBytes,
+        }),
+        'upsert_nurse_credential',
+      )
+      const parsed = credentialCommandRow.safeParse(data)
+      if (!parsed.success) throw new DataStoreError('upsert_nurse_credential returned an unexpected shape')
+      return { outcome: parsed.data.outcome as CredentialOutcome, credentialId: parsed.data.credential_id }
     },
 
     async listAgencyNurses(viewer) {

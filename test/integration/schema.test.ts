@@ -259,6 +259,7 @@ describe('function privileges', () => {
     'delete_agency(uuid, uuid)',
     'delete_user(uuid, uuid)',
     'cancel_shift_claim(uuid, uuid, text)',
+    'upsert_nurse_credential(uuid, text, date, text, text, text, integer)',
   ])('%s is executable only by service_role', async (signature) => {
     const { rows } = await pool.query(
       `select has_function_privilege('anon', $1, 'EXECUTE') as anon,
@@ -408,5 +409,37 @@ describe('audit_events is write-only', () => {
        where has_function_privilege(r, 'shiftpatch.record_audit(uuid, shiftpatch.audit_entity_type, uuid, shiftpatch.audit_action, text, text)', 'EXECUTE')`,
     )
     expect(rows).toEqual([])
+  })
+})
+
+describe('credential uploads', () => {
+  it('nurse_credentials carries the upload metadata and one row per nurse and type', async () => {
+    const { rows } = await pool.query(
+      `select column_name from information_schema.columns
+       where table_schema = 'shiftpatch' and table_name = 'nurse_credentials'
+         and column_name in ('original_name', 'content_type', 'size_bytes', 'uploaded_at', 'file_path')
+       order by column_name`,
+    )
+    expect(rows.map((r) => r.column_name)).toEqual([
+      'content_type',
+      'file_path',
+      'original_name',
+      'size_bytes',
+      'uploaded_at',
+    ])
+    const { rows: idx } = await pool.query(
+      `select indexdef from pg_indexes where schemaname = 'shiftpatch' and indexname = 'nurse_credentials_nurse_type_uniq'`,
+    )
+    expect(idx[0]?.indexdef).toMatch(/UNIQUE INDEX .* \(nurse_id, credential_type_id\)/)
+  })
+
+  it('the credentials bucket exists, is private and capped at 5 MiB', async () => {
+    const { rows } = await pool.query(
+      `select public, file_size_limit::int as file_size_limit, allowed_mime_types
+       from storage.buckets where id = 'shiftpatch-credentials'`,
+    )
+    expect(rows).toEqual([
+      { public: false, file_size_limit: 5242880, allowed_mime_types: ['application/pdf', 'image/png', 'image/jpeg'] },
+    ])
   })
 })

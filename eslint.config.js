@@ -8,7 +8,7 @@ import prettier from 'eslint-config-prettier'
 // domain (types + ports) <- application (use cases) <- interfaces (http) / infrastructure (supabase, config) <- composition (create-app)
 const httpFrameworks = [
   {
-    group: ['express', 'express/*', 'cors'],
+    group: ['express', 'express/*', 'cors', 'multer'],
     message: 'HTTP frameworks belong in src/interfaces/http.',
   },
 ]

@@ -29,6 +29,14 @@ export type CreateOutcome =
 export type CancelOutcome =
   'cancelled' | 'actor_not_allowed' | 'reason_not_allowed' | 'invalid_reason' | 'shift_not_found' | 'shift_not_claimed'
 
+/** Outcomes of `upsert_nurse_credential`. */
+export type CredentialOutcome = 'recorded' | 'not_a_nurse' | 'credential_type_not_found'
+
+export interface CredentialCommandResult {
+  outcome: CredentialOutcome
+  credentialId: string | null
+}
+
 /** What a shift command returns: its outcome plus the ids it touched. */
 export interface CommandResult<Outcome extends string> {
   outcome: Outcome

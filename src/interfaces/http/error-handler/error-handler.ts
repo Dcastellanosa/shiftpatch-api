@@ -1,4 +1,6 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express'
+import multer from 'multer'
+import { FileStoreError } from '../../../domain/ports/file-store/file-store.js'
 import { AuthRateLimitedError, AuthUnavailableError } from '../../../domain/ports/auth-provider/auth-provider.js'
 import { DataStoreError, DataUnavailableError } from '../../../domain/ports/data-store/data-store.js'
 import { TokenVerifierUnavailableError } from '../../../domain/ports/token-verifier/token-verifier.js'
@@ -30,6 +32,19 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     // The message holds only the failing step and a PostgREST error code.
     console.error(`Data store error: ${err.message}`)
     res.status(500).json({ error: 'Internal server error' })
+    return
+  }
+  if (err instanceof FileStoreError) {
+    console.error(`File store error: ${err.message}`)
+    res.status(503).json({ error: 'File storage is not available' })
+    return
+  }
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      res.status(413).json({ error: 'File too large' })
+      return
+    }
+    res.status(400).json({ error: 'Invalid upload' })
     return
   }
   const parserType = (err as { type?: unknown }).type

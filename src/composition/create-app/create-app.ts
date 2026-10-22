@@ -5,15 +5,18 @@ import { errorHandler, notFoundHandler } from '../../interfaces/http/error-handl
 import { requireTrustedOrigin } from '../../interfaces/http/middleware/origin-check/origin-check.js'
 import { requireSession, resolveSession } from '../../interfaces/http/middleware/session/session.js'
 import { createAdminRouter } from '../../interfaces/http/routes/admin-routes/admin-routes.js'
+import { createCredentialRouter } from '../../interfaces/http/routes/credential-routes/credential-routes.js'
 import { createEligibilityRouter } from '../../interfaces/http/routes/eligibility-routes/eligibility-routes.js'
 import { createShiftRouter } from '../../interfaces/http/routes/shift-routes/shift-routes.js'
 import { createSupabaseAuthAdmin } from '../../infrastructure/auth/supabase-auth-admin/supabase-auth-admin.js'
 import { createSupabaseAuthProvider } from '../../infrastructure/auth/supabase-auth-provider/supabase-auth-provider.js'
 import { createJoseTokenVerifier } from '../../infrastructure/auth/jose-token-verifier/jose-token-verifier.js'
 import { createSupabaseDataStore } from '../../infrastructure/persistence/supabase-data-store/supabase-data-store.js'
+import { createSupabaseFileStore } from '../../infrastructure/storage/supabase-file-store/supabase-file-store.js'
 import type { AuthAdmin } from '../../domain/ports/auth-admin/auth-admin.js'
 import type { AuthProvider } from '../../domain/ports/auth-provider/auth-provider.js'
 import type { DataStore } from '../../domain/ports/data-store/data-store.js'
+import type { FileStore } from '../../domain/ports/file-store/file-store.js'
 import type { TokenVerifier } from '../../domain/ports/token-verifier/token-verifier.js'
 import type { Env } from '../../infrastructure/config/env/env.js'
 
@@ -26,7 +29,12 @@ export interface AppDependencies {
   authAdmin?: AuthAdmin | null
   /** Override for tests. `null` means bearer tokens cannot be verified (auth not configured). */
   tokenVerifier?: TokenVerifier | null
+  /** Override for tests. `null` means document uploads are not configured. */
+  fileStore?: FileStore | null
 }
+
+/** The private Storage bucket holding nurse credential documents. */
+export const CREDENTIALS_BUCKET = 'shiftpatch-credentials'
 
 /**
  * Composition root: wires the driven adapters (Supabase) into the driving
@@ -71,6 +79,16 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
       : env.SUPABASE_URL
         ? createJoseTokenVerifier({ supabaseUrl: env.SUPABASE_URL, jwtSecret: env.SUPABASE_JWT_SECRET })
         : null
+  const fileStore =
+    deps.fileStore !== undefined
+      ? deps.fileStore
+      : env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY
+        ? createSupabaseFileStore({
+            url: env.SUPABASE_URL,
+            serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
+            bucket: CREDENTIALS_BUCKET,
+          })
+        : null
   // Invitation and recovery links point at the web app, never at this API.
   const setPasswordUrl = `${env.WEB_ORIGIN ?? env.CORS_ORIGINS[0]!}/set-password`
 
@@ -108,6 +126,7 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
   const authenticate = [resolveSession(tokenVerifier), requireSession]
   routes.use(createShiftRouter(dataStore, authenticate))
   routes.use(createEligibilityRouter(dataStore, authenticate))
+  routes.use(createCredentialRouter({ store: dataStore, files: fileStore }, authenticate))
   routes.use('/admin', createAdminRouter({ store: dataStore, authAdmin, setPasswordUrl }, authenticate))
   app.use(routes)
   app.use('/api', routes)

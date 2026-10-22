@@ -2,6 +2,8 @@ import { vi } from 'vitest'
 import type { AuthAdmin } from '../domain/ports/auth-admin/auth-admin.js'
 import type { AuthProvider, AuthSession } from '../domain/ports/auth-provider/auth-provider.js'
 import type { DataStore } from '../domain/ports/data-store/data-store.js'
+import type { FileStore } from '../domain/ports/file-store/file-store.js'
+import type { NurseCredential } from '../domain/credential/credential.js'
 import type { TokenVerifier } from '../domain/ports/token-verifier/token-verifier.js'
 import { parseEnv } from '../infrastructure/config/env/env.js'
 import { createApp } from '../composition/create-app/create-app.js'
@@ -73,6 +75,32 @@ export function fakeDataStore(overrides: Partial<DataStore> = {}) {
     setBranchEligibility: vi.fn<DataStore['setBranchEligibility']>(
       overrides.setBranchEligibility ?? unexpected('setBranchEligibility'),
     ),
+    listNurseCredentials: vi.fn<DataStore['listNurseCredentials']>(
+      overrides.listNurseCredentials ?? unexpected('listNurseCredentials'),
+    ),
+    upsertNurseCredential: vi.fn<DataStore['upsertNurseCredential']>(
+      overrides.upsertNurseCredential ?? unexpected('upsertNurseCredential'),
+    ),
+  }
+}
+
+/** Every method is a spy; by default storage accepts every write. */
+export function fakeFileStore(overrides: Partial<FileStore> = {}) {
+  return {
+    put: vi.fn<FileStore['put']>(overrides.put ?? (async () => undefined)),
+    remove: vi.fn<FileStore['remove']>(overrides.remove ?? (async () => undefined)),
+  }
+}
+
+export function credentialFixture(overrides: Partial<NurseCredential> = {}): NurseCredential {
+  return {
+    id: 'd2000000-0000-4000-8000-000000000001',
+    type: 'nursing_license',
+    expiresAt: '2028-01-01',
+    status: 'valid',
+    fileName: 'licence.pdf',
+    uploadedAt: '2026-10-21T12:00:00.000Z',
+    ...overrides,
   }
 }
 
@@ -157,14 +185,26 @@ export function buildApp(
   dataStore: DataStore | null = null,
   authAdmin: AuthAdmin | null = null,
   tokenVerifier: TokenVerifier | null = fakeTokenVerifier(),
+  fileStore: FileStore | null = null,
 ) {
   const env = parseEnv({ NODE_ENV: nodeEnv, CORS_ORIGINS: ALLOWED_ORIGIN })
-  return createApp(env, { authProvider, dataStore, authAdmin, tokenVerifier })
+  return createApp(env, { authProvider, dataStore, authAdmin, tokenVerifier, fileStore })
 }
 
-/** An app that accepts SESSION's bearer token as USER, with the given data store (and auth admin). */
-export function buildSignedInApp(dataStore: DataStore | null, authAdmin: AuthAdmin | null = null) {
-  return buildApp(fakeAuthProvider(), 'test', dataStore, authAdmin, fakeTokenVerifier({ verify: async () => USER }))
+/** An app that accepts SESSION's bearer token as USER, with the given data store (and auth admin, file store). */
+export function buildSignedInApp(
+  dataStore: DataStore | null,
+  authAdmin: AuthAdmin | null = null,
+  fileStore: FileStore | null = null,
+) {
+  return buildApp(
+    fakeAuthProvider(),
+    'test',
+    dataStore,
+    authAdmin,
+    fakeTokenVerifier({ verify: async () => USER }),
+    fileStore,
+  )
 }
 
 /** Every method is a spy; unconfigured methods fail loudly so unexpected calls surface. */

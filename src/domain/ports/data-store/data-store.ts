@@ -9,10 +9,12 @@ import type {
   UpdateAgencyInput,
   UpdateBranchInput,
 } from '../../agency/agency.js'
+import type { NurseCredential } from '../../credential/credential.js'
 import type {
   AdminCommandResult,
   CancelCommandResult,
   ClaimOutcome,
+  CredentialCommandResult,
   CommandResult,
   CreateAgencyOutcome,
   DeleteAgencyOutcome,
@@ -91,6 +93,21 @@ export interface DataStore {
     branchId: string,
     status: 'active' | 'suspended',
   ): Promise<AdminCommandResult<SetEligibilityOutcome>>
+
+  // Nurse credentials. The listing runs as the viewer (RLS: own rows, or an
+  // admin); the upsert calls the service-role-only command.
+  listNurseCredentials(viewer: Viewer): Promise<NurseCredential[]>
+  /** `nurseId` is the nurse's Auth UUID (the viewer's own id). One row per nurse and credential type. */
+  upsertNurseCredential(nurseId: string, input: UpsertCredentialInput): Promise<CredentialCommandResult>
+}
+
+export interface UpsertCredentialInput {
+  credentialTypeCode: string
+  expiresAt: string
+  filePath: string
+  originalName: string
+  contentType: string
+  sizeBytes: number
 }
 
 /** A data-layer failure. The message is safe to log; it never contains row data or tokens. */
