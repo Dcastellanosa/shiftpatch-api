@@ -1,6 +1,7 @@
 import type { ErrorRequestHandler, RequestHandler } from 'express'
 import { AuthRateLimitedError, AuthUnavailableError } from '../../../domain/ports/auth-provider/auth-provider.js'
 import { DataStoreError, DataUnavailableError } from '../../../domain/ports/data-store/data-store.js'
+import { TokenVerifierUnavailableError } from '../../../domain/ports/token-verifier/token-verifier.js'
 import { AppError } from '../errors/errors.js'
 
 export const notFoundHandler: RequestHandler = (_req, res) => {
@@ -17,7 +18,7 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     res.status(429).json({ error: err.message, code: 'rate_limited' })
     return
   }
-  if (err instanceof AuthUnavailableError) {
+  if (err instanceof AuthUnavailableError || err instanceof TokenVerifierUnavailableError) {
     res.status(503).json({ error: err.message, code: 'auth_unavailable' })
     return
   }

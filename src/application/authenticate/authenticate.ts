@@ -1,33 +1,20 @@
 import type { AuthUser } from '../../domain/viewer/viewer.js'
-import type { AuthProvider, AuthSession } from '../../domain/ports/auth-provider/auth-provider.js'
-
-export interface SessionTokens {
-  accessToken?: string | undefined
-  refreshToken?: string | undefined
-}
+import type { TokenVerifier } from '../../domain/ports/token-verifier/token-verifier.js'
 
 export interface AuthenticatedSession {
   user: AuthUser
   accessToken: string
-  /** Set when the access token was rejected and the refresh token minted a new session. */
-  refreshed: AuthSession | null
 }
 
 /**
- * Validates the access token with the provider, falling back to the refresh
- * token. Resolves to `null` when neither yields a session.
+ * Verifies the bearer access token and resolves the subject it proves.
+ * There is no refresh path: an expired token is simply rejected and the
+ * client signs in again.
  */
 export async function authenticate(
-  { auth }: { auth: AuthProvider },
-  { accessToken, refreshToken }: SessionTokens,
+  { verifier }: { verifier: TokenVerifier },
+  accessToken: string,
 ): Promise<AuthenticatedSession | null> {
-  if (accessToken) {
-    const user = await auth.getUser(accessToken)
-    if (user) return { user, accessToken, refreshed: null }
-  }
-  if (refreshToken) {
-    const session = await auth.refreshSession(refreshToken)
-    if (session) return { user: session.user, accessToken: session.accessToken, refreshed: session }
-  }
-  return null
+  const user = await verifier.verify(accessToken)
+  return user ? { user, accessToken } : null
 }

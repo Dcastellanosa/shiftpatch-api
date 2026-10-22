@@ -12,7 +12,7 @@ export type CompletePasswordResult =
 /**
  * Finishes an invitation or a password recovery: exchanges the one-time link
  * hash and sets the password. A session is produced only when the password
- * update succeeded, so callers can issue cookies exactly then.
+ * update succeeded, so callers issue a bearer session exactly then.
  */
 export async function completePassword(
   { auth, store }: { auth: AuthAdmin; store: DataStore | null },

@@ -27,21 +27,9 @@ export function createSupabaseAuthProvider(config: SupabaseAuthConfig): AuthProv
       return toAuthSession(data.session)
     },
 
-    async getUser(accessToken) {
-      const { data, error } = await client().getUser(accessToken)
-      if (error) return rejectOrThrow(error)
-      return toAuthUser(data.user)
-    },
-
-    async refreshSession(refreshToken) {
-      const { data, error } = await client().refreshSession({ refresh_token: refreshToken })
-      if (error) return rejectOrThrow(error)
-      return data.session ? toAuthSession(data.session) : null
-    },
-
     async signOut(accessToken) {
       // Revokes the session via the user's own JWT; no service-role key needed.
-      // Failures are ignored: cookies are cleared by the caller regardless.
+      // Failures are ignored: the client drops its token regardless.
       await client()
         .admin.signOut(accessToken, 'local')
         .catch(() => undefined)

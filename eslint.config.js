@@ -8,11 +8,14 @@ import prettier from 'eslint-config-prettier'
 // domain (types + ports) <- application (use cases) <- interfaces (http) / infrastructure (supabase, config) <- composition (create-app)
 const httpFrameworks = [
   {
-    group: ['express', 'express/*', 'cors', 'cookie-parser'],
+    group: ['express', 'express/*', 'cors'],
     message: 'HTTP frameworks belong in src/interfaces/http.',
   },
 ]
-const supabase = [{ group: ['@supabase/*'], message: 'Supabase belongs in src/infrastructure.' }]
+const supabase = [
+  { group: ['@supabase/*'], message: 'Supabase belongs in src/infrastructure.' },
+  { group: ['jose'], message: 'Token verification belongs in src/infrastructure.' },
+]
 const validation = [
   { group: ['zod'], message: 'Input validation belongs in src/interfaces/http or an infrastructure adapter.' },
 ]

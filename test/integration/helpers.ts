@@ -121,17 +121,17 @@ export function buildRealApp() {
     SUPABASE_URL: stack.apiUrl,
     SUPABASE_PUBLISHABLE_KEY: stack.publishableKey,
     SUPABASE_SERVICE_ROLE_KEY: stack.serviceRoleKey,
+    SUPABASE_JWT_SECRET: stack.jwtSecret,
   })
   return createApp(env)
 }
 
-/** A Supertest agent signed in as a seeded user (cookie jar persists the session). */
+/** A Supertest agent signed in as a seeded user: every request carries its bearer token. */
 export async function signIn(app: ReturnType<typeof buildRealApp>, user: SeedUser) {
-  const agent = request.agent(app)
-  const res = await agent
+  const res = await request(app)
     .post('/auth/login')
     .set('Origin', ALLOWED_ORIGIN)
     .send({ email: user.email, password: inject('seedPassword') })
   if (res.status !== 200) throw new Error(`sign-in for ${user.role} failed with ${res.status}`)
-  return agent
+  return request.agent(app).set('Authorization', `Bearer ${res.body.token}`)
 }

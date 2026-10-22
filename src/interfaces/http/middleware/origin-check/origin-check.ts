@@ -4,11 +4,11 @@ import { AppError } from '../../errors/errors.js'
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 /**
- * CSRF protection for cookie authentication: unsafe requests must come from an
- * allowed frontend origin. Browsers always send `Origin` on unsafe fetches;
- * a browser request (identified by Sec-Fetch-* headers) without one is
- * rejected. Non-browser clients without `Origin` cannot carry a victim's
- * cookies and are allowed through.
+ * Origin protection for browser traffic: unsafe requests from a browser must
+ * come from an allowed frontend origin. Browsers always send `Origin` on
+ * unsafe fetches; a browser request (identified by Sec-Fetch-* headers)
+ * without one is rejected. Non-browser clients (curl, automated contract
+ * checks) send neither header and are allowed through with their bearer token.
  */
 export function requireTrustedOrigin(allowedOrigins: ReadonlySet<string>): RequestHandler {
   return (req, _res, next) => {

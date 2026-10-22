@@ -295,7 +295,7 @@ describe('invitations, password completion and recovery over HTTP', () => {
     expect(res.headers['set-cookie']).toBeUndefined()
   })
 
-  it('completes the invitation: sets the password, issues cookies, and the new nurse can sign in and see shifts', async () => {
+  it('completes the invitation: sets the password, returns a bearer session, and the new nurse can sign in', async () => {
     // The repeated invitation re-sent the email, which supersedes the first link.
     const superseded = tokenHash
     tokenHash = linkFrom((await latestMailTo(email)).html).tokenHash!
@@ -317,7 +317,8 @@ describe('invitations, password completion and recovery over HTTP', () => {
     expect(res.body.user).toMatchObject({ id: invitedId, email, role: 'nurse', name: 'Invited Nurse' })
     expect(JSON.stringify(res.body)).not.toMatch(/hash|refresh/i)
     expect(typeof res.body.token).toBe('string')
-    expect((res.headers['set-cookie'] as unknown as string[]).some((c) => c.startsWith('sp_access='))).toBe(true)
+    expect(res.headers['set-cookie']).toBeUndefined()
+    agent.set('Authorization', `Bearer ${res.body.token}`)
 
     const me = await agent.get('/auth/me')
     expect(me.status).toBe(200)
@@ -330,7 +331,7 @@ describe('invitations, password completion and recovery over HTTP', () => {
     expect(login.status).toBe(200)
   })
 
-  it('refuses a replayed link with 401 and no cookies', async () => {
+  it('refuses a replayed link with 401 and no token', async () => {
     const res = await post(agents.admin, '/auth/complete-password', {
       tokenHash,
       type: 'invite',

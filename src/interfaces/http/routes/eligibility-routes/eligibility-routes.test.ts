@@ -8,7 +8,7 @@ import {
   BRANCH_ID,
   NURSE_ID,
   NURSE_PROFILE,
-  SESSION_COOKIE,
+  BEARER,
   buildApp,
   buildSignedInApp,
   eligibilityFixture,
@@ -19,11 +19,9 @@ import { eligibilityResponse, nurseListResponse } from '../../schemas/eligibilit
 
 const asProfile = (profile: Profile | null) => async () => profile
 type App = ReturnType<typeof buildApp>
-const get = (app: App, path: string) => request(app).get(path).set('Cookie', SESSION_COOKIE)
-const put = (app: App, path: string) =>
-  request(app).put(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send()
-const del = (app: App, path: string) =>
-  request(app).delete(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send()
+const get = (app: App, path: string) => request(app).get(path).set(BEARER)
+const put = (app: App, path: string) => request(app).put(path).set('Origin', ALLOWED_ORIGIN).set(BEARER).send()
+const del = (app: App, path: string) => request(app).delete(path).set('Origin', ALLOWED_ORIGIN).set(BEARER).send()
 const PATH = `/nurses/${NURSE_ID}/eligibility/${BRANCH_ID}`
 
 describe('GET /agency/nurses', () => {
@@ -111,7 +109,7 @@ describe('PUT and DELETE /nurses/:nurseId/eligibility/:branchId', () => {
     const res = await request(buildSignedInApp(store))
       .put(PATH)
       .set('Origin', 'https://evil.example')
-      .set('Cookie', SESSION_COOKIE)
+      .set(BEARER)
       .send()
     expect(res.status).toBe(403)
     expect(store.getProfile).not.toHaveBeenCalled()

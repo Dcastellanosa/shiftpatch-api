@@ -16,6 +16,8 @@ export interface LocalStack {
   dbUrl: string
   /** Mailpit, where the local stack delivers every email. */
   mailUrl: string
+  /** Secret the local GoTrue signs access tokens with (HS256). In memory only. */
+  jwtSecret: string
 }
 
 const LOOPBACK = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/
@@ -48,6 +50,7 @@ export function localStack(cwd = process.cwd()): LocalStack {
     serviceRoleKey: status.SECRET_KEY ?? required('SERVICE_ROLE_KEY'),
     dbUrl: required('DB_URL'),
     mailUrl,
+    jwtSecret: required('JWT_SECRET'),
   }
 }
 

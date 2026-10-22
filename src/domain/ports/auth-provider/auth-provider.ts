@@ -9,15 +9,13 @@ export interface AuthSession {
 }
 
 /**
- * Driven port: server-side authentication operations. Methods resolve to
- * `null` when the provider rejects the credentials or token, and throw
- * `AuthUnavailableError` or `AuthRateLimitedError` for conditions the caller
- * cannot fix.
+ * Driven port: password sign-in and sign-out at the identity provider.
+ * `signInWithPassword` resolves to `null` when the credentials are rejected,
+ * and throws `AuthUnavailableError` or `AuthRateLimitedError` for conditions
+ * the caller cannot fix. Token validation is the `TokenVerifier` port.
  */
 export interface AuthProvider {
   signInWithPassword(email: string, password: string): Promise<AuthSession | null>
-  getUser(accessToken: string): Promise<AuthUser | null>
-  refreshSession(refreshToken: string): Promise<AuthSession | null>
   /** Best-effort revocation of the session that owns `accessToken`. */
   signOut(accessToken: string): Promise<void>
 }

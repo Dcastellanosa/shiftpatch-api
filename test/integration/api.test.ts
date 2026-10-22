@@ -89,10 +89,7 @@ describe('session payload', () => {
     expect(login.status).toBe(200)
     expect(login.body.user).toMatchObject({ id: USERS.ava.slug, name: USERS.ava.fullName, role: 'nurse' })
     expect(typeof login.body.token).toBe('string')
-    const res = await agents.admin
-      .get('/api/shifts')
-      .set('Cookie', '')
-      .set('Authorization', `Bearer ${login.body.token}`)
+    const res = await agents.admin.get('/api/shifts').set('Authorization', `Bearer ${login.body.token}`)
     expect(res.status).toBe(200)
     expect(shiftListResponse.parse(res.body).shifts.length).toBeGreaterThan(0)
   })

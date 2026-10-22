@@ -2,6 +2,7 @@ import { vi } from 'vitest'
 import type { AuthAdmin } from '../domain/ports/auth-admin/auth-admin.js'
 import type { AuthProvider, AuthSession } from '../domain/ports/auth-provider/auth-provider.js'
 import type { DataStore } from '../domain/ports/data-store/data-store.js'
+import type { TokenVerifier } from '../domain/ports/token-verifier/token-verifier.js'
 import { parseEnv } from '../infrastructure/config/env/env.js'
 import { createApp } from '../composition/create-app/create-app.js'
 import type { AuthUser, Profile, Viewer } from '../domain/viewer/viewer.js'
@@ -20,21 +21,20 @@ export const SESSION: AuthSession = {
   user: USER,
 }
 
-export const REFRESHED_SESSION: AuthSession = {
-  accessToken: 'access-token-value-2',
-  refreshToken: 'refresh-token-value-2',
-  expiresIn: 3600,
-  user: USER,
-}
+/** Authorization header of a request carrying SESSION's access token. */
+export const BEARER = { Authorization: `Bearer ${SESSION.accessToken}` }
 
 /** Every method is a spy; overrides become the spy's implementation. */
 export function fakeAuthProvider(overrides: Partial<AuthProvider> = {}) {
   return {
     signInWithPassword: vi.fn<AuthProvider['signInWithPassword']>(overrides.signInWithPassword ?? (async () => null)),
-    getUser: vi.fn<AuthProvider['getUser']>(overrides.getUser ?? (async () => null)),
-    refreshSession: vi.fn<AuthProvider['refreshSession']>(overrides.refreshSession ?? (async () => null)),
     signOut: vi.fn<AuthProvider['signOut']>(overrides.signOut ?? (async () => undefined)),
   }
+}
+
+/** Rejects every token unless `verify` is overridden. */
+export function fakeTokenVerifier(overrides: Partial<TokenVerifier> = {}) {
+  return { verify: vi.fn<TokenVerifier['verify']>(overrides.verify ?? (async () => null)) }
 }
 
 /** Every method is a spy; unconfigured methods fail loudly so unexpected calls surface. */
@@ -156,14 +156,15 @@ export function buildApp(
   nodeEnv: 'test' | 'production' = 'test',
   dataStore: DataStore | null = null,
   authAdmin: AuthAdmin | null = null,
+  tokenVerifier: TokenVerifier | null = fakeTokenVerifier(),
 ) {
   const env = parseEnv({ NODE_ENV: nodeEnv, CORS_ORIGINS: ALLOWED_ORIGIN })
-  return createApp(env, { authProvider, dataStore, authAdmin })
+  return createApp(env, { authProvider, dataStore, authAdmin, tokenVerifier })
 }
 
-/** An app whose cookie session resolves to USER, with the given data store (and auth admin). */
+/** An app that accepts SESSION's bearer token as USER, with the given data store (and auth admin). */
 export function buildSignedInApp(dataStore: DataStore | null, authAdmin: AuthAdmin | null = null) {
-  return buildApp(fakeAuthProvider({ getUser: async () => USER }), 'test', dataStore, authAdmin)
+  return buildApp(fakeAuthProvider(), 'test', dataStore, authAdmin, fakeTokenVerifier({ verify: async () => USER }))
 }
 
 /** Every method is a spy; unconfigured methods fail loudly so unexpected calls surface. */
@@ -205,19 +206,6 @@ export function adminUserFixture(overrides: Partial<AdminUser> = {}): AdminUser 
     ],
     ...overrides,
   }
-}
-
-export const SESSION_COOKIE = `sp_access=${SESSION.accessToken}`
-
-/** Returns the Set-Cookie header lines as an array. */
-export function setCookies(headers: Record<string, unknown>): string[] {
-  const value = headers['set-cookie']
-  if (value === undefined) return []
-  return Array.isArray(value) ? value : [String(value)]
-}
-
-export function cookieFor(cookies: string[], name: string): string | undefined {
-  return cookies.find((line) => line.startsWith(`${name}=`))
 }
 
 export function agencyFixture(overrides: Partial<Agency> = {}): Agency {

@@ -8,7 +8,7 @@ import {
   ALLOWED_ORIGIN,
   BRANCH_ID,
   NURSE_PROFILE,
-  SESSION_COOKIE,
+  BEARER,
   INVITED_USER_ID,
   adminUserFixture,
   agencyBranchFixture,
@@ -29,13 +29,12 @@ import {
 
 const asProfile = (profile: Profile | null) => async () => profile
 type App = ReturnType<typeof buildApp>
-const get = (app: App, path: string) => request(app).get(path).set('Cookie', SESSION_COOKIE)
+const get = (app: App, path: string) => request(app).get(path).set(BEARER)
 const post = (app: App, path: string, body?: object) =>
-  request(app).post(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send(body)
+  request(app).post(path).set('Origin', ALLOWED_ORIGIN).set(BEARER).send(body)
 const patch = (app: App, path: string, body?: object) =>
-  request(app).patch(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send(body)
-const del = (app: App, path: string) =>
-  request(app).delete(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE)
+  request(app).patch(path).set('Origin', ALLOWED_ORIGIN).set(BEARER).send(body)
+const del = (app: App, path: string) => request(app).delete(path).set('Origin', ALLOWED_ORIGIN).set(BEARER)
 
 const AGENCY_PATH = `/admin/agencies/${AGENCY_ID}`
 const BRANCH_PATH = `${AGENCY_PATH}/branches/${BRANCH_ID}`
@@ -103,7 +102,7 @@ describe('access control', () => {
     const res = await request(buildSignedInApp(store))
       .post('/admin/agencies')
       .set('Origin', 'https://evil.example')
-      .set('Cookie', SESSION_COOKIE)
+      .set(BEARER)
       .send({ name: 'x' })
     expect(res.status).toBe(403)
     expect(store.getProfile).not.toHaveBeenCalled()

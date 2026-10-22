@@ -17,9 +17,11 @@ describe('parseEnv', () => {
       SUPABASE_URL: '',
       SUPABASE_PUBLISHABLE_KEY: '',
       SUPABASE_SERVICE_ROLE_KEY: '',
+      SUPABASE_JWT_SECRET: '',
     })
     expect(env.NODE_ENV).toBe('development')
     expect(env.SUPABASE_SERVICE_ROLE_KEY).toBeUndefined()
+    expect(env.SUPABASE_JWT_SECRET).toBeUndefined()
   })
 
   it('requires CORS_ORIGINS', () => {
@@ -50,6 +52,7 @@ describe('parseEnv', () => {
       SUPABASE_URL: 'https://ref.supabase.co',
       SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_x',
       SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_x',
+      SUPABASE_JWT_SECRET: 'x'.repeat(32),
     })
     expect(env).toEqual({
       NODE_ENV: 'production',
@@ -58,7 +61,14 @@ describe('parseEnv', () => {
       SUPABASE_URL: 'https://ref.supabase.co',
       SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_x',
       SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_x',
+      SUPABASE_JWT_SECRET: 'x'.repeat(32),
     })
+  })
+
+  it('rejects a JWT secret shorter than 32 characters', () => {
+    expect(() => parseEnv({ CORS_ORIGINS: ALLOWED_ORIGIN, SUPABASE_JWT_SECRET: 'short' })).toThrow(
+      /SUPABASE_JWT_SECRET/,
+    )
   })
 
   it.each(['https://app.example.com/', 'https://app.example.com/path', 'ftp://app.example.com'])(

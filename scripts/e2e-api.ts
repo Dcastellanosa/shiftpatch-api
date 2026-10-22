@@ -27,6 +27,7 @@ const env = parseEnv({
   SUPABASE_URL: stack.apiUrl,
   SUPABASE_PUBLISHABLE_KEY: stack.publishableKey,
   SUPABASE_SERVICE_ROLE_KEY: stack.serviceRoleKey,
+  SUPABASE_JWT_SECRET: stack.jwtSecret,
 })
 
 createApp(env).listen(env.PORT, () => {

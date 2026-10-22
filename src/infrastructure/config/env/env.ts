@@ -28,6 +28,10 @@ const envSchema = z
     // Server-only. Used for the SECURITY DEFINER commands (which client roles
     // cannot execute), public-id resolution and the Auth admin API.
     SUPABASE_SERVICE_ROLE_KEY: z.preprocess(blankAsUndefined, z.string().optional()),
+    // Server-only. Verifies HS256 access tokens (local CLI stack, legacy hosted
+    // projects). Projects signing with asymmetric keys are verified through
+    // their JWKS and leave this unset. Never logged or echoed.
+    SUPABASE_JWT_SECRET: z.preprocess(blankAsUndefined, z.string().min(32).optional()),
     // Origin of the web app that receives invitation and recovery links
     // (<origin>/set-password). Defaults to the first CORS origin.
     WEB_ORIGIN: z.preprocess(blankAsUndefined, origin.optional()),

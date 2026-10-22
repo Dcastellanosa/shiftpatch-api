@@ -98,7 +98,7 @@ const INVITE_ERRORS: Record<InviteUserFailure, () => AppError> = {
 
 /**
  * Global-admin routes for agencies and their branches, mounted under
- * `/admin`. Every route needs a cookie session and an admin profile; the
+ * `/admin`. Every route needs a bearer session and an admin profile; the
  * database commands re-check the actor's role.
  */
 export interface AdminRouterDependencies {

@@ -21,7 +21,7 @@ import {
   NURSE_PROFILE,
   NURSE_SLUG,
   SESSION,
-  SESSION_COOKIE,
+  BEARER,
   SHIFT_ID,
   USER,
   buildApp,
@@ -34,9 +34,9 @@ import {
 
 const asProfile = (profile: Profile | null) => async () => profile
 
-const get = (app: ReturnType<typeof buildApp>, path: string) => request(app).get(path).set('Cookie', SESSION_COOKIE)
+const get = (app: ReturnType<typeof buildApp>, path: string) => request(app).get(path).set(BEARER)
 const post = (app: ReturnType<typeof buildApp>, path: string, body?: object) =>
-  request(app).post(path).set('Origin', ALLOWED_ORIGIN).set('Cookie', SESSION_COOKIE).send(body)
+  request(app).post(path).set('Origin', ALLOWED_ORIGIN).set(BEARER).send(body)
 
 const MAIN_BRANCH: Branch = {
   id: BRANCH_ID,
@@ -269,7 +269,7 @@ describe('POST /shifts', () => {
     const res = await request(buildSignedInApp(store))
       .post('/shifts')
       .set('Origin', 'https://evil.example')
-      .set('Cookie', SESSION_COOKIE)
+      .set(BEARER)
       .send(VALID_BODY)
     expect(res.status).toBe(403)
     expect(store.getProfile).not.toHaveBeenCalled()

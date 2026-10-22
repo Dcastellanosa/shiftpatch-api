@@ -1,4 +1,3 @@
-import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import express from 'express'
 import { createAuthRouter } from '../../interfaces/http/routes/auth-routes/auth-routes.js'
@@ -10,10 +9,12 @@ import { createEligibilityRouter } from '../../interfaces/http/routes/eligibilit
 import { createShiftRouter } from '../../interfaces/http/routes/shift-routes/shift-routes.js'
 import { createSupabaseAuthAdmin } from '../../infrastructure/auth/supabase-auth-admin/supabase-auth-admin.js'
 import { createSupabaseAuthProvider } from '../../infrastructure/auth/supabase-auth-provider/supabase-auth-provider.js'
+import { createJoseTokenVerifier } from '../../infrastructure/auth/jose-token-verifier/jose-token-verifier.js'
 import { createSupabaseDataStore } from '../../infrastructure/persistence/supabase-data-store/supabase-data-store.js'
 import type { AuthAdmin } from '../../domain/ports/auth-admin/auth-admin.js'
 import type { AuthProvider } from '../../domain/ports/auth-provider/auth-provider.js'
 import type { DataStore } from '../../domain/ports/data-store/data-store.js'
+import type { TokenVerifier } from '../../domain/ports/token-verifier/token-verifier.js'
 import type { Env } from '../../infrastructure/config/env/env.js'
 
 export interface AppDependencies {
@@ -23,6 +24,8 @@ export interface AppDependencies {
   dataStore?: DataStore | null
   /** Override for tests. `null` means invitations and link exchanges are not configured. */
   authAdmin?: AuthAdmin | null
+  /** Override for tests. `null` means bearer tokens cannot be verified (auth not configured). */
+  tokenVerifier?: TokenVerifier | null
 }
 
 /**
@@ -32,7 +35,6 @@ export interface AppDependencies {
 export function createApp(env: Env, deps: AppDependencies = {}) {
   const app = express()
   const allowedOrigins = new Set(env.CORS_ORIGINS)
-  const cookieConfig = { secure: env.NODE_ENV === 'production' }
   const authProvider =
     deps.authProvider !== undefined
       ? deps.authProvider
@@ -63,6 +65,12 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
             serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
           })
         : null
+  const tokenVerifier =
+    deps.tokenVerifier !== undefined
+      ? deps.tokenVerifier
+      : env.SUPABASE_URL
+        ? createJoseTokenVerifier({ supabaseUrl: env.SUPABASE_URL, jwtSecret: env.SUPABASE_JWT_SECRET })
+        : null
   // Invitation and recovery links point at the web app, never at this API.
   const setPasswordUrl = `${env.WEB_ORIGIN ?? env.CORS_ORIGINS[0]!}/set-password`
 
@@ -77,15 +85,13 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
       origin: (requestOrigin, callback) => {
         callback(null, !requestOrigin || allowedOrigins.has(requestOrigin))
       },
-      credentials: true,
+      // No credentials: there are no cookies, only the Authorization header.
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      // Authorization: API clients may call cross-origin with a bearer token.
       allowedHeaders: ['Content-Type', 'Authorization'],
       maxAge: 600,
     }),
   )
   app.use(requireTrustedOrigin(allowedOrigins))
-  app.use(cookieParser())
   app.use(express.json({ limit: '100kb' }))
 
   // One router, mounted twice: the web app reaches it with the `/api` prefix
@@ -97,9 +103,9 @@ export function createApp(env: Env, deps: AppDependencies = {}) {
   })
   routes.use(
     '/auth',
-    createAuthRouter({ provider: authProvider, store: dataStore, cookieConfig, authAdmin, setPasswordUrl }),
+    createAuthRouter({ provider: authProvider, store: dataStore, verifier: tokenVerifier, authAdmin, setPasswordUrl }),
   )
-  const authenticate = [resolveSession(authProvider, cookieConfig), requireSession]
+  const authenticate = [resolveSession(tokenVerifier), requireSession]
   routes.use(createShiftRouter(dataStore, authenticate))
   routes.use(createEligibilityRouter(dataStore, authenticate))
   routes.use('/admin', createAdminRouter({ store: dataStore, authAdmin, setPasswordUrl }, authenticate))

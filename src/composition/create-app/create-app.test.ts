@@ -84,10 +84,10 @@ describe('CORS', () => {
     expect(res.headers['access-control-allow-headers']).toMatch(/authorization/i)
   })
 
-  it('allows credentials only for an exact approved origin', async () => {
+  it('allows an exact approved origin without credentials (there are no cookies)', async () => {
     const res = await request(buildApp()).get('/health').set('Origin', ALLOWED_ORIGIN)
     expect(res.headers['access-control-allow-origin']).toBe(ALLOWED_ORIGIN)
-    expect(res.headers['access-control-allow-credentials']).toBe('true')
+    expect(res.headers['access-control-allow-credentials']).toBeUndefined()
   })
 
   it('sends no CORS headers to an unapproved origin', async () => {

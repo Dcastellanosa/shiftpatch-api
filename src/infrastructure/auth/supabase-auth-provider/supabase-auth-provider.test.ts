@@ -7,8 +7,6 @@ const supabase = vi.hoisted(() => ({
   createClient: vi.fn(),
   auth: {
     signInWithPassword: vi.fn(),
-    getUser: vi.fn(),
-    refreshSession: vi.fn(),
     admin: { signOut: vi.fn() },
   },
 }))
@@ -40,11 +38,11 @@ beforeEach(() => {
 
 describe('createSupabaseAuthProvider', () => {
   it('builds a non-persistent client with the publishable key for each operation', async () => {
-    supabase.auth.getUser.mockResolvedValue({ data: { user: USER }, error: null })
+    supabase.auth.signInWithPassword.mockResolvedValue({ data: { session: SUPABASE_SESSION }, error: null })
     const provider = createSupabaseAuthProvider(CONFIG)
 
-    await provider.getUser('a')
-    await provider.getUser('b')
+    await provider.signInWithPassword('a@example.com', 'a')
+    await provider.signInWithPassword('b@example.com', 'b')
 
     expect(supabase.createClient).toHaveBeenCalledTimes(2)
     expect(supabase.createClient).toHaveBeenCalledWith(CONFIG.url, CONFIG.publishableKey, {
@@ -91,37 +89,6 @@ describe('createSupabaseAuthProvider', () => {
         .catch((e: unknown) => e)
       expect(failure).toBeInstanceOf(AuthUnavailableError)
       expect((failure as Error).message).not.toContain(error.message)
-    })
-  })
-
-  describe('getUser', () => {
-    it('returns the verified user for a valid token', async () => {
-      supabase.auth.getUser.mockResolvedValue({ data: { user: USER }, error: null })
-      await expect(createSupabaseAuthProvider(CONFIG).getUser('token')).resolves.toEqual(USER)
-      expect(supabase.auth.getUser).toHaveBeenCalledWith('token')
-    })
-
-    it('returns null for a rejected token', async () => {
-      supabase.auth.getUser.mockResolvedValue({ data: { user: null }, error: rejected })
-      await expect(createSupabaseAuthProvider(CONFIG).getUser('token')).resolves.toBeNull()
-    })
-  })
-
-  describe('refreshSession', () => {
-    it('returns the refreshed session', async () => {
-      supabase.auth.refreshSession.mockResolvedValue({ data: { session: SUPABASE_SESSION }, error: null })
-      await expect(createSupabaseAuthProvider(CONFIG).refreshSession('refresh-0')).resolves.toEqual(SESSION)
-      expect(supabase.auth.refreshSession).toHaveBeenCalledWith({ refresh_token: 'refresh-0' })
-    })
-
-    it('returns null when Supabase returns no session', async () => {
-      supabase.auth.refreshSession.mockResolvedValue({ data: { session: null }, error: null })
-      await expect(createSupabaseAuthProvider(CONFIG).refreshSession('refresh-0')).resolves.toBeNull()
-    })
-
-    it('returns null for a rejected refresh token', async () => {
-      supabase.auth.refreshSession.mockResolvedValue({ data: { session: null }, error: rejected })
-      await expect(createSupabaseAuthProvider(CONFIG).refreshSession('refresh-0')).resolves.toBeNull()
     })
   })
 

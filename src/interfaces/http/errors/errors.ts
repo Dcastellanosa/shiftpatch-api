@@ -33,3 +33,4 @@ export class AppError extends Error {
 }
 
 export const unauthenticated = () => new AppError(401, 'unauthenticated', 'Authentication required')
+export const invalidToken = () => new AppError(401, 'invalid_token', 'Invalid or expired token')
