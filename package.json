@@ -26,11 +26,11 @@
     "db:push:shared": "scripts/apply-shared-migrations.sh"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.118.0",
+    "@supabase/supabase-js": "^2.119.0",
     "cors": "^2.8.6",
     "express": "^5.3.0",
-    "jose": "^6.2.13",
-    "multer": "^2.4.0",
+    "jose": "^6.2.15",
+    "multer": "^2.5.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -41,16 +41,16 @@
     "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
-    "@vitest/coverage-v8": "5.0.5",
-    "eslint": "^10.13.0",
+    "@vitest/coverage-v8": "5.1.0",
+    "eslint": "^10.14.0",
     "eslint-config-prettier": "^10.1.8",
-    "globals": "^17.13.0",
+    "globals": "^17.14.0",
     "pg": "^8.23.1",
     "prettier": "^3.9.10",
-    "supertest": "^7.3.1",
+    "supertest": "^7.3.2",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.71.2",
-    "vitest": "^5.0.5"
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.1.0"
   }
 }
